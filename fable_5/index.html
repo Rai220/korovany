@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КОРОВАНЫ — 3Д-экшон. Суть такова...</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="crosshair">+</div>
+  <div id="topbar">
+    <span id="gold"></span><span id="arrows"></span><br>
+    <span id="weaponname"></span>
+  </div>
+  <div id="order"></div>
+  <div id="limbs"></div>
+  <div id="bleed" class="hidden">КРОВОТЕЧЕНИЕ! [B] — перевязать</div>
+  <div id="hpwrap"><div id="hpbar"></div><div id="hptext"></div></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="msgs"></div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="zonename"></div>
+  <div id="helphint">[H] — управление</div>
+  <div id="help" class="hidden">
+    WASD — движение, Shift — бег, Пробел — прыжок<br>
+    ЛКМ — атака, 1 — меч, 2 — лук<br>
+    E — взаимодействие (командир, лавка, трон, корован)<br>
+    Q — зелье лечения, B — бинт (остановить кровь)<br>
+    T — войско за мной, G — охранять форт, Y — ШТУРМ (Злодей)<br>
+    K — быстрое сохранение, Esc — пауза<br>
+    H — закрыть это окно
+  </div>
+</div>
+<div id="banner"></div>
+<div id="eyeL" class="eyecover hidden"></div>
+<div id="eyeR" class="eyecover hidden"></div>
+<div id="blind" class="hidden">Вы слепы. Осталась лишь щёлочка...</div>
+<div id="vignette"></div>
+
+<!-- Главное меню -->
+<div id="menu" class="screen">
+  <h1 class="title">КОРОВАНЫ</h1>
+  <div class="subtitle">3Д-экшон. Суть такова...</div>
+  <div class="epigraph">«Пользователь может играть лесными эльфами, охраной дворца и злодеем...
+    Можно грабить корованы... И если пользователя не вылечат — то он умрёт...
+    P.S. Я джва года хочу такую игру.» — Кирилл</div>
+  <div class="cards">
+    <div class="card elf" id="btn-elf">
+      <h3>ЛЕСНЫЕ ЭЛЬФЫ</h3>
+      <p>Эльфы в лесу, домики деревянные. Набигают солдаты дворца и злодеи.
+         Можно грабить корованы. Лес густой<sup>[1]</sup>.</p>
+    </div>
+    <div class="card guard" id="btn-guard">
+      <h3>ОХРАНА ДВОРЦА</h3>
+      <p>Надо слушаться командира и защищать дворец от злого (имя не придумано),
+         шпионов и партизан эльфов. Ходить в набеги. Платят жалование.</p>
+    </div>
+    <div class="card villain" id="btn-villain">
+      <h3>ЗЛОДЕЙ</h3>
+      <p>Вы сами себе командир: делайте что хотите, прикажите своим войскам —
+         и в атаку на дворец! Имя придумаете сами. Живёте в горах, в старом форте.</p>
+    </div>
+  </div>
+  <button class="btn" id="btn-load" disabled>Продолжить (загрузить сохранение)</button>
+  <div class="saveinfo" id="save-info">Сохранений нет</div>
+  <div class="footnote">[1] — движок поставлен так, что вдали деревья — картинкой,
+    а когда подходишь, они преобразовываются в 3-хмерные деревья. Враги 3-хмерные тоже, и труп тоже 3д.
+    Можно прыгать и т.п. Можно покупать и т.п. возможности как в Daggerfall.
+    Всего в игре 4 зоны: земли людей (нейтрал), земли Императора (дворец), лес эльфов и горы Злодея (там старый форт).</div>
+  <div class="credit">Вариант игры от модели Fable 5 - по ТЗ Кирилла</div>
+</div>
+
+<!-- Имя злодея -->
+<div id="namemodal" class="screen hidden">
+  <div class="panel">
+    <h2 style="color:#b080ff">Имя я не придумал...</h2>
+    <p>Придумайте имя своему Злодею:</p>
+    <input class="nameinput" id="villain-name-input" maxlength="24" value="Злодеус Тёмный">
+    <br>
+    <button class="btn" id="btn-name-ok">ТВОРИТЬ ЗЛО</button>
+  </div>
+</div>
+
+<!-- Пауза -->
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <h2>ПАУЗА</h2>
+    <button class="btn" id="btn-resume">Продолжить</button><br>
+    <button class="btn" id="btn-save">Сохранить игру</button>
+    <button class="btn" id="btn-load2" disabled>Загрузить</button><br>
+    <button class="btn danger" id="btn-exit">В главное меню (без сохранения)</button>
+  </div>
+</div>
+
+<!-- Лавка -->
+<div id="shop" class="screen hidden">
+  <div class="panel">
+    <h2 style="margin-top:0">ЛАВКА</h2>
+    <div class="subtitle">«Покупки и т.п. возможности как в Daggerfall»</div>
+    <div id="shop-gold" style="color:#ffd700; margin:8px 0"></div>
+    <div class="shoplist" id="shop-items"></div>
+    <button class="btn" id="btn-shop-close">Уйти [Esc]</button>
+  </div>
+</div>
+
+<!-- Диалог -->
+<div id="dialog" class="screen hidden">
+  <div class="panel">
+    <h2 id="dialog-title" style="margin-top:0"></h2>
+    <div id="dialog-text"></div>
+    <div id="dialog-buttons"></div>
+  </div>
+</div>
+
+<!-- Смерть -->
+<div id="death" class="screen hidden">
+  <h1 class="deathtitle">ВЫ УМЕРЛИ</h1>
+  <div id="death-cause" style="color:#d8b0a0; font-size:17px"></div>
+  <div class="statline" id="death-stats"></div>
+  <div>
+    <button class="btn" id="btn-death-load" disabled>Загрузить сохранение</button>
+    <button class="btn" id="btn-death-menu">В главное меню</button>
+  </div>
+  <div class="footnote">Вас так и не вылечили. Я джва года ждал эту игру...</div>
+</div>
+
+<!-- Победа -->
+<div id="victory" class="screen hidden">
+  <h1 class="victitle">ДВОРЕЦ ЗАХВАЧЕН!</h1>
+  <div id="victory-text" style="color:#ffe8a0; font-size:17px; max-width:560px"></div>
+  <div class="statline" id="victory-stats"></div>
+  <button class="btn" id="btn-victory-continue">Править миром дальше</button>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
