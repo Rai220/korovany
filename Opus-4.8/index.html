@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КОРОВАНЫ — вариант Opus 4.8</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+  <!-- 3D-сцена -->
+  <canvas id="game"></canvas>
+
+  <!-- Прицел -->
+  <div id="crosshair" class="hidden">+</div>
+
+  <!-- Оверлей травмы глаза (закрывает пол-экрана) -->
+  <div id="eye-overlay" class="hidden"></div>
+  <!-- Красная пелена при кровотечении/уроне -->
+  <div id="blood-overlay"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div id="faction-badge"></div>
+      <div id="objective">—</div>
+      <div id="gold-badge">💰 <span id="gold">0</span></div>
+    </div>
+    <div id="hud-bottom">
+      <div id="bars">
+        <div class="bar"><label>ЗДОРОВЬЕ</label><div class="bar-track"><div id="hp-fill" class="bar-fill hp"></div></div></div>
+        <div class="bar"><label>ВЫНОСЛИВОСТЬ</label><div class="bar-track"><div id="stam-fill" class="bar-fill stam"></div></div></div>
+      </div>
+      <div id="status-icons"></div>
+      <div id="weapon-info">🗡 <span id="weapon-name">Ржавый меч</span></div>
+    </div>
+    <div id="compass"></div>
+    <div id="hint"></div>
+  </div>
+
+  <!-- Лог событий -->
+  <div id="log"></div>
+
+  <!-- Экран выбора фракции / главное меню -->
+  <div id="menu">
+    <div id="menu-inner">
+      <h1>КОРОВАНЫ</h1>
+      <div class="tagline">3Д-экшон по легендарному ТЗ Кирилла &nbsp;·&nbsp; вариант <b>Opus&nbsp;4.8</b></div>
+      <p class="quote">«Можно грабить корованы… Я джва года хочу такую игру.»</p>
+
+      <div id="faction-select">
+        <div class="faction" data-faction="elf">
+          <div class="f-emoji">🏹</div>
+          <h2>Лесные эльфы</h2>
+          <p>Густой лес, деревянные домики. Набигают солдаты дворца и злодей. Можно <b>грабить корованы</b> и защищать дом.</p>
+          <button class="play-btn">Играть за эльфов</button>
+        </div>
+        <div class="faction" data-faction="guard">
+          <div class="f-emoji">🛡️</div>
+          <h2>Охрана дворца</h2>
+          <p>Слушайся командира, защищай дворец от злодея, шпионов и партизан-эльфов. Ходи на набеги по приказу.</p>
+          <button class="play-btn">Играть за охрану</button>
+        </div>
+        <div class="faction" data-faction="villain">
+          <div class="f-emoji">💀</div>
+          <h2>Злодей</h2>
+          <p>Старый форт в горах. Ты сам себе командир: подними войска и поведи их в атаку на дворец. Тоже можно грабить корованы.</p>
+          <button class="play-btn">Играть за злодея</button>
+        </div>
+      </div>
+
+      <div id="menu-extra">
+        <button id="continue-btn" class="ghost-btn hidden">⮌ Продолжить (есть сохранение)</button>
+        <div id="menu-tip">Управление: <b>WASD</b> — ходьба, <b>мышь</b> — обзор, <b>ЛКМ</b> — удар,
+          <b>Пробел</b> — прыжок, <b>Shift</b> — бег, <b>E</b> — действие/магазин,
+          <b>F</b> — приказ войскам, <b>I</b> — инвентарь, <b>Esc</b> — пауза.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Пауза -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>Пауза</h2>
+      <button id="resume-btn">Продолжить</button>
+      <button id="save-btn">💾 Сохранить</button>
+      <button id="load-btn">⮌ Загрузить</button>
+      <button id="quit-btn">В главное меню</button>
+      <div id="pause-hint" class="panel-hint"></div>
+    </div>
+  </div>
+
+  <!-- Магазин (как в Daggerfall) -->
+  <div id="shop" class="overlay hidden">
+    <div class="panel wide">
+      <h2>🏪 Лавка торговца</h2>
+      <div class="shop-gold">У тебя: 💰 <span id="shop-gold">0</span></div>
+      <div id="shop-items"></div>
+      <button id="shop-close">Уйти (E / Esc)</button>
+    </div>
+  </div>
+
+  <!-- Инвентарь -->
+  <div id="inventory" class="overlay hidden">
+    <div class="panel wide">
+      <h2>🎒 Инвентарь и состояние</h2>
+      <div id="inv-body"></div>
+      <button id="inv-close">Закрыть (I / Esc)</button>
+    </div>
+  </div>
+
+  <!-- Экран смерти -->
+  <div id="death" class="overlay hidden">
+    <div class="panel">
+      <h2 id="death-title">Ты умер</h2>
+      <p id="death-text"></p>
+      <button id="respawn-btn">Возродиться</button>
+      <button id="death-menu-btn">В главное меню</button>
+    </div>
+  </div>
+
+  <!-- Загрузка -->
+  <div id="loading"><div class="spinner"></div><div>Лес растёт, корованы запрягают…</div></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
