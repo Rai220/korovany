@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Корованы: джва года</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-root">
+    <canvas id="game"></canvas>
+
+    <section id="faction-screen" class="screen">
+      <div class="brand">
+        <p class="kicker">3D-экшон по ТЗ Кирилла</p>
+        <h1>Корованы</h1>
+        <p class="lead">Выбери сторону, займи одну из четырех зон и попробуй выжить в мире, где караваны грабят, дворец штурмуют, а протез может спасти кампанию.</p>
+      </div>
+      <div class="faction-grid" aria-label="Выбор фракции">
+        <button class="faction-card" data-faction="elves">
+          <span class="crest crest-elves"></span>
+          <strong>Лесные эльфы</strong>
+          <span>Густой лес, деревянные домики, партизанские налеты и корованы на тракте.</span>
+        </button>
+        <button class="faction-card" data-faction="guard">
+          <span class="crest crest-guard"></span>
+          <strong>Охрана дворца</strong>
+          <span>Командир выдает приказы: патруль, оборона, набег на врагов императора.</span>
+        </button>
+        <button class="faction-card" data-faction="villain">
+          <span class="crest crest-villain"></span>
+          <strong>Злодей</strong>
+          <span>Старый форт в горах, свои войска и право самому начать штурм дворца.</span>
+        </button>
+      </div>
+      <div class="load-row">
+        <button id="load-game" class="secondary">Загрузить сохранение</button>
+      </div>
+    </section>
+
+    <aside id="hud" class="hud hidden">
+      <div class="topbar">
+        <div>
+          <span id="faction-label" class="pill">Фракция</span>
+          <span id="zone-label" class="pill">Зона</span>
+          <span id="objective-label" class="objective">Задание</span>
+        </div>
+        <div class="stat-row">
+          <span>Жизнь <b id="health">100</b></span>
+          <span>Золото <b id="gold">0</b></span>
+          <span>Отряд <b id="squad">0</b></span>
+        </div>
+      </div>
+      <div class="meters">
+        <div class="meter"><span id="health-bar"></span></div>
+        <div class="body-status" id="body-status"></div>
+      </div>
+      <div class="controls">
+        <span>WASD</span><span>движение</span>
+        <span>Мышь</span><span>поворот</span>
+        <span>Space</span><span>прыжок</span>
+        <span>ЛКМ / F</span><span>удар</span>
+        <span>E</span><span>действие</span>
+        <span>Q</span><span>отряд</span>
+        <span>M</span><span>карта</span>
+        <span>O</span><span>магазин</span>
+      </div>
+    </aside>
+
+    <aside id="message-log" class="message-log hidden" aria-live="polite"></aside>
+
+    <aside id="map-panel" class="map-panel hidden">
+      <h2>Карта зон</h2>
+      <div class="zone-map">
+        <button data-zone="humans" class="zone-tile humans">Люди<br><small>нейтрал</small></button>
+        <button data-zone="palace" class="zone-tile palace">Император<br><small>дворец</small></button>
+        <button data-zone="elves" class="zone-tile elves">Эльфы<br><small>лес</small></button>
+        <button data-zone="villain" class="zone-tile villain">Злой<br><small>форт</small></button>
+      </div>
+      <p id="map-hint">Нажми на зону, чтобы отправиться туда.</p>
+    </aside>
+
+    <aside id="shop-panel" class="shop-panel hidden">
+      <div class="panel-head">
+        <h2>Лавка лекаря</h2>
+        <button id="close-shop" class="icon-button" aria-label="Закрыть">×</button>
+      </div>
+      <button data-buy="arm">Стальная рука <b>35</b></button>
+      <button data-buy="eye">Стеклянный глаз <b>25</b></button>
+      <button data-buy="leg">Складная нога <b>45</b></button>
+      <button data-buy="heal">Перевязка <b>15</b></button>
+    </aside>
+
+    <div id="crosshair" class="crosshair hidden"></div>
+    <button id="save-game" class="save-button hidden">Сохранить</button>
+  </div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
