@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КОРОВАНЫ — вариант GLM-5.2 (ТЗ Кирилла)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{ --gold:#d4af37; --parch:#e8d8a0; --dark:#0a0d08; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:#000; color:var(--parch);
+    font-family:"Courier New",monospace; overflow:hidden; user-select:none; }
+  #app{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  /* ---------- Общие оверлеи ---------- */
+  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    z-index:20; background:radial-gradient(circle at 50% 40%, #14160e 0%, #050604 80%); }
+  .hidden{ display:none !important; }
+  .panel{ background:#0e110a; border:2px solid #555030; padding:26px 30px; max-width:640px; width:92%;
+    box-shadow:0 0 0 4px #0a0c07, 0 12px 50px rgba(0,0,0,.8); }
+  h1{ color:var(--gold); letter-spacing:6px; text-shadow:3px 3px 0 #5a1010; margin:0 0 6px; font-size:38px; text-align:center;}
+  h2{ color:var(--gold); margin:0 0 14px; letter-spacing:2px; font-size:20px;}
+  .sub{ color:#9a8a6a; text-align:center; margin-bottom:18px; font-size:13px; line-height:1.6;}
+  .factions{ display:flex; flex-direction:column; gap:10px; }
+  .fac{ display:block; text-align:left; border:2px solid #4a4528; background:#15180e; color:var(--parch);
+    padding:14px 16px; cursor:pointer; transition:.15s; font-family:inherit; }
+  .fac:hover{ border-color:var(--gold); transform:translateX(4px); }
+  .fac b{ color:#ffd76a; font-size:16px; display:block; }
+  .fac span{ color:#8a8060; font-size:12px; }
+  .btn{ background:#1c2010; border:2px solid #5a5530; color:var(--parch); padding:9px 14px; cursor:pointer;
+    font-family:inherit; font-size:13px; transition:.12s; }
+  .btn:hover{ border-color:var(--gold); color:#fff; }
+  .btn:disabled{ opacity:.4; cursor:default; }
+  .btn.gold{ border-color:var(--gold); color:var(--gold); }
+  .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .row.right{ justify-content:flex-end; }
+  .center{ text-align:center; }
+
+  /* ---------- HUD ---------- */
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:10; }
+  #crosshair{ position:fixed; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+    background:rgba(255,230,150,.85); border-radius:50%; box-shadow:0 0 4px #000; }
+  #stats{ position:fixed; left:14px; top:12px; font-size:13px; line-height:1.7; text-shadow:1px 1px 2px #000;
+    background:rgba(8,10,6,.5); padding:8px 12px; border-left:3px solid var(--gold); }
+  #stats .lbl{ color:#8a8060; } #stats .v{ color:var(--parch); }
+  .bar{ width:170px; height:9px; background:#241a14; border:1px solid #4a3a26; margin-top:2px; }
+  .bar > i{ display:block; height:100%; background:linear-gradient(90deg,#7a1a1a,#d44); transition:width .2s; }
+  .bar.gold > i{ background:linear-gradient(90deg,#7a6010,#d4af37); }
+  #obj{ position:fixed; right:14px; top:12px; max-width:280px; font-size:12px; text-align:right;
+    color:#cdb878; text-shadow:1px 1px 2px #000; line-height:1.6; }
+  #obj b{ color:var(--gold); }
+  #limbs{ position:fixed; left:14px; bottom:12px; font-size:11px; line-height:1.6; text-shadow:1px 1px 2px #000;
+    background:rgba(8,10,6,.5); padding:8px 12px; border-left:3px solid #6a2010; }
+  #limbs .ok{ color:#6a9a4a; } #limbs .bad{ color:#d44; } #limbs .mid{ color:#d4af37; }
+  #hotbar{ position:fixed; bottom:14px; left:50%; transform:translateX(-50%); display:flex; gap:6px; }
+  .slot{ width:46px; height:46px; border:2px solid #4a4528; background:rgba(14,17,10,.7); color:#9a8a6a;
+    font-size:10px; display:flex; align-items:center; justify-content:center; text-align:center; pointer-events:auto;
+    cursor:pointer; position:relative; }
+  .slot.active{ border-color:var(--gold); color:#fff; }
+  .slot .k{ position:absolute; top:-2px; left:2px; font-size:9px; color:#6a6040; }
+  #toast{ position:fixed; bottom:74px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column;
+    gap:4px; align-items:center; pointer-events:none; }
+  #toast div{ background:rgba(8,10,6,.85); border:1px solid #5a5530; padding:6px 14px; font-size:13px; color:#e8d8a0;
+    animation:fade 3.2s forwards; }
+  @keyframes fade{ 0%{opacity:0;transform:translateY(8px)} 10%{opacity:1;transform:none} 80%{opacity:1} 100%{opacity:0} }
+
+  /* травма глаза: затемнение половины экрана */
+  #eyepatch{ position:fixed; inset:0; pointer-events:none; z-index:9; opacity:0; transition:opacity .4s; }
+  #eyepatch.half{ opacity:1; background:linear-gradient(90deg,#000 0%,#000 50%,transparent 50%,transparent 100%); }
+  #eyepatch.full{ opacity:1; background:#000; }
+  /* кровь при ранении */
+  #blood{ position:fixed; inset:0; pointer-events:none; z-index:8; opacity:0; transition:opacity .3s;
+    background:radial-gradient(circle at 50% 50%, transparent 30%, rgba(90,0,0,.55) 100%); }
+
+  /* ---------- Лавка / инвентарь ---------- */
+  #shop{ position:fixed; inset:0; z-index:18; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.6); }
+  #shop .panel{ max-width:560px; }
+  .item{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid #2a2818; }
+  .item .nm{ color:#e8d8a0; } .item .ds{ color:#7a7060; font-size:11px; }
+  .item .pr{ color:var(--gold); white-space:nowrap; }
+
+  /* ---------- Приказы ---------- */
+  #orders .panel{ max-width:480px; }
+
+  /* ---------- Смерть ---------- */
+  #dead{ position:fixed; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 50%, #2a0606 0%, #000 80%); color:#d44; text-align:center; }
+  #dead h1{ color:#d44; text-shadow:3px 3px 0 #200; }
+  .load{ font-size:12px; color:#6a6040; margin-top:6px; }
+  kbd{ background:#1c2010; border:1px solid #4a4528; border-bottom-width:2px; padding:1px 6px; border-radius:3px; font-size:11px; color:#cdb878;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- прицел -->
+<div id="crosshair" class="hidden"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="stats">
+    <div><span class="lbl">Здоровье</span> <span class="v" id="t-hp">100</span></div>
+    <div class="bar"><i id="b-hp" style="width:100%"></i></div>
+    <div style="margin-top:6px"><span class="lbl">Золото</span> <span class="v" id="t-gold">0</span></div>
+    <div class="bar gold"><i id="b-gold" style="width:0%"></i></div>
+    <div style="margin-top:6px"><span class="lbl">Фракция</span> <span class="v" id="t-fac">—</span></div>
+  </div>
+  <div id="obj"></div>
+  <div id="limbs"></div>
+  <div id="hotbar"></div>
+  <div id="toast"></div>
+</div>
+
+<div id="eyepatch"></div>
+<div id="blood"></div>
+
+<!-- Главное меню -->
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1>КОРОВАНЫ</h1>
+    <div class="sub">вариант <b style="color:#ffd76a">GLM-5.2</b> · 3Д-экшон по ТЗ Кирилла<br>
+      «…Можно грабить корованы… P.S. Я джва года хочу такую игру.»</div>
+    <h2>Выбери сторону</h2>
+    <div class="factions">
+      <button class="fac" data-fac="elf">
+        <b>🌲 Лесные эльфы</b>
+        <span>Густой лес, деревянные домики. Граби корованы, бей солдат дворца и злодея.</span>
+      </button>
+      <button class="fac" data-fac="guard">
+        <b>🏰 Охрана дворца</b>
+        <span>Слушай командира, защищай дворец от злодея и партизан-эльфов. Ходи в набеги.</span>
+      </button>
+      <button class="fac" data-fac="villain">
+        <b>🗡 Злодей (горный форт)</b>
+        <span>Сам себе командир. Прикажи войскам штурмовать дворец — и вперёд.</span>
+      </button>
+    </div>
+    <div class="row right" style="margin-top:16px">
+      <button class="btn" id="btnLoad">Продолжить</button>
+    </div>
+    <div class="load center" id="saveInfo"></div>
+  </div>
+</div>
+
+<!-- Лавка -->
+<div id="shop" class="overlay hidden">
+  <div class="panel">
+    <h2>🪙 Лавка (как в Daggerfall)</h2>
+    <div id="shopList"></div>
+    <div class="row right" style="margin-top:14px">
+      <span class="load" style="margin-right:auto;align-self:center">Золото: <b id="shopGold" style="color:var(--gold)">0</b></span>
+      <button class="btn" id="shopClose">Уйти (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Приказы -->
+<div id="orders" class="overlay hidden">
+  <div class="panel">
+    <h2 id="ordersTitle">📋 Приказ</h2>
+    <div id="ordersList" class="factions"></div>
+    <div class="row right" style="margin-top:14px">
+      <button class="btn" id="ordersClose">Закрыть (C)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Смерть -->
+<div id="dead" class="overlay hidden">
+  <h1 id="deadTitle">ТЫ МЁРТВ</h1>
+  <div class="sub" id="deadReason" style="max-width:420px"></div>
+  <div class="row" style="margin-top:18px">
+    <button class="btn gold" id="deadRespawn">Возродиться у своих</button>
+    <button class="btn" id="deadMenu">В меню</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =====================================================================
+   КОРОВАНЫ — вариант GLM-5.2
+   3D-экшон: эльфы / охрана дворца / злодей. 4 зоны, LOD-лес,
+   корованы, расчленёнка с протезами, лавка, приказы, сохранения.
+   ===================================================================== */
+
+// ---------- Глобальное состояние ----------
+const CFG = {
+  world: 360,            // пол-размера карты
+  treeCount: 320,
+  agroRange: 26,
+  attackRange: 3.2,
+  playerSpeed: 7.0,
+  jumpV: 8.2,
+  gravity: 22,
+};
+const FAC = {
+  elf:    { name:'Лесные эльфы',  color:0x3fa34a, enemy:['guard','villain','neutral'], zone:'elf'    },
+  guard:  { name:'Охрана дворца', color:0x3a6ea5, enemy:['elf','villain'],            zone:'guard'  },
+  villain:{ name:'Злодей',        color:0x8a2a2a, enemy:['elf','guard','neutral'],    zone:'villain'},
+  neutral:{ name:'Люди',          color:0xb09060, enemy:[],                            zone:'neutral'},
+};
+const ZONE = { // квадранты карты
+  neutral:{ cx:-90, cz:-90, name:'Зона людей', tint:0x6b6a3a },
+  guard:  { cx: 90, cz:-90, name:'Зона императора', tint:0x5a6a4a },
+  elf:    { cx:-90, cz: 90, name:'Зона эльфов', tint:0x2f5a2a },
+  villain:{ cx: 90, cz: 90, name:'Зона злодея (горы)', tint:0x4a4a4a },
+};
+
+let renderer, scene, camera, clock;
+let player, input = {}, pointerLocked = false;
+let trees = [], npcs = [], caravans = [], buildings = [], corpses = [], drops = [];
+let gold = 0, faction = null;
+let curObjective = '';
+let shopOpen = false, ordersOpen = false, dead = false, paused = false;
+let commander = null;       // NPC-командир (для охраны)
+let waveTimer = 0;
+let bloodTimer = 0;
+
+// ---------- DOM ----------
+const $ = id => document.getElementById(id);
+const ui = {
+  menu:$('menu'), hud:$('hud'), cross:$('crosshair'), shop:$('shop'), orders:$('orders'), dead:$('dead'),
+  hp:$('t-hp'), bhp:$('b-hp'), gold:$('t-gold'), bgold:$('b-gold'), fac:$('t-fac'),
+  obj:$('obj'), limbs:$('limbs'), hotbar:$('hotbar'), toast:$('toast'),
+  eyepatch:$('eyepatch'), blood:$('blood'),
+};
+
+function toast(msg){
+  const d = document.createElement('div'); d.textContent = msg; ui.toast.appendChild(d);
+  setTimeout(()=>d.remove(), 3200);
+}
+function setObjective(text){ curObjective = text; ui.obj.innerHTML = '<b>Задача:</b><br>'+text; }
+
+// =====================================================================
+//  ИНИЦИАЛИЗАЦИЯ СЦЕНЫ
+// =====================================================================
+function initEngine(){
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  $('app').appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fb8c8);
+  scene.fog = new THREE.Fog(0x9fb8c8, 60, 165);
+
+  camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 600);
+  camera.position.set(0, 1.7, 0);
+
+  clock = new THREE.Clock();
+
+  // свет
+  const sun = new THREE.DirectionalLight(0xfff2d0, 1.15);
+  sun.position.set(80, 140, 50); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048,2048);
+  sun.shadow.camera.left=-200; sun.shadow.camera.right=200;
+  sun.shadow.camera.top=200; sun.shadow.camera.bottom=-200;
+  sun.shadow.camera.far=400;
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x40301a, 0.55));
+
+  addEventListener('resize', ()=>{
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+// =====================================================================
+//  ТЕРРЕЙН + ЗОНЫ
+// =====================================================================
+let terrainMesh, terrainGeom;
+function groundHeight(x, z){
+  // базовый холмистый шум
+  let h = Math.sin(x*0.04)*Math.cos(z*0.04)*2.2
+        + Math.sin(x*0.013+1.3)*Math.cos(z*0.011)*4.5
+        + Math.sin(x*0.07)*Math.cos(z*0.05)*0.8;
+  // горы в зоне злодея (юго-восток)
+  const dV = Math.hypot(x-ZONE.villain.cx, z-ZONE.villain.cz);
+  if (dV < 120){
+    const m = (1 - dV/120);
+    h += Math.pow(m,1.5) * (30 + Math.sin(x*0.2)*Math.cos(z*0.18)*8);
+  }
+  // лёгкие холмы в зоне эльфов
+  const dE = Math.hypot(x-ZONE.elf.cx, z-ZONE.elf.cz);
+  if (dE < 100) h += Math.sin(x*0.1)*Math.cos(z*0.12)*1.5;
+  return h;
+}
+
+function zoneAt(x, z){
+  let best='neutral', bd=1e9;
+  for (const k in ZONE){ const d=Math.hypot(x-ZONE[k].cx,z-ZONE[k].cz); if(d<bd){bd=d;best=k;} }
+  return best;
+}
+
+function buildTerrain(){
+  const S = CFG.world, seg = 140;
+  terrainGeom = new THREE.PlaneGeometry(S*2, S*2, seg, seg);
+  terrainGeom.rotateX(-Math.PI/2);
+  const pos = terrainGeom.attributes.position;
+  const colors = [];
+  const c = new THREE.Color();
+  for (let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i);
+    const y = groundHeight(x,z);
+    pos.setY(i, y);
+    const z2 = zoneAt(x,z);
+    const tint = new THREE.Color(ZONE[z2].tint);
+    // вариация
+    const v = 0.82 + (Math.sin(x*0.3)*Math.cos(z*0.27))*0.12;
+    c.copy(tint).multiplyScalar(v);
+    // горные вершины — серее/каменистее
+    if (y>14) c.lerp(new THREE.Color(0x6a6a68), Math.min(1,(y-14)/16));
+    colors.push(c.r,c.g,c.b);
+  }
+  terrainGeom.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+  terrainGeom.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ vertexColors:true });
+  terrainMesh = new THREE.Mesh(terrainGeom, mat);
+  terrainMesh.receiveShadow = true;
+  scene.add(terrainMesh);
+
+  // граница карты — невидимая, но ограничивает движение
+}
+
+// =====================================================================
+//  ДЕРЕВЬЯ (LOD: билборд вдали → 3D вблизи)
+// =====================================================================
+const treeBillTex = (()=>{
+  const c = document.createElement('canvas'); c.width=64; c.height=96;
+  const x = c.getContext('2d');
+  // ствол
+  x.fillStyle='#4a3220'; x.fillRect(28,64,8,28);
+  // крона
+  x.fillStyle='#2f5a2a'; x.beginPath(); x.arc(32,40,26,0,7); x.fill();
+  x.fillStyle='#3f7a35'; x.beginPath(); x.arc(24,34,16,0,7); x.fill();
+  x.beginPath(); x.arc(40,30,15,0,7); x.fill();
+  const t = new THREE.CanvasTexture(c); t.magFilter=THREE.NearestFilter; return t;
+})();
+
+function makeTreeMesh(){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22,0.34,3.2,6),
+    new THREE.MeshLambertMaterial({color:0x4a3220}));
+  trunk.position.y=1.6; trunk.castShadow=true; g.add(trunk);
+  const fMat = new THREE.MeshLambertMaterial({color:0x2f5a2a});
+  for (let i=0;i<3;i++){
+    const f = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7-i*0.25,0), fMat);
+    f.position.y = 3.4 + i*1.1; f.castShadow=true; g.add(f);
+  }
+  return g;
+}
+
+function buildForest(){
+  const proto = makeTreeMesh();
+  let placed=0, tries=0;
+  while (placed < CFG.treeCount && tries < CFG.treeCount*6){
+    tries++;
+    // густо в зоне эльфов, реже — в остальных
+    const r = Math.random();
+    let x,z;
+    if (r < 0.6){ // эльфийская зона
+      const a=Math.random()*Math.PI*2, rad=Math.random()*110;
+      x=ZONE.elf.cx+Math.cos(a)*rad; z=ZONE.elf.cz+Math.sin(a)*rad;
+    } else if (r < 0.8){ // граница / люди
+      x=(Math.random()*2-1)*CFG.world; z=(Math.random()*2-1)*CFG.world;
+    } else { // вокруг злодея (хвойные склоны)
+      const a=Math.random()*Math.PI*2, rad=40+Math.random()*80;
+      x=ZONE.villain.cx+Math.cos(a)*rad; z=ZONE.villain.cz+Math.sin(a)*rad;
+    }
+    if (Math.abs(x)>CFG.world-4 || Math.abs(z)>CFG.world-4) continue;
+    const y = groundHeight(x,z);
+    if (y > 20) continue; // не на вершинах гор
+
+    const mesh = proto.clone();
+    mesh.position.set(x, y, z);
+    const s = 0.8+Math.random()*0.7;
+    mesh.scale.set(s,s,s);
+    mesh.rotation.y = Math.random()*Math.PI*2;
+
+    const bill = new THREE.Sprite(new THREE.SpriteMaterial({map:treeBillTex, fog:true, transparent:true}));
+    bill.position.set(x, y+3.2*s, z); bill.scale.set(7*s, 10*s, 1); bill.visible=false;
+    scene.add(bill);
+
+    // хвойные в горах — темнее
+    if (zoneAt(x,z)==='villain'){
+      mesh.children.forEach(ch=>{ if(ch.geometry.type==='IcosahedronGeometry') ch.material = ch.material.clone(); });
+    }
+
+    scene.add(mesh);
+    trees.push({ mesh, bill, x, z, y });
+    placed++;
+  }
+}
+
+function updateTreeLOD(){
+  const px=player.pos.x, pz=player.pos.z;
+  const near=52, far=150;
+  for (const t of trees){
+    const d = Math.hypot(px-t.x, pz-t.z);
+    if (d < near){ t.mesh.visible=true; t.bill.visible=false; }
+    else if (d < far){ t.mesh.visible=false; t.bill.visible=true; }
+    else { t.mesh.visible=false; t.bill.visible=false; }
+  }
+}
+
+// =====================================================================
+//  ЗДАНИЯ: домики, дворец, форт
+// =====================================================================
+function box(w,h,d,color,mat){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    mat || new THREE.MeshLambertMaterial({color}));
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function addBuilding(group, x, z, rot=0){
+  group.position.set(x, groundHeight(x,z), z); group.rotation.y=rot; scene.add(group);
+  buildings.push({ x, z, r:4, group }); // упрощённая коллизия
+}
+
+function makeHouse(){
+  const g = new THREE.Group();
+  const walls = box(5,3,5,0x6b4a2a); walls.position.y=1.5; g.add(walls);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(4.2,2.2,4),
+    new THREE.MeshLambertMaterial({color:0x3a2418}));
+  roof.position.y=4.1; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+  return g;
+}
+
+function buildStructures(){
+  // эльфийская деревня — деревянные домики
+  for (let i=0;i<7;i++){
+    const a=i/7*Math.PI*2, rad=14+i*2;
+    const x=ZONE.elf.cx+Math.cos(a)*rad, z=ZONE.elf.cz+Math.sin(a)*rad;
+    addBuilding(makeHouse(), x, z, a);
+  }
+  // нейтральный городок людей
+  for (let i=0;i<6;i++){
+    const a=i/6*Math.PI*2, rad=16;
+    const x=ZONE.neutral.cx+Math.cos(a)*rad, z=ZONE.neutral.cz+Math.sin(a)*rad;
+    const h=makeHouse(); h.children.forEach(c=>{c.material=c.material.clone(); c.material.color.setHex(0x8a7a5a);});
+    addBuilding(h, x, z, -a);
+  }
+  // ДВОРЕЦ (зона императора)
+  const palace = new THREE.Group();
+  const base = box(24,6,24,0xcfcabd); base.position.y=3; palace.add(base);
+  const keep = box(12,14,12,0xbfb29a); keep.position.y=6+7; palace.add(keep);
+  // башни по углам
+  for (const sx of [-1,1]) for (const sz of [-1,1]){
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(3,3.4,16,10),
+      new THREE.MeshLambertMaterial({color:0xc8bca0}));
+    t.position.set(sx*12, 8, sz*12); t.castShadow=true; palace.add(t);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(3.6,4,10),
+      new THREE.MeshLambertMaterial({color:0x6a2020}));
+    cap.position.set(sx*12, 16, sz*12); palace.add(cap);
+  }
+  // ворота
+  const gate = box(5,4,1.5,0x4a2a14); gate.position.set(0,2,12.2); palace.add(gate);
+  palace.position.set(ZONE.guard.cx, groundHeight(ZONE.guard.cx, ZONE.guard.cz), ZONE.guard.cz);
+  scene.add(palace);
+  buildings.push({ x:ZONE.guard.cx, z:ZONE.guard.cz, r:16, group:palace, isPalace:true });
+
+  // СТАРЫЙ ФОРТ злодея (в горах)
+  const fort = new THREE.Group();
+  const fbase = box(18,5,18,0x6a6258); fbase.position.y=2.5; fort.add(fbase);
+  for (const sx of [-1,1]) for (const sz of [-1,1]){
+    const t = box(3,9,3,0x5a5248); t.position.set(sx*8, 4.5+2.5, sz*8); fort.add(t);
+  }
+  const fgate = box(4,3.5,1.2,0x3a2a20); fgate.position.set(0,1.8,9.1); fort.add(fgate);
+  fort.position.set(ZONE.villain.cx, groundHeight(ZONE.villain.cx, ZONE.villain.cz), ZONE.villain.cz);
+  scene.add(fort);
+  buildings.push({ x:ZONE.villain.cx, z:ZONE.villain.cz, r:12, group:fort, isFort:true });
+
+  // пометить зоны буквами через простые флаги
+  addZoneMarker(ZONE.elf.cx, ZONE.elf.cz, 0x3fa34a);
+  addZoneMarker(ZONE.guard.cx, ZONE.guard.cz, 0x3a6ea5);
+  addZoneMarker(ZONE.villain.cx, ZONE.villain.cz, 0x8a2a2a);
+  addZoneMarker(ZONE.neutral.cx, ZONE.neutral.cz, 0xb09060);
+}
+function addZoneMarker(x,z,color){
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,9,6),
+    new THREE.MeshLambertMaterial({color:0x3a2a18}));
+  pole.position.set(x, groundHeight(x,z)+4.5, z); scene.add(pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.5,2.2),
+    new THREE.MeshLambertMaterial({color, side:THREE.DoubleSide}));
+  flag.position.set(x+1.9, groundHeight(x,z)+7.6, z); scene.add(flag);
+}
+
+// =====================================================================
+//  ГУМАНОИД (игрок / NPC) — процедурный, с отрубаемыми частями
+// =====================================================================
+function makeHumanoid(color, scale=1){
+  const g = new THREE.Group();
+  const skin = new THREE.MeshLambertMaterial({color});
+  const cloth = new THREE.MeshLambertMaterial({color: new THREE.Color(color).multiplyScalar(0.6)});
+  // торс
+  const torso = box(0.9,1.1,0.5,0, cloth); torso.position.y=1.25; g.add(torso);
+  // голова
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),
+    new THREE.MeshLambertMaterial({color:0xe0b890}));
+  head.position.y=2.1; head.castShadow=true; g.add(head);
+  // руки
+  const armL = box(0.28,1.0,0.28,0, skin); armL.position.set(-0.62,1.3,0); g.add(armL);
+  const armR = box(0.28,1.0,0.28,0, skin); armR.position.set( 0.62,1.3,0); g.add(armR);
+  // ноги
+  const legL = box(0.32,1.1,0.32,0, new THREE.MeshLambertMaterial({color:0x2a2a2a})); legL.position.set(-0.24,0.55,0); g.add(legL);
+  const legR = box(0.32,1.1,0.32,0, new THREE.MeshLambertMaterial({color:0x2a2a2a})); legR.position.set( 0.24,0.55,0); g.add(legR);
+  g.scale.setScalar(scale);
+  g.userData.parts = { torso, head, armL, armR, legL, legR };
+  return g;
+}
+
+// =====================================================================
+//  ИГРОК
+// =====================================================================
+function createPlayer(){
+  player = {
+    pos: new THREE.Vector3(),
+    vel: new THREE.Vector3(),
+    yaw:0, pitch:0,
+    onGround:false,
+    hp:100, maxHp:100,
+    height:1.7,
+    // конечности: 'ok' | 'gone'
+    limbs:{ armR:'ok', armL:'ok', eyeL:'ok', eyeR:'ok', legL:'ok', legR:'ok' },
+    bleeding:0,         // урон/сек от кровотечения
+    crawling:false,     // обе ноги Gone и без коляски/протезов
+    wheelchair:false,
+    weapon:0,           // индекс в hotbar
+    attackCd:0,
+    invincible:0,
+    view: new THREE.Object3D(), // для рук от первого лица
+  };
+  camera.add(player.view);
+  scene.add(camera);
+}
+
+function spawnPlayerAtZone(){
+  const z = FAC[faction].zone;
+  const cx=ZONE[z].cx, cz=ZONE[z].cz;
+  player.pos.set(cx+4, groundHeight(cx+4,cz)+player.height, cz+4);
+  player.vel.set(0,0,0);
+  player.yaw = Math.atan2(-cx,-cz);
+}
+
+// =====================================================================
+//  NPC / ВРАГИ
+// =====================================================================
+function spawnNPC(fac, x, z, opts={}){
+  const g = makeHumanoid(FAC[fac].color, opts.scale||1);
+  g.position.set(x, groundHeight(x,z), z);
+  scene.add(g);
+  const npc = {
+    type:'npc', fac, group:g, parts:g.userData.parts,
+    pos:g.position, hp: opts.hp||60, maxHp:opts.hp||60,
+    speed: opts.speed||3.4, attackCd:0, state:'idle', target:null,
+    attackDmg: opts.dmg||9, isCommander:!!opts.commander, isCaravan:!!opts.caravan,
+    dead:false, bleed:0, animT:Math.random()*6, home:new THREE.Vector2(x,z),
+    waypoint:null,
+  };
+  npcs.push(npc);
+  return npc;
+}
+
+function populateWorld(){
+  // эльфийские партизаны в лесу
+  for (let i=0;i<10;i++){
+    const a=Math.random()*Math.PI*2, r=10+Math.random()*90;
+    spawnNPC('elf', ZONE.elf.cx+Math.cos(a)*r, ZONE.elf.cz+Math.sin(a)*r, {hp:55,dmg:8});
+  }
+  // охрана у дворца
+  for (let i=0;i<8;i++){
+    const a=i/8*Math.PI*2, r=20;
+    spawnNPC('guard', ZONE.guard.cx+Math.cos(a)*r, ZONE.guard.cz+Math.sin(a)*r, {hp:70,dmg:10,speed:3.0});
+  }
+  // командир охраны
+  commander = spawnNPC('guard', ZONE.guard.cx, ZONE.guard.cz-6, {hp:120,dmg:14,speed:3.0,commander:true});
+  commander.group.scale.setScalar(1.25);
+  // воины злодея у форта
+  for (let i=0;i<9;i++){
+    const a=i/9*Math.PI*2, r=14;
+    spawnNPC('villain', ZONE.villain.cx+Math.cos(a)*r, ZONE.villain.cz+Math.sin(a)*r, {hp:75,dmg:11,speed:3.2});
+  }
+  // нейтральные жители + торговцы в городке
+  for (let i=0;i<5;i++){
+    const a=Math.random()*Math.PI*2, r=6+Math.random()*12;
+    spawnNPC('neutral', ZONE.neutral.cx+Math.cos(a)*r, ZONE.neutral.cz+Math.sin(a)*r, {hp:30,dmg:3,speed:2.2});
+  }
+  // корованы
+  spawnCaravan();
+  spawnCaravan();
+}
+
+// =====================================================================
+//  КОРОВАНЫ (можно грабить)
+// =====================================================================
+function spawnCaravan(){
+  // повозка + 2 охранника-нейтрала, едут между городом и дворцом
+  const g = new THREE.Group();
+  const cart = box(2.2,1.2,3.4,0x6b4a2a); cart.position.y=1.0; g.add(cart);
+  const cover = box(2.4,1.4,3.6,0x8a7a4a); cover.position.y=2.0; g.add(cover);
+  // колёса
+  for (const sx of [-1,1]) for (const sz of [-1,1]){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,0.2,12),
+      new THREE.MeshLambertMaterial({color:0x2a1a10}));
+    w.rotation.z=Math.PI/2; w.position.set(sx*1.2,0.7,sz*1.1); g.add(w);
+  }
+  scene.add(g);
+  const path = [ZONE.neutral.cx, ZONE.neutral.cz, ZONE.guard.cx, ZONE.guard.cz];
+  const car = {
+    type:'caravan', group:g, loot: 60+Math.floor(Math.random()*90), looted:false,
+    t:Math.random(), dir:Math.random()<0.5?1:-1, path,
+    guards:[],
+  };
+  // охрана корована
+  for (let i=0;i<2;i++){
+    const gx = ZONE.neutral.cx + (i?3:-3), gz = ZONE.neutral.cz;
+    const guard = spawnNPC('neutral', gx, gz, {hp:45,dmg:6,speed:3.6});
+    guard.isCaravanGuard=true; guard.caravan=car; car.guards.push(guard);
+  }
+  caravans.push(car);
+}
+
+function updateCaravans(dt){
+  for (const car of caravans){
+    if (car.looted) continue;
+    car.t += dt*0.04*car.dir;
+    if (car.t>1){car.t=1;car.dir=-1;} if (car.t<0){car.t=0;car.dir=1;}
+    const x = car.path[0]+(car.path[2]-car.path[0])*car.t;
+    const z = car.path[1]+(car.path[3]-car.path[1])*car.t;
+    car.group.position.set(x, groundHeight(x,z), z);
+    car.group.rotation.y = Math.atan2(car.path[2]-car.path[0], car.path[3]-car.path[1]) + (car.dir<0?Math.PI:0);
+    // охрана следует за повозкой
+    car.guards.forEach((g,i)=>{
+      if (g.dead) return;
+      const ox = x + (i?3:-3)*Math.cos(car.t*Math.PI), oz = z + (i?3:-3)*0.6;
+      moveNPCTo(g, x + (i?2.5:-2.5), z + (i?1.5:-1.5), dt);
+    });
+  }
+}
+
+// =====================================================================
+//  AI NPC
+// =====================================================================
+function moveNPCTo(npc, tx, tz, dt){
+  const dx=tx-npc.pos.x, dz=tz-npc.pos.z; const d=Math.hypot(dx,dz);
+  if (d>0.2){
+    const sp=npc.speed*dt;
+    npc.pos.x += dx/d*Math.min(sp,d);
+    npc.pos.z += dz/d*Math.min(sp,d);
+    npc.group.rotation.y = Math.atan2(dx,dz);
+  }
+  npc.pos.y = groundHeight(npc.pos.x, npc.pos.z);
+  // анимация шагов
+  npc.animT += dt*8;
+  const sw = Math.sin(npc.animT)*0.5;
+  if (npc.parts.legL.visible!==false) npc.parts.legL.rotation.x = sw;
+  if (npc.parts.legR.visible!==false) npc.parts.legR.rotation.x = -sw;
+}
+
+function isEnemy(a,b){ return FAC[a].enemy.includes(b); }
+
+function updateNPCs(dt){
+  for (const n of npcs){
+    if (n.dead){ n.bleed-=dt; continue; }
+    n.attackCd -= dt;
+
+    // кровотечение от отрубленных конечностей (у NPC тоже)
+    if (n.bleed>0){ n.bleed-=dt; n.hp -= dt*3; if(n.hp<=0){ killNPC(n,'кровотечение'); continue; } }
+
+    // выбор цели: ближайший враг (игрок или NPC) в радиусе агро
+    let target=null, td=CFG.agroRange;
+    // игрок
+    if (isEnemy(n.fac, faction) && !dead){
+      const d = Math.hypot(player.pos.x-n.pos.x, player.pos.z-n.pos.z);
+      if (d<td){ td=d; target={type:'player', x:player.pos.x, z:player.pos.z}; }
+    }
+    // корован-охрана реагирует на эльфа-грабителя
+    if (n.isCaravanGuard && isEnemy(n.fac, faction)){
+      const d = Math.hypot(player.pos.x-n.pos.x, player.pos.z-n.pos.z);
+      if (d<td){ td=d; target={type:'player', x:player.pos.x, z:player.pos.z}; }
+    }
+    // другие NPC
+    for (const m of npcs){
+      if (m===n||m.dead) continue;
+      if (!isEnemy(n.fac, m.fac)) continue;
+      const d = Math.hypot(m.pos.x-n.pos.x, m.pos.z-n.pos.z);
+      if (d<td){ td=d; target={type:'npc', ref:m, x:m.pos.x, z:m.pos.z}; }
+    }
+
+    if (target){
+      n.state='combat';
+      if (td > CFG.attackRange){
+        moveNPCTo(n, target.x, target.z, dt);
+      } else {
+        // атака
+        n.group.rotation.y = Math.atan2(target.x-n.pos.x, target.z-n.pos.z);
+        if (n.attackCd<=0){
+          n.attackCd = 1.1;
+          n.parts.armR.rotation.x = -1.4; // взмах
+          setTimeout(()=>{ if(n.parts.armR) n.parts.armR.rotation.x=0; }, 150);
+          if (target.type==='player') damagePlayer(n.attackDmg, n.fac);
+          else { target.ref.hp -= n.attackDmg; if(target.ref.hp<=0) killNPC(target.ref, n.fac); }
+        }
+      }
+    } else {
+      // патруль / возвращение домой
+      n.state='patrol';
+      if (!n.waypoint || Math.hypot(n.waypoint.x-n.pos.x,n.waypoint.z-n.pos.z)<2){
+        const a=Math.random()*Math.PI*2, r=4+Math.random()*16;
+        n.waypoint={x:n.home.x+Math.cos(a)*r, z:n.home.y+Math.sin(a)*r};
+      }
+      moveNPCTo(n, n.waypoint.x, n.waypoint.z, dt);
+    }
+  }
+}
+
+function killNPC(n, by){
+  if (n.dead) return;
+  n.dead = true;
+  // 3D-труп: опрокидываем группу
+  n.group.rotation.x = Math.PI/2 * (Math.random()<0.5?1:-1) * 0.9;
+  n.group.position.y = groundHeight(n.pos.x,n.pos.z) + 0.3;
+  // затемнить
+  n.group.traverse(o=>{ if(o.material && o.material.color) o.material.color.multiplyScalar(0.6); });
+  corpses.push({ group:n.group, t:30 });
+  // дроп золота
+  if (Math.random()<0.6){
+    const drop = makeCoinDrop(n.pos.x, n.pos.z, 5+Math.floor(Math.random()*18));
+    drops.push(drop);
+  }
+  // охрана корована: если все мертвы и повозка не ограблена — можно грабить
+  if (n.fac==='villain' || n.fac==='guard' || n.fac==='elf'){
+    toast(`Сражён ${FAC[n.fac].name.toLowerCase()}!`);
+  }
+  setTimeout(()=>{ if(n.group.parent) n.group.parent.remove(n.group); }, 30000);
+  // убираем из активного списка (оставляем как труп-визуал)
+  n._removed = true;
+}
+
+function makeCoinDrop(x,z,amount){
+  const g = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.08,8),
+    new THREE.MeshLambertMaterial({color:0xd4af37, emissive:0x3a2a00}));
+  g.position.set(x, groundHeight(x,z)+0.3, z);
+  scene.add(g);
+  return { group:g, x, z, amount, t:25 };
+}
+
+// =====================================================================
+//  ПОВРЕЖДЕНИЯ ИГРОКА + РАСЧЛЕНЕНКА
+// =====================================================================
+function damagePlayer(amount, srcFac, opts={}){
+  if (player.invincible>0 || dead) return;
+  player.hp -= amount;
+  player.invincible = 0.35;
+  // всплеск крови
+  ui.blood.style.opacity = Math.min(0.8, 0.3 + (1-player.hp/100)*0.6);
+  bloodTimer = 0.6;
+
+  // шанс травмы конечности при сильном ударе
+  if (amount > 7 && Math.random() < 0.18){
+    const parts = ['armR','armL','eyeL','legL','legR'];
+    // не выбираем уже потерянные
+    const avail = parts.filter(p=>player.limbs[p]==='ok');
+    if (avail.length){
+      const part = avail[Math.floor(Math.random()*avail.length)];
+      injurePart(part);
+    }
+  }
+  if (player.hp<=0) killPlayer(srcFac);
+}
+
+function injurePart(part){
+  player.limbs[part] = 'gone';
+  if (part==='armR'||part==='armL'){
+    player.bleeding += 4; // рука отрублена → кровотечение, умрёшь если не вылечить
+    toast(`Отрубило ${part==='armR'?'правую':'левую'} руку! Кровотечение!`);
+  } else if (part==='eyeL'||part==='eyeR'){
+    toast(`Выкололо ${part==='eyeL'?'левый':'правый'} глаз! Половина экрана не видна.`);
+    updateEyePatch();
+  } else if (part==='legL'||part==='legR'){
+    player.bleeding += 5;
+    toast(`Отрубило ${part==='legL'?'левую':'правую'} ногу! Кровотечение!`);
+    updateMobility();
+  }
+}
+
+function updateEyePatch(){
+  const eyes = ['eyeL','eyeR'].filter(e=>player.limbs[e]==='gone').length;
+  ui.eyepatch.className = '';
+  if (eyes>=2){ ui.eyepatch.classList.add('full'); }
+  else if (eyes===1){ ui.eyepatch.classList.add('half'); }
+}
+
+function updateMobility(){
+  const legsGone = ['legL','legR'].filter(l=>player.limbs[l]==='gone').length;
+  // протез восстанавливает ногу до 'prost' (функционирует)
+  const legsOk = ['legL','legR'].filter(l=>player.limbs[l]==='ok'||player.limbs[l]==='prost').length;
+  if (player.wheelchair){ player.crawling=false; return; }
+  if (legsOk>=1){ player.crawling=false; return; }
+  // обе ноги потеряны и нет коляски/протезов → ползание
+  player.crawling = true;
+  toast('Обе ноги потеряны — ты ползёшь. Нужна коляска или протезы.');
+}
+
+// лечение / протезирование
+function healFull(){ player.hp = player.maxHp; player.bleeding = 0; player.invincible=0; }
+function treatBleeding(){ player.bleeding = 0; toast('Кровотечение остановлено.'); }
+
+// =====================================================================
+//  СМЕРТЬ ИГРОКА
+// =====================================================================
+function killPlayer(reason){
+  if (dead) return;
+  dead = true;
+  document.exitPointerLock?.();
+  ui.dead.classList.remove('hidden');
+  $('deadReason').textContent = reason
+    ? `Тебя сразили: ${FAC[reason]?.name||reason}.`
+    : (player.bleeding>0 ? 'Ты истёк кровью от отрубленных конечностей.' : 'Ты пал в бою.');
+}
+$('deadRespawn').onclick = ()=>{
+  ui.dead.classList.add('hidden');
+  dead=false;
+  // лечим, но сохраняем травмы (протезы/глаза) — реалистичнее
+  healFull();
+  // потерянные конечности остаются потерянными (как и просил Кирилл — пока не вылечат/протез)
+  spawnPlayerAtZone();
+  player.invincible = 2;
+  toast('Возрождение у своих. Беги к лавке — лечись и чини протезы!');
+};
+$('deadMenu').onclick = ()=>{ location.reload(); };
+
+// =====================================================================
+//  ЛАВКА (как в Daggerfall) + ПОКУПКИ
+// =====================================================================
+const SHOP_ITEMS = [
+  { id:'sword',  name:'Меч',          desc:'+ урон в бою',                 price:40,  act:()=>{ player.weapon=1; toast('Куплен меч. Урон выше.'); } },
+  { id:'axe',    name:'Боевой топор', desc:'шанс отрубить конечность врагу',price:90,  act:()=>{ player.weapon=2; toast('Топор в руках!'); } },
+  { id:'armor',  name:'Латы',         desc:'+40 макс. HP',                 price:70,  act:()=>{ player.maxHp+=40; healFull(); toast('Латы надеты.'); } },
+  { id:'potion', name:'Зелье лечения',desc:'+50 HP и остановка крови',     price:25,  act:()=>{ player.hp=Math.min(player.maxHp,player.hp+50); treatBleeding(); } },
+  { id:'heal',   name:'Лекарь (полное)',desc:'полное лечение',             price:55,  act:healFull },
+  { id:'pArm',   name:'Протез руки',  desc:'восстановить руку',           price:60,  act:()=>{ restoreLimb(['armL','armR'],'prost','Протез руки установлен.'); } },
+  { id:'pEye',   name:'Протез глаза', desc:'вернёт зрение',               price:50,  act:()=>{ restoreLimb(['eyeL','eyeR'],'prost','Зрение восстановлено.'); } },
+  { id:'pLeg',   name:'Протез ноги',  desc:'восстановить ногу',           price:70,  act:()=>{ restoreLimb(['legL','legR'],'prost','Протез ноги установлен.'); updateMobility(); } },
+  { id:'wheel',  name:'Коляска',      desc:'езда без ног',                price:45,  act:()=>{ player.wheelchair=true; updateMobility(); toast('Коляска! Можно ездить.'); } },
+];
+function restoreLimb(list, to, msg){
+  for (const l of list){ if (player.limbs[l]==='gone'){ player.limbs[l]=to; toast(msg); updateEyePatch(); return true; } }
+  toast('Эта конечность и так цела.');
+  return false; // ничего не куплено
+}
+function openShop(){
+  if (dead) return;
+  shopOpen=true; paused=true; ui.shop.classList.remove('hidden');
+  document.exitPointerLock?.();
+  renderShop();
+}
+function renderShop(){
+  $('shopGold').textContent = gold;
+  const list = $('shopList'); list.innerHTML='';
+  for (const it of SHOP_ITEMS){
+    const d = document.createElement('div'); d.className='item';
+    d.innerHTML = `<div><div class="nm">${it.name}</div><div class="ds">${it.desc}</div></div>
+      <div class="pr">${it.price}з <button class="btn" data-id="${it.id}">купить</button></div>`;
+    d.querySelector('button').onclick = ()=>{
+      if (gold>=it.price){ gold-=it.price; it.act(); renderShop(); updateHUD(); }
+      else toast('Не хватает золота!');
+    };
+    list.appendChild(d);
+  }
+}
+$('shopClose').onclick = ()=>{ shopOpen=false; paused=false; ui.shop.classList.add('hidden'); requestLock(); };
+
+// =====================================================================
+//  ПРИКАЗЫ (охрана — командир; злодей — сам командир)
+// =====================================================================
+let currentOrder = null;
+function openOrders(){
+  if (dead) return;
+  if (faction!=='guard' && faction!=='villain'){ toast('Приказы отдают только командиры.'); return; }
+  ordersOpen=true; paused=true; ui.orders.classList.remove('hidden');
+  document.exitPointerLock?.();
+  renderOrders();
+}
+function renderOrders(){
+  $('ordersTitle').textContent = faction==='guard' ? '📋 Приказ командира' : '🗡 Приказ (ты — командир)';
+  const list=$('ordersList'); list.innerHTML='';
+  const orders = faction==='guard'
+    ? [
+        {id:'defend', t:'Защищать дворец', d:'держать оборону у дворца'},
+        {id:'raid_elf', t:'Набег на эльфов', d:'атаковать лесную деревню'},
+        {id:'raid_vil', t:'Набег на злодея', d:'штурмовать горный форт'},
+        {id:'escort', t:'Сопровождать корован', d:'охранять торговцев'},
+      ]
+    : [
+        {id:'storm', t:'ШТУРМ ДВОРЦА', d:'все войска — на дворец!'},
+        {id:'raid_elf', t:'Карательный набег на эльфов', d:'вырезать партизан'},
+        {id:'defend_fort', t:'Оборона форта', d:'держать старый форт'},
+        {id:'raid_neu', t:'Набег на людей', d:'грабить нейтральный город'},
+      ];
+  for (const o of orders){
+    const b=document.createElement('button'); b.className='fac';
+    b.innerHTML=`<b>${o.t}</b><span>${o.d}</span>`;
+    b.onclick=()=>{ issueOrder(o.id, o.t); };
+    list.appendChild(b);
+  }
+}
+function issueOrder(id, title){
+  currentOrder = id;
+  setObjective(title);
+  // направляем союзных NPC
+  const allies = npcs.filter(n=>!n.dead && n.fac===faction && !n.isCaravanGuard);
+  let target=null;
+  if (id==='raid_elf'||id==='raid_elf') target=ZONE.elf;
+  if (id==='raid_vil'||id==='storm'||id==='defend') target=ZONE.guard;
+  if (id==='storm') target=ZONE.guard;
+  if (id==='defend_fort'||id==='defend') target = faction==='villain'?ZONE.villain:ZONE.guard;
+  if (id==='raid_neu') target=ZONE.neutral;
+  if (id==='escort'){ target=ZONE.neutral; }
+  if (target){
+    for (const a of allies){
+      a.home.set(target.cx + (Math.random()*2-1)*20, target.cz + (Math.random()*2-1)*20);
+      a.waypoint = { x:a.home.x, z:a.home.y };
+    }
+  }
+  toast(`Приказ: ${title}. Войска идут!`);
+  ordersOpen=false; paused=false; ui.orders.classList.add('hidden'); requestLock();
+}
+$('ordersClose').onclick = ()=>{ ordersOpen=false; paused=false; ui.orders.classList.add('hidden'); requestLock(); };
+
+// =====================================================================
+//  АТАКА ИГРОКА
+// =====================================================================
+function playerAttack(){
+  if (player.attackCd>0) return;
+  const armGone = player.limbs.armR==='gone';
+  if (armGone && player.limbs.armL==='gone'){ toast('Обе руки отрублены — нечем бить!'); return; }
+  const useArm = player.limbs.armR==='ok' || player.limbs.armR==='prost' ? 'R' : 'L';
+  player.attackCd = (player.weapon===2?1.0:0.6);
+
+  const dmg = player.weapon===2 ? 26 : (player.weapon===1?18:11);
+  const chopChance = player.weapon===2 ? 0.45 : (player.weapon===1?0.18:0.08);
+
+  // hit-scan по ближайшему врагу в радиусе атаки перед игроком
+  const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw);
+  let hit=null, hd=CFG.attackRange;
+  for (const n of npcs){
+    if (n.dead) continue;
+    if (!isEnemy(faction, n.fac) && !n.isCaravanGuard) continue;
+    const d = Math.hypot(n.pos.x-player.pos.x, n.pos.z-player.pos.z);
+    if (d>CFG.attackRange+0.4) continue;
+    // проверка угла
+    const dx=n.pos.x-player.pos.x, dz=n.pos.z-player.pos.z;
+    const dot = (dx*fx+dz*fz)/Math.max(0.01,d);
+    if (dot<0.3) continue;
+    if (d<hd){ hd=d; hit=n; }
+  }
+  if (hit){
+    hit.hp -= dmg;
+    // шанс отрубить конечность врагу
+    if (Math.random()<chopChance){
+      const p = ['armL','armR','legL','legR','head'][Math.floor(Math.random()*5)];
+      if (hit.parts[p] && hit.parts[p].visible!==false){
+        hit.parts[p].visible=false;
+        spawnBlood(hit.pos.x, hit.pos.y+1.2, hit.pos.z);
+        if (p==='head'){ hit.hp=0; toast('ГОЛОВА СНЕСЕНА!'); }
+        else { hit.bleed += 6; toast(`Отрубил врагу: ${p}!`); }
+      }
+    }
+    if (hit.hp<=0) killNPC(hit, faction);
+  }
+}
+function spawnBlood(x,y,z){
+  const p = new THREE.Mesh(new THREE.SphereGeometry(0.2,6,6),
+    new THREE.MeshBasicMaterial({color:0x8a0a0a}));
+  p.position.set(x,y,z); scene.add(p);
+  setTimeout(()=>scene.remove(p), 600);
+}
+
+// =====================================================================
+//  ГРАБЁЖ КОРОВАНОВ
+// =====================================================================
+function tryLootCaravan(){
+  for (const car of caravans){
+    if (car.looted) continue;
+    const d = Math.hypot(car.group.position.x-player.pos.x, car.group.position.z-player.pos.z);
+    if (d < 4){
+      // можно грабить если охрана мертва или игрок сильнее
+      const guardsAlive = car.guards.filter(g=>!g.dead).length;
+      if (guardsAlive>0){
+        toast('Охрана корована жива — сначала разберись с ней!');
+        return;
+      }
+      car.looted = true;
+      gold += car.loot;
+      toast(`🪙 КОРОВАН ОГРАБЛЕН! +${car.loot} золота!`);
+      // визуально — повозка темнеет/опустошается
+      car.group.traverse(o=>{ if(o.material&&o.material.color) o.material.color.multiplyScalar(0.5); });
+      updateHUD();
+      return;
+    }
+  }
+}
+
+// подбор дропа
+function tryPickupDrops(){
+  for (const d of drops){
+    if (d._got) continue;
+    const dist = Math.hypot(d.x-player.pos.x, d.z-player.pos.z);
+    if (dist<2.2){
+      d._got=true; gold += d.amount;
+      scene.remove(d.group);
+      toast(`+${d.amount} золота`);
+      updateHUD();
+    }
+  }
+  drops = drops.filter(d=>{ d.t-=0.016; if(d.t<=0 && !d._got){ scene.remove(d.group); return false;} return true; });
+}
+
+// =====================================================================
+//  ВВОД
+// =====================================================================
+function setupInput(){
+  addEventListener('keydown', e=>{
+    if (e.code==='Escape'){ /* браузер снимет pointer lock */ }
+    input[e.code]=true;
+    if (e.code==='KeyE'){ tryLootCaravan(); }
+    if (e.code==='KeyF' || e.code==='Space' && !player.onGround){ /* jump ниже */ }
+    if (e.code==='KeyB'){ if(!shopOpen&&!ordersOpen) openShop(); }
+    if (e.code==='KeyC'){ if(!shopOpen&&!ordersOpen) openOrders(); }
+    if (e.code==='KeyR'){ playerAttack(); }
+    if (e.code==='F5'){ e.preventDefault(); saveGame(); }
+    if (e.code==='F9'){ e.preventDefault(); loadGame(); }
+    if (e.code==='Digit1'){ player.weapon=0; updateHotbar(); }
+    if (e.code==='Digit2'){ player.weapon=1; updateHotbar(); }
+    if (e.code==='Digit3'){ player.weapon=2; updateHotbar(); }
+  });
+  addEventListener('keyup', e=>{ input[e.code]=false; });
+
+  // pointer lock
+  renderer.domElement.addEventListener('click', ()=>{
+    if (!shopOpen && !ordersOpen && !dead && !paused) requestLock();
+  });
+  document.addEventListener('pointerlockchange', ()=>{
+    pointerLocked = (document.pointerLockElement === renderer.domElement);
+  });
+  document.addEventListener('mousemove', e=>{
+    if (!pointerLocked) return;
+    player.yaw   -= e.movementX*0.0024;
+    player.pitch -= e.movementY*0.0024;
+    player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+  });
+}
+function requestLock(){ renderer.domElement.requestPointerLock?.(); }
+
+// =====================================================================
+//  ДВИЖЕНИЕ ИГРОКА
+// =====================================================================
+function updatePlayer(dt){
+  if (dead||paused) { updateCamera(); return; }
+
+  player.invincible -= dt; player.attackCd -= dt;
+
+  // кровотечение
+  if (player.bleeding>0){
+    player.bleeding -= dt*0.5; // само немного спадает
+    player.hp -= dt*2.2;
+    if (player.hp<=0){ killPlayer('кровотечение'); return; }
+  }
+
+  // движение
+  const fwd = (input['KeyW']?1:0) - (input['KeyS']?1:0);
+  const str = (input['KeyD']?1:0) - (input['KeyA']?1:0);
+  let speed = CFG.playerSpeed;
+  if (player.crawling) speed *= 0.32;
+  else if (player.wheelchair) speed *= 0.85;
+  else {
+    const legsBad = ['legL','legR'].filter(l=>player.limbs[l]==='gone').length;
+    if (legsBad===1) speed *= 0.62;
+  }
+  // горы замедляют
+  const gh = groundHeight(player.pos.x, player.pos.z);
+  if (gh>10) speed *= 0.6;
+
+  const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+  const moveX = (fwd*sin - str*cos);
+  const moveZ = (fwd*cos + str*sin);
+  const len = Math.hypot(moveX,moveZ)||1;
+  player.pos.x += moveX/len * speed * dt * (Math.hypot(moveX,moveZ)>0?1:0);
+  player.pos.z += moveZ/len * speed * dt * (Math.hypot(moveX,moveZ)>0?1:0);
+
+  // границы карты
+  const lim = CFG.world-2;
+  player.pos.x = Math.max(-lim, Math.min(lim, player.pos.x));
+  player.pos.z = Math.max(-lim, Math.min(lim, player.pos.z));
+
+  // простая коллизия со зданиями (отталкивание)
+  for (const b of buildings){
+    const d = Math.hypot(player.pos.x-b.x, player.pos.z-b.z);
+    const r = b.r + 0.6;
+    if (d<r){
+      const nx=(player.pos.x-b.x)/d, nz=(player.pos.z-b.z)/d;
+      player.pos.x = b.x + nx*r; player.pos.z = b.z + nz*r;
+    }
+  }
+
+  // прыжок / гравитация
+  if ((input['Space']) && player.onGround && !player.crawling){
+    player.vel.y = CFG.jumpV; player.onGround=false;
+  }
+  player.vel.y -= CFG.gravity*dt;
+  player.pos.y += player.vel.y*dt;
+  const ground = groundHeight(player.pos.x, player.pos.z) + player.height * (player.crawling?0.5:1);
+  if (player.pos.y <= ground){ player.pos.y=ground; player.vel.y=0; player.onGround=true; }
+  else player.onGround=false;
+
+  // кровавый оверлей затухание
+  if (bloodTimer>0){ bloodTimer-=dt; if(bloodTimer<=0) ui.blood.style.opacity=0; }
+
+  // подбор
+  tryPickupDrops();
+
+  updateCamera();
+}
+
+function updateCamera(){
+  camera.position.copy(player.pos);
+  camera.rotation.order='YXZ';
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+  // если ползает — ниже камера
+  if (player.crawling) camera.position.y -= 0.8;
+}
+
+// =====================================================================
+//  ВОЛНЫ АТАК (шпионы/партизаны нападают)
+// =====================================================================
+function maybeSpawnWave(dt){
+  waveTimer += dt;
+  if (waveTimer < 35) return;
+  waveTimer = 0;
+  // на игрока время от времени нападают враждебные шпионы/партизаны
+  const enemyFacs = FAC[faction].enemy;
+  const ef = enemyFacs[Math.floor(Math.random()*enemyFacs.length)];
+  if (!ef) return;
+  const a=Math.random()*Math.PI*2, r=30+Math.random()*10;
+  const x=player.pos.x+Math.cos(a)*r, z=player.pos.z+Math.sin(a)*r;
+  if (Math.abs(x)>CFG.world||Math.abs(z)>CFG.world) return;
+  spawnNPC(ef, x, z, {hp:50, dmg:9, speed:4.0});
+  toast(`⚠ На тебя нападают: ${FAC[ef].name} (шпионы/партизаны)!`);
+}
+
+// =====================================================================
+//  HUD
+// =====================================================================
+function updateHUD(){
+  ui.hp.textContent = Math.max(0, Math.round(player.hp));
+  ui.bhp.style.width = Math.max(0, player.hp/player.maxHp*100)+'%';
+  ui.gold.textContent = gold;
+  ui.bgold.style.width = Math.min(100, gold/3)+'%';
+  ui.fac.textContent = FAC[faction].name;
+  // конечности
+  const L = player.limbs;
+  const row = (label, st)=>{
+    const cls = st==='ok'?'ok':(st==='prost'?'mid':'bad');
+    const txt = st==='ok'?'цел':(st==='prost'?'протез':'ОТРУБЛЕНО');
+    return `<div><span class="lbl">${label}:</span> <span class="${cls}">${txt}</span></div>`;
+  };
+  ui.limbs.innerHTML =
+    `<div class="lbl">КОНЕЧНОСТИ</div>`+
+    row('Рука пр.', L.armR)+row('Рука лев.', L.armL)+
+    row('Глаз лев.', L.eyeL)+row('Глаз пр.', L.eyeR)+
+    row('Нога лев.', L.legL)+row('Нога пр.', L.legR)+
+    (player.bleeding>0?`<div class="bad">⚠ КРОВОТЕЧЕНИЕ</div>`:'')+
+    (player.wheelchair?`<div class="mid">♿ коляска</div>`:'')+
+    (player.crawling?`<div class="bad">ползёшь</div>`:'');
+}
+function updateHotbar(){
+  const names = ['Кулаки','Меч','Топор'];
+  ui.hotbar.innerHTML = names.map((n,i)=>`<div class="slot ${i===player.weapon?'active':''}"><span class="k">${i+1}</span>${n}</div>`).join('');
+}
+
+// =====================================================================
+//  СОХРАНЕНИЯ
+// =====================================================================
+const SAVE_KEY = 'korovany_glm52_save';
+function saveGame(){
+  if (!faction) return;
+  const data = {
+    faction, gold,
+    pos:[player.pos.x,player.pos.y,player.pos.z],
+    yaw:player.yaw, pitch:player.pitch,
+    hp:player.hp, maxHp:player.maxHp,
+    limbs:player.limbs, wheelchair:player.wheelchair, weapon:player.weapon,
+    bleeding:player.bleeding, order:currentOrder,
+    t:Date.now(),
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  toast('💾 Игра сохранена (F5)');
+  updateSaveInfo();
+}
+function loadGame(){
+  const raw = localStorage.getItem(SAVE_KEY); if (!raw){ toast('Сохранения нет.'); return false; }
+  let d; try{ d=JSON.parse(raw); }catch{ return false; }
+  faction = d.faction;
+  startGame(true);
+  gold=d.gold||0;
+  player.pos.set(d.pos[0],d.pos[1],d.pos[2]);
+  player.yaw=d.yaw; player.pitch=d.pitch;
+  player.hp=d.hp; player.maxHp=d.maxHp;
+  player.limbs=d.limbs; player.wheelchair=d.wheelchair; player.weapon=d.weapon;
+  player.bleeding=d.bleeding||0;
+  currentOrder=d.order;
+  updateEyePatch(); updateMobility(); updateHUD(); updateHotbar();
+  setObjective(currentOrder ? 'Продолжаешь: '+currentOrder : defaultObjective());
+  toast('💾 Загружено');
+  return true;
+}
+function updateSaveInfo(){
+  const raw=localStorage.getItem(SAVE_KEY);
+  const el=$('saveInfo');
+  if (!raw){ el.textContent='Нет сохранения.'; $('btnLoad').disabled=true; return; }
+  try{ const d=JSON.parse(raw);
+    el.textContent=`Сохранение: ${FAC[d.faction]?.name||'?'} · ${new Date(d.t).toLocaleString('ru-RU')}`;
+    $('btnLoad').disabled=false;
+  }catch{ el.textContent='Сохранение повреждено.'; }
+}
+
+// =====================================================================
+//  ЗАПУСК ИГРЫ
+// =====================================================================
+function defaultObjective(){
+  if (faction==='elf')    return 'Граби корованы (E у повозки). Бей солдат дворца и злодея. Лечись в лавке (B).';
+  if (faction==='guard')  return 'Слушай командира. Приказы — клавиша C. Защищай дворец от злодея и партизан.';
+  return 'Ты — командир. Приказы — клавиша C. Собери войска и штурмуй дворец!';
+}
+
+function startGame(skipSpawn){
+  ui.menu.classList.add('hidden');
+  ui.hud.classList.remove('hidden');
+  ui.cross.classList.remove('hidden');
+  if (!skipSpawn) spawnPlayerAtZone();
+  setObjective(defaultObjective());
+  updateHUD(); updateHotbar();
+  // стартовый набор
+  if (!skipSpawn){
+    gold = faction==='elf' ? 20 : (faction==='guard'?30:40);
+    if (faction==='elf'){ player.weapon=0; }
+  }
+  updateHUD();
+  requestLock();
+}
+
+// =====================================================================
+//  ГЛАВНЫЙ ЦИКЛ
+// =====================================================================
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+  if (!paused && !dead){
+    updatePlayer(dt);
+    updateNPCs(dt);
+    updateCaravans(dt);
+    updateTreeLOD();
+    maybeSpawnWave(dt);
+    if (player.attackCd<0) player.attackCd=0;
+    updateHUD();
+    // авто-сохранение каждые ~20 сек
+    saveTick += dt; if (saveTick>20){ saveTick=0; saveGame(); }
+  } else {
+    updateCamera();
+  }
+  renderer.render(scene, camera);
+}
+let saveTick=0;
+
+// =====================================================================
+//  МЕНЮ — ВЫБОР ФРАКЦИИ
+// =====================================================================
+document.querySelectorAll('.fac[data-fac]').forEach(b=>{
+  b.onclick = ()=>{ faction = b.dataset.fac; startGame(false); };
+});
+$('btnLoad').onclick = ()=>{ if(!loadGame()) toast('Сохранение не найдено.'); };
+
+// =====================================================================
+//  BOOT
+// =====================================================================
+initEngine();
+buildTerrain();
+buildForest();
+buildStructures();
+createPlayer();
+populateWorld();
+setupInput();
+updateSaveInfo();
+animate();
+
+// подсказка
+console.log('%cКОРОВАНЫ · GLM-5.2','color:#d4af37;font-size:18px');
+console.log('WASD — движение, мышь — обзор, R — атака, Space — прыжок, E — грабить корован, B — лавка, C — приказы, F5/F9 — сохранить/загрузить');
+</script>
+</body>
+</html>
