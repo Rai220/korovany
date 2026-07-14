@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101713">
+  <meta name="description" content="Корованы: Четыре земли — самостоятельный браузерный 3D-экшен по ТЗ Кирилла.">
+  <title>Корованы: Четыре земли</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23101713'/%3E%3Cpath d='M18 13h8v15l14-15h10L34 30l18 21H41L26 33v18h-8z' fill='%23d4b46a'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <noscript>Для игры нужен JavaScript.</noscript>
+
+  <main id="title-screen" class="screen title-screen active" data-testid="title-screen">
+    <div class="title-vignette"></div>
+    <section class="title-copy" aria-labelledby="game-title">
+      <p class="eyebrow">Сказание Кирилла</p>
+      <h1 id="game-title"><span>Корованы</span><small>Четыре земли</small></h1>
+      <p class="title-lead">Выбери сторону. Выполни приказ — или отдай его сам. И помни: дорога между лесом и дворцом никогда не бывает безопасной.</p>
+      <div class="title-actions">
+        <button id="new-game-btn" class="button primary" data-testid="new-game">Начать новую игру</button>
+        <button id="continue-btn" class="button ghost" data-testid="continue-game">Продолжить</button>
+      </div>
+      <p class="title-note">3D-экшен от третьего лица · автосохранение в браузере</p>
+    </section>
+    <aside class="world-key" aria-label="Четыре игровые зоны">
+      <span><i class="forest"></i>Изумрудная чаща</span>
+      <span><i class="neutral"></i>Вольные земли</span>
+      <span><i class="palace"></i>Имперский дворец</span>
+      <span><i class="fort"></i>Старый форт</span>
+    </aside>
+  </main>
+
+  <section id="faction-screen" class="screen faction-screen" data-testid="faction-screen" aria-labelledby="faction-title">
+    <header class="faction-heading">
+      <p class="eyebrow">Три судьбы · один мир</p>
+      <h2 id="faction-title">Кем войдёшь в летопись?</h2>
+      <p>Каждая сторона начинает в своей земле, получает собственную цель и иначе встречает корован.</p>
+    </header>
+    <div class="faction-grid">
+      <button class="faction-card elf" data-faction="elf" data-testid="faction-elf">
+        <span class="faction-number">01</span>
+        <span class="faction-icon" aria-hidden="true">➶</span>
+        <strong>Лесные эльфы</strong>
+        <em>Засада · скрытность · защита чащи</em>
+        <span>Перехвати имперский корован, доставь добычу в деревянную деревню и отбей ответный набег.</span>
+        <b>Выбрать эльфов</b>
+      </button>
+      <button class="faction-card guard" data-faction="guard" data-testid="faction-guard">
+        <span class="faction-number">02</span>
+        <span class="faction-icon" aria-hidden="true">♜</span>
+        <strong>Дворцовая стража</strong>
+        <em>Приказы · сопровождение · оборона</em>
+        <span>Слушай командира, доведи корован до ворот, раскрой шпиона и удержи дворец.</span>
+        <b>Вступить в стражу</b>
+      </button>
+      <button class="faction-card villain" data-faction="villain" data-testid="faction-villain">
+        <span class="faction-number">03</span>
+        <span class="faction-icon" aria-hidden="true">♛</span>
+        <strong>Владыка форта</strong>
+        <em>Командование · грабёж · штурм</em>
+        <span>Ты сам себе командир. Созови бойцов, разграбь дорогу и сокруши дворцовые ворота.</span>
+        <b>Принять власть</b>
+      </button>
+    </div>
+    <button id="back-to-title-btn" class="text-button" data-testid="back-to-title">← Вернуться к заставке</button>
+  </section>
+
+  <section id="loading-screen" class="screen loading-screen" aria-live="polite">
+    <div class="loader-mark">К</div>
+    <p id="loading-text">Пробуждаем древний лес…</p>
+  </section>
+
+  <section id="game-screen" class="screen game-screen" data-testid="game-screen">
+    <div id="game-canvas-container"></div>
+    <div class="cinematic-bars" aria-hidden="true"></div>
+
+    <div class="hud hud-status">
+      <div class="hud-caption"><span id="zone-name">Четыре земли</span><span id="health-text">100 / 100</span></div>
+      <div class="meter health" aria-label="Здоровье"><i id="health-fill"></i></div>
+      <div class="meter stamina" aria-label="Выносливость"><i id="stamina-fill"></i></div>
+      <div class="meter bleed" aria-label="Кровопотеря"><i id="bleed-fill"></i></div>
+      <div id="body-status" class="body-status" aria-label="Состояние тела"></div>
+    </div>
+
+    <div class="hud hud-objective">
+      <span>Текущая задача</span>
+      <strong id="objective-text">Выберите свою судьбу</strong>
+    </div>
+
+    <div class="hud hud-resources">
+      <div><span>Золото</span><strong><b id="gold-value">0</b> ◈</strong></div>
+      <div><span>Слава</span><strong id="reputation-value">0</strong></div>
+    </div>
+
+    <canvas id="minimap" class="minimap" width="144" height="144" aria-label="Карта четырёх земель"></canvas>
+    <div class="crosshair" aria-hidden="true"><i></i><i></i></div>
+    <div id="interaction-prompt" class="interaction-prompt"></div>
+    <div id="ability-label" class="ability-label">Q — способность</div>
+    <div id="order-menu" class="order-menu">F — За мной</div>
+    <div class="controls-hint"><span>WASD идти</span><span>Shift бег</span><span>Space прыжок</span><span>ЛКМ удар</span><span>ПКМ блок</span><span>E действие</span></div>
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
+    <div id="left-eye-mask" class="eye-mask left" aria-hidden="true"></div>
+    <div id="right-eye-mask" class="eye-mask right" aria-hidden="true"></div>
+  </section>
+
+  <section id="pause-screen" class="screen overlay pause-screen" data-testid="pause-screen" aria-labelledby="pause-title">
+    <div class="panel pause-panel">
+      <p class="eyebrow">Летопись приостановлена</p>
+      <h2 id="pause-title">Пауза</h2>
+      <div class="pause-actions">
+        <button id="resume-btn" class="button primary" data-testid="resume-game">Вернуться в бой</button>
+        <button id="save-btn" class="button ghost" data-testid="save-game">Сохранить игру</button>
+        <button id="quit-btn" class="button quiet" data-testid="quit-game">Выйти к заставке</button>
+      </div>
+      <div class="controls-sheet">
+        <span><kbd>WASD</kbd> движение</span><span><kbd>Shift</kbd> бег</span><span><kbd>Space</kbd> прыжок</span>
+        <span><kbd>ЛКМ</kbd> атака</span><span><kbd>ПКМ</kbd> блок</span><span><kbd>E</kbd> действие</span>
+        <span><kbd>Q</kbd> способность</span><span><kbd>F</kbd> приказ</span><span><kbd>H</kbd> бинт</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="shop-screen" class="screen overlay shop-screen" data-testid="shop-screen" aria-labelledby="shop-title">
+    <div class="panel shop-panel">
+      <header><div><p class="eyebrow">Рынок Вольных земель</p><h2 id="shop-title">Лекарь и протезист</h2></div><button id="close-shop-btn" class="close-button" aria-label="Закрыть магазин">×</button></header>
+      <p class="shop-intro">Здесь лечат раны, останавливают кровь и возвращают бойцов на ноги — иногда буквально.</p>
+      <div id="shop-items" class="shop-items"></div>
+    </div>
+  </section>
+
+  <section id="result-screen" class="screen overlay result-screen" data-testid="result-screen" aria-labelledby="result-title">
+    <div class="panel result-panel">
+      <p class="eyebrow">Конец этой главы</p>
+      <h2 id="result-title">Земля помнит твоё имя</h2>
+      <div id="result-summary" class="result-summary"></div>
+      <div class="result-actions">
+        <button id="result-restart-btn" class="button primary">Сыграть этой стороной ещё раз</button>
+        <button id="result-title-btn" class="button ghost">К заставке</button>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
