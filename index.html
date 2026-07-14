@@ -15,6 +15,9 @@
               color: #e8d8a0; text-decoration: none; transition: border-color .15s, transform .15s; }
   a.variant:hover { border-color: #d4af37; transform: translateY(-2px); }
   a.variant b { color: #ffd76a; font-size: 18px; }
+  a.variant.sota { border-color: #d4af37; box-shadow: 0 0 24px rgba(212, 175, 55, .16); }
+  .sota-badge { display: inline-block; margin-left: 8px; padding: 3px 7px; background: #d4af37;
+                color: #141006; font-size: 10px; letter-spacing: .08em; vertical-align: 2px; }
   a.variant time { float: right; color: #7f9f78; font-size: 12px; letter-spacing: .04em; }
   a.variant span { display: block; color: #9a8a6a; font-size: 13px; margin-top: 4px; line-height: 1.5; }
   .foot { margin-top: 40px; color: #5a5040; font-size: 12px; }
@@ -32,12 +35,25 @@
     Пользователь может играть лесными эльфами, охраной дворца и злодеем... Можно грабить корованы...
     P.S. Я джва года хочу такую игру.»</div>
   <div class="variants">
-    <a class="variant" href="gpt-5.6-sol/">
-      <b>GPT-5.6</b>
-      <time datetime="2026-07-14T12:52:22+03:00">14 июля 2026 · 12:52</time>
-      <span>Полированный 3D-экшон от третьего лица: три самостоятельных фракционных сценария,
-      бесшовные четыре земли, LOD-лес, движущийся корован, союзники и приказы,
-      травмы, кровотечение, протезы, торговля, финальные битвы и сохранения.</span>
+    <a class="variant sota" href="fable_5/">
+      <b>Fable 5 <small class="sota-badge">SOTA</small></b>
+      <time datetime="2026-06-10T08:57:35+03:00">10 июня 2026 · 08:57</time>
+      <span>Three.js, три фракции, LOD-лес («вдали деревья картинкой»), грабёж корованов,
+      отрубание рук и протезы, 4 зоны, штурм дворца, сохранения.</span>
+    </a>
+    <a class="variant" href="Opus-4.8/">
+      <b>Opus 4.8</b>
+      <time datetime="2026-06-10T13:30:53+03:00">10 июня 2026 · 13:30</time>
+      <span>Three.js, вид от 1-го лица: эльфы / охрана / злодей, LOD-лес (билборд → 3D вблизи),
+      грабёж корованов, расчленёнка и протезы (рука/глаз/нога/коляска), приказы командира,
+      штурм дворца, лавка как в Daggerfall, сохранения.</span>
+    </a>
+    <a class="variant" href="gpt-5.5/">
+      <b>GPT-5.5</b>
+      <time datetime="2026-06-10T13:50:55+03:00">10 июня 2026 · 13:50</time>
+      <span>Three.js 3D-экшон: три стороны конфликта, четыре зоны, густой LOD-лес,
+      корованы, дворцовые приказы, старый форт злодея, 3D-враги и трупы,
+      травмы руки/глаза/ноги, протезы, магазин и сохранения.</span>
     </a>
     <a class="variant" href="glm-5.2/">
       <b>GLM-5.2</b>
@@ -47,25 +63,12 @@
       приказы и штурм дворца, расчленёнка (рука/глаз/нога), протезы и коляска,
       лавка как в Daggerfall, сохранения.</span>
     </a>
-    <a class="variant" href="gpt-5.5/">
-      <b>GPT-5.5</b>
-      <time datetime="2026-06-10T13:50:55+03:00">10 июня 2026 · 13:50</time>
-      <span>Three.js 3D-экшон: три стороны конфликта, четыре зоны, густой LOD-лес,
-      корованы, дворцовые приказы, старый форт злодея, 3D-враги и трупы,
-      травмы руки/глаза/ноги, протезы, магазин и сохранения.</span>
-    </a>
-    <a class="variant" href="Opus-4.8/">
-      <b>Opus 4.8</b>
-      <time datetime="2026-06-10T13:30:53+03:00">10 июня 2026 · 13:30</time>
-      <span>Three.js, вид от 1-го лица: эльфы / охрана / злодей, LOD-лес (билборд → 3D вблизи),
-      грабёж корованов, расчленёнка и протезы (рука/глаз/нога/коляска), приказы командира,
-      штурм дворца, лавка как в Daggerfall, сохранения.</span>
-    </a>
-    <a class="variant" href="fable_5/">
-      <b>Fable 5</b>
-      <time datetime="2026-06-10T08:57:35+03:00">10 июня 2026 · 08:57</time>
-      <span>Three.js, три фракции, LOD-лес («вдали деревья картинкой»), грабёж корованов,
-      отрубание рук и протезы, 4 зоны, штурм дворца, сохранения.</span>
+    <a class="variant" href="gpt-5.6-sol/">
+      <b>GPT-5.6</b>
+      <time datetime="2026-07-14T12:52:22+03:00">14 июля 2026 · 12:52</time>
+      <span>Полированный 3D-экшон от третьего лица: три самостоятельных фракционных сценария,
+      бесшовные четыре земли, LOD-лес, движущийся корован, союзники и приказы,
+      травмы, кровотечение, протезы, торговля, финальные битвы и сохранения.</span>
     </a>
   </div>
   <div class="foot">Новые варианты от других моделей появятся здесь же.</div>
