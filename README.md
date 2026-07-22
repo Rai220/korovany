@@ -48,7 +48,7 @@ SOTA-варианты закреплены в начале таблицы, да�
 | **Opus 4.8** | 2026-06-10 13:30 | ★★★☆☆ | [`Opus-4.8/`](Opus-4.8/) | [играть](https://rai220.github.io/korovany/Opus-4.8/) | Three.js, ванильный JS, вид от 1-го лица, без сборки |
 | **GPT-5.5** | 2026-06-10 13:50 | ★★☆☆☆ | [`gpt-5.5/`](gpt-5.5/) | [играть](https://rai220.github.io/korovany/gpt-5.5/) | Three.js, без сборки |
 | **GLM-5.2** | 2026-06-18 11:47 | ★★★★☆ | [`glm-5.2/`](glm-5.2/) | [играть](https://rai220.github.io/korovany/glm-5.2/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **GPT-5.6** | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
+| **GPT-5.6-sol** | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
 
 ## Как сравнить и поиграть
 
