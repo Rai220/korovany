@@ -1,0 +1,118 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #060806; }
+body { font-family: "Courier New", ui-monospace, monospace; color: #e8d8a0; }
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hidden { display: none !important; }
+b { color: #ffd76a; }
+
+/* ---------- экраны ---------- */
+.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 6, 4, .78); z-index: 50; }
+.panel { background: #10130b; border: 2px solid #555030; padding: 28px 34px; max-width: 560px;
+  width: min(92vw, 560px); box-shadow: 0 0 40px rgba(0,0,0,.8); }
+.panel.wide { max-width: 640px; width: min(94vw, 640px); }
+.panel h2 { color: #d4af37; letter-spacing: 4px; margin-bottom: 14px; text-shadow: 2px 2px 0 #3a0d0d; }
+.panel p { margin: 6px 0; line-height: 1.5; color: #cbbd8f; font-size: 14px; }
+.panel.death h2 { color: #c23a2a; }
+.panel.victory h2 { color: #ffd76a; }
+.mbtn { display: block; width: 100%; margin-top: 10px; padding: 12px; background: #1a1e12;
+  border: 2px solid #555030; color: #e8d8a0; font-family: inherit; font-size: 15px;
+  cursor: pointer; letter-spacing: 1px; }
+.mbtn:hover { border-color: #d4af37; background: #232916; }
+.loadText { color: #d4af37; letter-spacing: 2px; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+
+/* ---------- главное меню ---------- */
+#menu { background: radial-gradient(ellipse at 50% 30%, rgba(20,32,15,.82) 0%, rgba(6,8,6,.88) 75%); }
+.menuBox { text-align: center; max-width: 760px; width: 94vw; padding: 10px; }
+.menuBox h1 { color: #d4af37; font-size: clamp(38px, 7vw, 64px); letter-spacing: 10px;
+  text-shadow: 3px 3px 0 #5a1010, 0 0 30px rgba(212,175,55,.25); }
+.menuSub { color: #b8a878; margin: 6px 0 2px; }
+.menuQuote { color: #8a7a5a; font-style: italic; margin-bottom: 22px; }
+.factionPick { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.fbtn { flex: 1 1 200px; max-width: 240px; background: #10130b; border: 2px solid #555030;
+  color: #e8d8a0; padding: 16px 14px; cursor: pointer; font-family: inherit; text-align: left;
+  transition: border-color .15s, transform .15s; }
+.fbtn:hover { transform: translateY(-3px); }
+.fbtn b { display: block; font-size: 17px; margin-bottom: 8px; letter-spacing: 1px; }
+.fbtn span { font-size: 12px; line-height: 1.5; color: #9a8a6a; }
+.fbtn.elf { border-color: #2f6b34; } .fbtn.elf:hover, .fbtn.elf b { border-color: #5fd06a; color: #8fe896; }
+.fbtn.guard { border-color: #7a5a20; } .fbtn.guard:hover, .fbtn.guard b { border-color: #d4af37; color: #ffd76a; }
+.fbtn.villain { border-color: #6b2323; } .fbtn.villain:hover, .fbtn.villain b { border-color: #c23a2a; color: #ff7a66; }
+#btnContinue { max-width: 340px; margin: 18px auto 0; }
+.menuFoot { margin-top: 18px; color: #5a5040; font-size: 12px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#hudTopLeft { position: absolute; top: 14px; left: 14px; background: rgba(8,10,6,.62);
+  border: 1px solid #444226; padding: 10px 12px; min-width: 220px; }
+#hpWrap { position: relative; width: 200px; height: 16px; background: #241010; border: 1px solid #6b2323; }
+#hpBar { height: 100%; width: 100%; background: linear-gradient(#c23a2a, #7e1f14); transition: width .15s; }
+#hpBar.low { animation: pulse .6s infinite; }
+#hpText { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 16px;
+  color: #ffe9c9; text-shadow: 1px 1px 0 #000; }
+#statusLine { margin-top: 6px; font-size: 11px; color: #e89a8a; min-height: 14px; }
+#goldLine, #zoneLine { margin-top: 4px; font-size: 12px; color: #cbbd8f; }
+#questPanel { position: absolute; top: 14px; right: 14px; max-width: 300px; text-align: right;
+  background: rgba(8,10,6,.62); border: 1px solid #444226; padding: 10px 12px; }
+#questTitle { color: #ffd76a; font-size: 13px; letter-spacing: 1px; }
+#questDesc { color: #b8a878; font-size: 12px; margin-top: 4px; line-height: 1.45; }
+#questDist { color: #7f9f78; font-size: 11px; margin-top: 4px; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px;
+  border-radius: 50%; background: rgba(255, 235, 180, .85); box-shadow: 0 0 6px #000; }
+#interactPrompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+  background: rgba(8,10,6,.8); border: 1px solid #d4af37; color: #ffe9b0; padding: 8px 16px;
+  font-size: 14px; letter-spacing: 1px; }
+#waveBanner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
+  color: #ff6a55; font-size: 22px; letter-spacing: 3px; text-shadow: 2px 2px 0 #000;
+  animation: pulse 1s infinite; }
+#hintLine { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  color: rgba(200, 190, 150, .5); font-size: 11px; white-space: nowrap; }
+#zoneBanner { position: fixed; left: 50%; top: 26%; transform: translateX(-50%); z-index: 20;
+  color: #ffd76a; font-size: 30px; letter-spacing: 6px; text-shadow: 2px 2px 0 #000, 0 0 24px rgba(212,175,55,.4);
+  pointer-events: none; animation: zoneIn 3s forwards; }
+@keyframes zoneIn { 0% { opacity: 0; } 15% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- тосты ---------- */
+#toasts { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); z-index: 30;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.toast { background: rgba(8,10,6,.85); border: 1px solid #555030; color: #e8d8a0;
+  padding: 7px 16px; font-size: 13px; animation: toastIn 3.2s forwards; }
+.toast.gold { border-color: #d4af37; color: #ffd76a; }
+.toast.bad { border-color: #6b2323; color: #ff8a75; }
+.toast.good { border-color: #2f6b34; color: #8fe896; }
+@keyframes toastIn { 0% { opacity: 0; transform: translateY(8px); } 10% { opacity: 1; transform: none; }
+  80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- эффекты ---------- */
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 15; }
+#damageFlash { position: absolute; inset: 0; background: radial-gradient(ellipse, transparent 55%, rgba(194,32,16,.55));
+  opacity: 0; transition: opacity .09s; }
+#healFlash { position: absolute; inset: 0; background: radial-gradient(ellipse, transparent 60%, rgba(80,200,90,.4));
+  opacity: 0; transition: opacity .2s; }
+#bleedVignette { position: absolute; inset: 0; background: radial-gradient(ellipse, transparent 40%, rgba(140,10,6,.65));
+  animation: pulse 1s infinite; }
+#eyeOverlay { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; background: #000;
+  border-left: 2px solid rgba(120,20,10,.9); }
+
+/* ---------- диалог / магазин ---------- */
+#dlgText { color: #cbbd8f; line-height: 1.6; font-size: 14px; margin-bottom: 8px; white-space: pre-line; }
+#dlgButtons .mbtn { margin-top: 8px; }
+#shopGold { color: #ffd76a; margin-bottom: 10px; }
+.shopItem { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border: 1px solid #3a3d28; background: #131710; padding: 10px 12px; margin-bottom: 8px; }
+.shopItem .si-name { color: #ffe9b0; font-size: 14px; }
+.shopItem .si-desc { color: #9a8a6a; font-size: 11px; margin-top: 3px; line-height: 1.4; }
+.shopItem button { background: #1a1e12; border: 1px solid #d4af37; color: #ffd76a; padding: 8px 14px;
+  cursor: pointer; font-family: inherit; white-space: nowrap; }
+.shopItem button:disabled { border-color: #444; color: #666; cursor: default; }
+.shopItem button:not(:disabled):hover { background: #2a2f1a; }
+
+/* ---------- карта ---------- */
+.mapBox { text-align: center; }
+.mapBox h2 { color: #d4af37; letter-spacing: 4px; margin-bottom: 10px; }
+#mapCanvas { border: 2px solid #555030; background: #0b0f08; max-width: min(88vw, 640px);
+  max-height: 70vh; }
+.mapHint { color: #5a5040; font-size: 12px; margin-top: 8px; }
+
+#helpBox { margin-top: 12px; border-top: 1px solid #3a3d28; padding-top: 10px; text-align: left; }

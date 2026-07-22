@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КОРОВАНЫ — Kimi K3</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- ======= ЭФФЕКТЫ ПОВЕРХ ИГРЫ ======= -->
+<div id="fx">
+  <div id="eyeOverlay" class="hidden"></div>
+  <div id="bleedVignette" class="hidden"></div>
+  <div id="damageFlash"></div>
+  <div id="healFlash"></div>
+</div>
+
+<!-- ======= HUD ======= -->
+<div id="hud" class="hidden">
+  <div id="hudTopLeft">
+    <div id="hpWrap"><div id="hpBar"></div><span id="hpText"></span></div>
+    <div id="statusLine"></div>
+    <div id="goldLine">Золото: <b id="goldVal">0</b></div>
+    <div id="zoneLine">Зона: <b id="zoneVal">—</b></div>
+  </div>
+  <div id="questPanel">
+    <div id="questTitle"></div>
+    <div id="questDesc"></div>
+    <div id="questDist"></div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="interactPrompt" class="hidden"></div>
+  <div id="waveBanner" class="hidden"></div>
+  <div id="hintLine">WASD — идти · Shift — бег · Space — прыжок · ЛКМ — атака · E — действие · H — лечение · M — карта · Esc — меню</div>
+</div>
+
+<div id="zoneBanner" class="hidden"></div>
+<div id="toasts"></div>
+
+<!-- ======= ГЛАВНОЕ МЕНЮ ======= -->
+<div id="menu" class="screen">
+  <div class="menuBox">
+    <h1>КОРОВАНЫ</h1>
+    <div class="menuSub">3D-экшон по ТЗ Кирилла · вариант <b>Kimi K3</b></div>
+    <div class="menuQuote">«Можно грабить корованы... Я джва года хочу такую игру.»</div>
+    <div class="factionPick">
+      <button class="fbtn elf" data-faction="elf">
+        <b>Лесные эльфы</b>
+        <span>Густой лес, деревянные домики. Грабь корованы на тракте и отбивай набеги солдат дворца.</span>
+      </button>
+      <button class="fbtn guard" data-faction="guard">
+        <b>Охрана дворца</b>
+        <span>Слушайся командира: стой на посту, отбивай шпионов и партизан, ходи в набеги на эльфов и Злого.</span>
+      </button>
+      <button class="fbtn villain" data-faction="villain">
+        <b>Злой</b>
+        <span>Старый форт в горах. Ты сам себе командир — прикажи войскам и иди штурмовать дворец.</span>
+      </button>
+    </div>
+    <button id="btnContinue" class="mbtn hidden">Продолжить (есть сохранение)</button>
+    <div class="menuFoot">Клик по экрану захватывает мышь. Сохранения — в браузере (localStorage).</div>
+  </div>
+</div>
+
+<!-- ======= ПАУЗА ======= -->
+<div id="pauseMenu" class="screen hidden">
+  <div class="panel">
+    <h2>Пауза</h2>
+    <button class="mbtn" id="btnResume">Продолжить</button>
+    <button class="mbtn" id="btnSave">Сохранить игру</button>
+    <button class="mbtn" id="btnHelp">Управление</button>
+    <button class="mbtn" id="btnToMenu">В главное меню</button>
+    <div id="helpBox" class="hidden">
+      <p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Space</b> — прыжок</p>
+      <p><b>ЛКМ</b> — удар мечом, <b>E</b> — поговорить / взять / использовать</p>
+      <p><b>H</b> — перевязка / эликсир, <b>M</b> — карта четырёх зон</p>
+      <p>Отрубленная рука режет урон вдвое, нога — ползать, пока не купишь протез или коляску. Выбитый глаз закрывает пол-экрана. Кровотечение убивает — перевязывайся или иди к лекарю.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======= ДИАЛОГ ======= -->
+<div id="dialog" class="screen hidden">
+  <div class="panel">
+    <h2 id="dlgTitle"></h2>
+    <div id="dlgText"></div>
+    <div id="dlgButtons"></div>
+  </div>
+</div>
+
+<!-- ======= МАГАЗИН ======= -->
+<div id="shop" class="screen hidden">
+  <div class="panel wide">
+    <h2 id="shopTitle">Лавка</h2>
+    <div id="shopGold"></div>
+    <div id="shopItems"></div>
+    <button class="mbtn" id="btnShopClose">Уйти</button>
+  </div>
+</div>
+
+<!-- ======= КАРТА ======= -->
+<div id="mapOverlay" class="screen hidden">
+  <div class="mapBox">
+    <h2>Карта — 4 зоны</h2>
+    <canvas id="mapCanvas" width="640" height="640"></canvas>
+    <div class="mapHint">M или Esc — закрыть</div>
+  </div>
+</div>
+
+<!-- ======= СМЕРТЬ ======= -->
+<div id="deathScreen" class="screen hidden">
+  <div class="panel death">
+    <h2 id="deathTitle">ВЫ ПОГИБЛИ</h2>
+    <div id="deathText"></div>
+    <button class="mbtn" id="btnRespawn">Возродиться у своих</button>
+    <button class="mbtn" id="btnLoadDeath">Загрузить сохранение</button>
+  </div>
+</div>
+
+<!-- ======= ПОБЕДА ======= -->
+<div id="victoryScreen" class="screen hidden">
+  <div class="panel victory">
+    <h2>ПОБЕДА</h2>
+    <div id="victoryText"></div>
+    <button class="mbtn" id="btnFreeplay">Остаться в мире (свободная игра)</button>
+    <button class="mbtn" id="btnVictoryMenu">В главное меню</button>
+  </div>
+</div>
+
+<div id="loading" class="screen"><div class="loadText">Загружаем лес, корованы и дворец...</div></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
