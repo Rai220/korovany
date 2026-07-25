@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>КОРОВАНЫ — 3Д-экшон</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0a'/%3E%3Cpath d='M16 3l7 11h-4l6 10H7l6-10H9z' fill='%233c6b2c'/%3E%3Crect x='14' y='24' width='4' height='6' fill='%234b3a26'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- ===== затемнения и увечья ===== -->
+<div id="eyeL" class="eyepatch hidden"></div>
+<div id="eyeR" class="eyepatch hidden"></div>
+<div id="blindfold" class="hidden"></div>
+<div id="hurt"></div>
+<div id="crawlvig" class="hidden"></div>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="crosshair"><span></span><span></span><span></span><span></span></div>
+
+  <div id="statuspanel">
+    <div class="bar-row">
+      <div class="bar hpbar"><i id="hpfill"></i><b id="hptext">100</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar stbar"><i id="stfill"></i></div>
+    </div>
+    <div id="bleedwarn" class="hidden">⚕ КРОВОТЕЧЕНИЕ — нужны бинты (R)</div>
+    <div id="bodypanel">
+      <div class="part" data-part="armL" title="Левая рука">🦾<em>Л.рука</em></div>
+      <div class="part" data-part="armR" title="Правая рука">🦾<em>П.рука</em></div>
+      <div class="part" data-part="legL" title="Левая нога">🦵<em>Л.нога</em></div>
+      <div class="part" data-part="legR" title="Правая нога">🦵<em>П.нога</em></div>
+      <div class="part" data-part="eyeL" title="Левый глаз">👁<em>Л.глаз</em></div>
+      <div class="part" data-part="eyeR" title="Правый глаз">👁<em>П.глаз</em></div>
+    </div>
+  </div>
+
+  <div id="infopanel">
+    <div id="factionline">—</div>
+    <div id="zoneline">—</div>
+    <div id="goldline">💰 0</div>
+    <div id="objline">—</div>
+    <div id="caravanline" class="hidden">🐫 КОРОВАН</div>
+  </div>
+
+  <div id="weaponpanel">
+    <div id="weaponname">Меч</div>
+    <div id="ammoline"></div>
+    <div id="mobline"></div>
+  </div>
+
+  <div id="log"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="squadline" class="hidden"></div>
+</div>
+
+<!-- ===== ЗАГРУЗКА ===== -->
+<div id="loading" class="screen">
+  <div class="loadbox">
+    <h1>КОРОВАНЫ</h1>
+    <p id="loadtext">Растим густой лес…</p>
+    <div class="loadbar"><i id="loadfill"></i></div>
+  </div>
+</div>
+
+<!-- ===== ГЛАВНОЕ МЕНЮ ===== -->
+<div id="menu" class="screen hidden">
+  <div class="menubox">
+    <h1>КОРОВАНЫ</h1>
+    <p class="sub">3Д-экшон. Можно грабить корованы.</p>
+
+    <div id="factions">
+      <button class="fcard" data-faction="elf">
+        <span class="ficon">🏹</span>
+        <b>Лесные эльфы</b>
+        <em>Густой лес, домики деревяные. Набигают солдаты дворца и злодеи.
+        Можно грабить корованы.</em>
+      </button>
+      <button class="fcard" data-faction="guard">
+        <span class="ficon">🛡</span>
+        <b>Охрана дворца</b>
+        <em>Слушаться командира, защищать дворец от Злого… и шпионов,
+        партизанов эльфов, ходить на набеги.</em>
+      </button>
+      <button class="fcard" data-faction="villain">
+        <span class="ficon">💀</span>
+        <b>Злой… (имя не придумано)</b>
+        <em>Сам себе командир. Прикажет своим войскам напасть на дворец
+        и пойдёт в атаку. Иногда нападают партизаны эльфов.</em>
+      </button>
+    </div>
+
+    <div class="menubtns">
+      <button id="btnStart" class="big" disabled>Начать игру</button>
+      <button id="btnContinue" class="big alt hidden">Продолжить (есть сохранение)</button>
+    </div>
+    <p class="hint">WASD — ходить · Space — прыгать · Shift — бежать · ЛКМ — атака ·
+      E — говорить/обыскать · R — бинты · Q — зелье · F — приказ отряду ·
+      M — карта · I — рюкзак · Esc — пауза</p>
+  </div>
+</div>
+
+<!-- ===== ПАУЗА ===== -->
+<div id="pause" class="screen hidden">
+  <div class="menubox small">
+    <h2>Пауза</h2>
+    <button id="btnResume" class="big">Продолжить</button>
+    <button id="btnSave" class="big alt">Сохранится</button>
+    <button id="btnLoad" class="big alt">Загрузить</button>
+    <button id="btnQuit" class="big alt">В главное меню</button>
+    <p class="hint" id="savehint"></p>
+  </div>
+</div>
+
+<!-- ===== СМЕРТЬ ===== -->
+<div id="death" class="screen hidden">
+  <div class="menubox small">
+    <h2 id="deathtitle">Вы умерли</h2>
+    <p id="deathtext"></p>
+    <button id="btnRespawn" class="big">Очнуться у своих</button>
+    <button id="btnLoadDeath" class="big alt">Загрузить сохранение</button>
+  </div>
+</div>
+
+<!-- ===== ЛАВКА ===== -->
+<div id="shop" class="screen hidden">
+  <div class="panel wide">
+    <header><h2 id="shopname">Лавка</h2><span id="shopgold">💰 0</span></header>
+    <div class="cols">
+      <div class="col">
+        <h3>Товары</h3>
+        <div id="shopbuy" class="list"></div>
+      </div>
+      <div class="col">
+        <h3>Ваше добро (продать за полцены)</h3>
+        <div id="shopsell" class="list"></div>
+      </div>
+    </div>
+    <footer><span id="shopmsg"></span><button class="big" data-close>Уйти (Esc)</button></footer>
+  </div>
+</div>
+
+<!-- ===== РЮКЗАК ===== -->
+<div id="inv" class="screen hidden">
+  <div class="panel">
+    <header><h2>Рюкзак и состояние</h2><span id="invgold">💰 0</span></header>
+    <div class="cols">
+      <div class="col"><h3>Вещи</h3><div id="invlist" class="list"></div></div>
+      <div class="col"><h3>Тело</h3><div id="invbody" class="list"></div>
+        <h3>Слава</h3><div id="invstats" class="list"></div></div>
+    </div>
+    <footer><span id="invmsg"></span><button class="big" data-close>Закрыть (I)</button></footer>
+  </div>
+</div>
+
+<!-- ===== ДИАЛОГ ===== -->
+<div id="dialog" class="screen hidden">
+  <div class="panel">
+    <header><h2 id="dlgname">—</h2></header>
+    <p id="dlgtext"></p>
+    <div id="dlgopts" class="list"></div>
+    <footer><span></span><button class="big" data-close>Закончить (Esc)</button></footer>
+  </div>
+</div>
+
+<!-- ===== КАРТА ===== -->
+<div id="map" class="screen hidden">
+  <div class="panel">
+    <header><h2>Карта. Всего в игре 4 зоны</h2><span id="mapgold">💰 0</span></header>
+    <canvas id="mapcanvas" width="620" height="620"></canvas>
+    <div id="travel" class="list"></div>
+    <footer><span id="mapmsg"></span><button class="big" data-close>Закрыть (M)</button></footer>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
