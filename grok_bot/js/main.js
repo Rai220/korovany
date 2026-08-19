@@ -852,18 +852,19 @@ function updatePlayer(dt) {
   player.parts.weapon.rotation.x = swingT > 0 ? -1.4 * (swingT / 0.28) : 0;
 
   const eye = crawl ? 0.55 : player.usingChair ? 1.05 : 1.62;
+  const f = facing();
+  camera.up.set(0, 1, 0);
   if (thirdPerson) {
-    const back = 4.4;
-    const camX = player.x + Math.sin(player.yaw) * back;
-    const camZ = player.z + Math.cos(player.yaw) * back;
-    const camY = player.y + 2.4 - player.pitch * 1.2;
-    camera.position.set(camX, camY, camZ);
-    camera.lookAt(player.x, player.y + 1.3, player.z);
+    camera.position.set(player.x - f.x * 4.4, player.y + 2.35, player.z - f.z * 4.4);
+    camera.lookAt(player.x, player.y + 1.35, player.z);
   } else {
+    const horiz = Math.cos(player.pitch);
     camera.position.set(player.x, player.y + eye, player.z);
-    camera.rotation.order = "YXZ";
-    camera.rotation.y = player.yaw;
-    camera.rotation.x = player.pitch;
+    camera.lookAt(
+      player.x + f.x * horiz,
+      player.y + eye + Math.sin(player.pitch),
+      player.z + f.z * horiz
+    );
   }
 }
 

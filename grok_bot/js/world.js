@@ -162,7 +162,7 @@ export function createWorld(scene) {
   const interact = [];
 
   scene.background = new THREE.Color(0x87a0b4);
-  scene.fog = new THREE.FogExp2(0x9bb0a0, 0.011);
+  scene.fog = new THREE.FogExp2(0x9bb0a0, 0.0075);
 
   const hemi = new THREE.HemisphereLight(0xc8d8e8, 0x3a2a18, 0.85);
   scene.add(hemi);
@@ -363,7 +363,7 @@ export function createWorld(scene) {
   const trees = [];
   const rnd = mulberry(220);
   const blocked = (x, z) => {
-    if (Math.hypot(x - forestClear.x, z - forestClear.z) < 18) return true;
+    if (Math.hypot(x - forestClear.x, z - forestClear.z) < 11) return true;
     if (Math.hypot(x - px, z - pz) < 28) return true;
     if (Math.hypot(x + 68, z + 68) < 22) return true;
     if (Math.hypot(x - fx, z - fz) < 22) return true;
@@ -377,7 +377,7 @@ export function createWorld(scene) {
     trees.push({ x, z, y: heightAt(x, z), kind, scale, meshIdx: -1 });
   }
 
-  for (let i = 0; i < 520; i++) {
+  for (let i = 0; i < 680; i++) {
     const x = -WORLD + 6 + rnd() * (WORLD - 8);
     const z = 8 + rnd() * (WORLD - 16);
     if (x > -6 && rnd() > 0.12) continue;
