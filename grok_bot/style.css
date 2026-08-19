@@ -39,10 +39,15 @@ html, body {
 .overlay[hidden], .panel[hidden], #hud[hidden], #eye-mask[hidden] { display: none !important; }
 
 #start {
+  pointer-events: auto;
+  z-index: 20;
   background:
     radial-gradient(ellipse at 50% 20%, rgba(80, 30, 20, .45), transparent 50%),
     linear-gradient(180deg, #12160f 0%, #0a0c08 100%);
 }
+
+#boot-status { color: #9a8a68; margin-bottom: 14px; }
+#boot-error { color: #ff8a7a; max-width: 560px; text-align: center; margin: 0 0 14px; line-height: 1.45; }
 
 #start h1 {
   font-size: clamp(36px, 6vw, 72px);
@@ -72,12 +77,16 @@ html, body {
 }
 
 .faction {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
   border: 2px solid #5a4a28;
   background: #16140e;
   color: var(--parchment);
   padding: 18px 16px 20px;
   cursor: pointer;
   text-align: left;
+  font: inherit;
   transition: border-color .15s, transform .15s, box-shadow .15s;
 }
 

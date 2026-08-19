@@ -9,17 +9,27 @@ import {
 } from "./world.js";
 
 const SAVE_KEY = "korovany_grok_bot_v1";
-const canvas = document.getElementById("view");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 420);
-const world = createWorld(scene);
+let canvas;
+let renderer;
+let scene;
+let camera;
+let world;
+let clock;
+let game = null;
 
-const clock = new THREE.Clock();
+function showBootError(err) {
+  const el = document.getElementById("boot-error");
+  const st = document.getElementById("boot-status");
+  if (st) st.hidden = true;
+  if (!el) return;
+  el.hidden = false;
+  const msg = err && err.message ? err.message : String(err || "ошибка");
+  const proto = location.protocol === "file:"
+    ? " Открой папку по http (GitHub Pages или python3 -m http.server) — ES modules с file:// не живут."
+    : "";
+  el.textContent = msg + proto;
+}
 const keys = new Set();
 let pointerLocked = false;
 let thirdPerson = false;
@@ -204,6 +214,11 @@ function makeCaravan() {
 }
 
 function startGame(faction, saved) {
+  if (!world || !world.spots) {
+    showBootError("World.spots нет — игра не стартовала. Сначала создаётся мир, потом кнопки.");
+    return;
+  }
+  if (started && !saved) return;
   started = true;
   dead = false;
   document.getElementById("start").hidden = true;
@@ -216,7 +231,7 @@ function startGame(faction, saved) {
     leftovers.forEach((c) => scene.remove(c));
     scene.children.filter((c) => c.userData && c.userData.gib).forEach((c) => scene.remove(c));
 
-    const L = world.landmarks;
+    const L = world.spots;
     for (let i = 0; i < 8; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 6 + Math.random() * 16;
@@ -244,17 +259,13 @@ function startGame(faction, saved) {
     caravan = makeCaravan();
     caravan.guards = [g1, g2];
 
-    const spawn = {
-      elf: { x: -86, z: 76, gold: 14 },
-      guard: { x: 88, z: 70, gold: 22 },
-      villain: { x: 108, z: -114, gold: 30 },
-    }[faction];
+    const spawn = world.spots[faction];
     player = {
       faction,
       x: spawn.x,
       y: heightAt(spawn.x, spawn.z),
       z: spawn.z,
-      yaw: faction === "villain" ? 0.4 : faction === "elf" ? 2.2 : 3.3,
+      yaw: spawn.yaw,
       pitch: 0,
       vy: 0,
       hp: 100,
@@ -404,55 +415,6 @@ function tryLock() {
   if (!started || uiOpen || dead) return;
   canvas.requestPointerLock?.();
 }
-
-canvas.addEventListener("click", () => {
-  if (!started) return;
-  if (uiOpen) return;
-  tryLock();
-  if (pointerLocked) melee();
-});
-
-document.addEventListener("pointerlockchange", () => {
-  pointerLocked = document.pointerLockElement === canvas;
-});
-
-document.addEventListener("mousemove", (e) => {
-  if (!started || !pointerLocked || dead) return;
-  player.yaw -= e.movementX * 0.0022;
-  player.pitch -= e.movementY * 0.002;
-  player.pitch = THREE.MathUtils.clamp(player.pitch, -1.25, 1.25);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.code === "F5" || e.code === "F9") e.preventDefault();
-  keys.add(e.code);
-  if (!started) return;
-  if (e.code === "KeyV") {
-    thirdPerson = !thirdPerson;
-    document.getElementById("mode").textContent = thirdPerson ? "Вид: 3-е лицо" : "Вид: 1-е лицо";
-  }
-  if (e.code === "KeyM") togglePanel("map-panel");
-  if (e.code === "KeyH") togglePanel("help-panel");
-  if (e.code === "KeyE") interact();
-  if (e.code === "F5") saveGame();
-  if (e.code === "F9") loadGame();
-  if (player.faction === "villain") {
-    if (e.code === "Digit1" || e.code === "Numpad1") {
-      villainCmd = 1;
-      log("Приказ Морвейна: за мной.");
-    }
-    if (e.code === "Digit2" || e.code === "Numpad2") {
-      villainCmd = 2;
-      log("Приказ Морвейна: держать форт.");
-    }
-    if (e.code === "Digit3" || e.code === "Numpad3") {
-      villainCmd = 3;
-      log("Приказ Морвейна: штурм дворца!");
-    }
-  }
-});
-
-document.addEventListener("keyup", (e) => keys.delete(e.code));
 
 function togglePanel(id) {
   const el = document.getElementById(id);
@@ -661,7 +623,7 @@ function steer(a, tx, tz, dt, speed) {
 }
 
 function updateActors(dt) {
-  const L = world.landmarks;
+  const L = world.spots || world.landmarks;
   orderTimer += dt;
   if (orderTimer > 26) {
     orderTimer = 0;
@@ -1088,16 +1050,121 @@ function loop() {
   renderer.render(scene, camera);
 }
 
-document.querySelectorAll(".faction").forEach((btn) => {
-  btn.addEventListener("click", () => startGame(btn.dataset.faction, false));
-});
-document.getElementById("btn-reload").addEventListener("click", loadGame);
-document.getElementById("btn-restart").addEventListener("click", () => location.reload());
+class Game {
+  constructor() {
+    this.initWorld();
+    this.bindUi();
+    this.drainPendingStart();
+    loop();
+  }
 
-addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+  initWorld() {
+    canvas = document.getElementById("view");
+    if (!canvas) throw new Error("Нет canvas #view — мир некуда рисовать.");
+    this.canvas = canvas;
+    renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 420);
+    world = createWorld(scene);
+    this.world = world;
+    if (!this.world || !this.world.spots) {
+      throw new Error("World не создал spots — старт фракции упадёт.");
+    }
+    clock = new THREE.Clock();
+  }
 
-loop();
+  bindUi() {
+    if (!this.canvas) throw new Error("bindUi() до canvas: слушатели не повесятся.");
+    this.canvas.addEventListener("click", () => {
+      if (!started || uiOpen) return;
+      tryLock();
+      if (pointerLocked) melee();
+    });
+    document.addEventListener("pointerlockchange", () => {
+      pointerLocked = document.pointerLockElement === this.canvas;
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!started || !pointerLocked || dead) return;
+      player.yaw -= e.movementX * 0.0022;
+      player.pitch -= e.movementY * 0.002;
+      player.pitch = THREE.MathUtils.clamp(player.pitch, -1.25, 1.25);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "F5" || e.code === "F9") e.preventDefault();
+      keys.add(e.code);
+      if (!started) return;
+      if (e.code === "KeyV") {
+        thirdPerson = !thirdPerson;
+        document.getElementById("mode").textContent = thirdPerson ? "Вид: 3-е лицо" : "Вид: 1-е лицо";
+      }
+      if (e.code === "KeyM") togglePanel("map-panel");
+      if (e.code === "KeyH") togglePanel("help-panel");
+      if (e.code === "KeyE") interact();
+      if (e.code === "F5") saveGame();
+      if (e.code === "F9") loadGame();
+      if (player && player.faction === "villain") {
+        if (e.code === "Digit1" || e.code === "Numpad1") {
+          villainCmd = 1;
+          log("Приказ Морвейна: за мной.");
+        }
+        if (e.code === "Digit2" || e.code === "Numpad2") {
+          villainCmd = 2;
+          log("Приказ Морвейна: держать форт.");
+        }
+        if (e.code === "Digit3" || e.code === "Numpad3") {
+          villainCmd = 3;
+          log("Приказ Морвейна: штурм дворца!");
+        }
+      }
+    });
+    document.addEventListener("keyup", (e) => keys.delete(e.code));
+    document.querySelectorAll("[data-faction]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.start(btn.dataset.faction);
+      });
+    });
+    document.getElementById("btn-reload")?.addEventListener("click", loadGame);
+    document.getElementById("btn-restart")?.addEventListener("click", () => location.reload());
+    addEventListener("resize", () => {
+      if (!camera || !renderer) return;
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+    window.startGrokBot = (faction) => this.start(faction);
+    const status = document.getElementById("boot-status");
+    if (status) status.hidden = true;
+  }
+
+  start(faction) {
+    if (!this.world || !this.world.spots) {
+      showBootError("Мир ещё не создан. World.spots нет — кнопка фракции не стартует игру.");
+      return;
+    }
+    if (!this.world.spots[faction]) {
+      showBootError("Неизвестная сторона: " + faction);
+      return;
+    }
+    startGame(faction, false);
+  }
+
+  drainPendingStart() {
+    const pending = window.__GROK_PENDING_FACTION;
+    window.__GROK_PENDING_FACTION = null;
+    if (pending) this.start(pending);
+  }
+}
+
+try {
+  game = new Game();
+  window.__GROK_BOT__ = game;
+} catch (err) {
+  console.error(err);
+  showBootError(err);
+  window.startGrokBot = () => showBootError(err);
+}

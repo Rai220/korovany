@@ -456,21 +456,29 @@ export function createWorld(scene) {
     billboards.instanceMatrix.needsUpdate = true;
   }
 
+  const landmarks = {
+    forest: new THREE.Vector3(-88, 0, 78),
+    palace: new THREE.Vector3(88, 0, 82),
+    village: new THREE.Vector3(-64, 0, -56),
+    fort: new THREE.Vector3(108, 0, -108),
+    shop: new THREE.Vector3(-64, 0, -48),
+    healer: new THREE.Vector3(-40, 0, -70),
+    commander: new THREE.Vector3(88, 0, 74),
+  };
+  const spots = {
+    ...landmarks,
+    elf: { x: -86, z: 76, gold: 14, yaw: 2.2 },
+    guard: { x: 88, z: 70, gold: 22, yaw: 3.3 },
+    villain: { x: 108, z: -114, gold: 30, yaw: 0.4 },
+  };
   return {
     colliders,
     pois,
     interact,
     trees,
     updateLOD,
-    landmarks: {
-      forest: new THREE.Vector3(-88, 0, 78),
-      palace: new THREE.Vector3(88, 0, 82),
-      village: new THREE.Vector3(-64, 0, -56),
-      fort: new THREE.Vector3(108, 0, -108),
-      shop: new THREE.Vector3(-64, 0, -48),
-      healer: new THREE.Vector3(-40, 0, -70),
-      commander: new THREE.Vector3(88, 0, 74),
-    },
+    landmarks,
+    spots,
   };
 }
 
