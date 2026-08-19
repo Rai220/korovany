@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>КОРОВАНЫ — Grok Bot · Владыка Морвейн</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="bleed-vignette"></div>
+  <div id="eye-mask" hidden></div>
+
+  <div id="start" class="overlay">
+    <h1>КОРОВАНЫ</h1>
+    <p class="tz">Здраствуйте. Я, Кирилл. Хотел бы чтобы вы сделали игру, 3Д-экшон…
+      Можно грабить корованы. Четыре зоны, густой лес, дворец, деревня и горный форт.
+      Злодея зовут <b>Владыка Морвейн</b>. P.S. Я джва года хочу такую игру.</p>
+    <p id="boot-status">Собираем мир…</p>
+    <p id="boot-error" hidden></p>
+    <div class="pick">
+      <button type="button" class="faction elf" data-faction="elf" onclick="startGrokBot('elf')">
+        <b>Лесные эльфы</b>
+        <span>Хижины в чаще. На тракте — корован. Стража и люди Морвейна — враги. Партизаны ходят набегом на старый форт.</span>
+      </button>
+      <button type="button" class="faction guard" data-faction="guard" onclick="startGrokBot('guard')">
+        <b>Охрана дворца</b>
+        <span>Слушай командира на HUD. Защищай дворец от шпионов, партизан и войск Владыки Морвейна.</span>
+      </button>
+      <button type="button" class="faction villain" data-faction="villain" onclick="startGrokBot('villain')">
+        <b>Владыка Морвейн</b>
+        <span>Ты сам себе командир. <kbd>1</kbd> за мной, <kbd>2</kbd> держать форт, <kbd>3</kbd> штурм дворца. Эльфы иногда лезут в горы.</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="hud" hidden>
+    <div id="vitals">
+      <div class="row"><span id="faction-name">—</span><span id="gold">Золото: 0</span></div>
+      <div id="hp-bar"><i id="hp-fill"></i></div>
+      <div class="row"><span id="hp-text">Здоровье: 100</span><span id="zone">Зона: —</span></div>
+      <div class="row"><span id="wounds">Ран нет</span><span id="mode">Вид: 1-е лицо</span></div>
+    </div>
+    <div id="order-box">
+      <b id="order-title">Приказ</b>
+      <div id="order-text">—</div>
+    </div>
+    <div id="crosshair">+</div>
+    <div id="prompt"></div>
+    <div id="log"></div>
+  </div>
+
+  <div id="map-panel" class="panel" hidden>
+    <h2>Карта четырёх земель</h2>
+    <canvas id="map-canvas" width="420" height="420"></canvas>
+    <p style="margin-top:8px">Лес · Дворец · Деревня · Горы форта. <kbd>M</kbd> закрыть.</p>
+  </div>
+
+  <div id="help-panel" class="panel" hidden>
+    <h2>Помощь</h2>
+    <ul>
+      <li><kbd>WASD</kbd> — ходьба, <kbd>Пробел</kbd> — прыжок, мышь — обзор</li>
+      <li><kbd>ЛКМ</kbd> — удар клинком (можно отрубить руку, глаз, ногу)</li>
+      <li><kbd>V</kbd> — вид от 1-го / 3-го лица</li>
+      <li><kbd>E</kbd> — обыск трупа, лавка, лекарь, ограбить корован</li>
+      <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> — приказы войск Морвейна (за него)</li>
+      <li><kbd>M</kbd> — карта, <kbd>H</kbd> — эта справка</li>
+      <li><kbd>F5</kbd> — сохранить, <kbd>F9</kbd> — загрузить (localStorage)</li>
+      <li><kbd>B</kbd> — бинты из сумки (остановить кровь)</li>
+      <li>Без руки кровоточишь — бинты или лекарь (20 золота). Без ноги: ползти, коляска или протез.</li>
+    </ul>
+    <p>Клик по миру захватывает мышь. <kbd>Esc</kbd> отпускает.</p>
+  </div>
+
+  <div id="shop-panel" class="panel" hidden>
+    <h2 id="shop-title">Лавка</h2>
+    <div id="shop-list"></div>
+    <p style="margin-top:10px"><kbd>E</kbd> или клик вне окна — закрыть.</p>
+  </div>
+
+  <div id="dead" class="panel" hidden>
+    <h2>Вы пали</h2>
+    <p id="dead-reason">Кровь ушла в землю четырёх зон.</p>
+    <button type="button" id="btn-reload">Загрузить сохранение (F9)</button>
+    <button type="button" id="btn-restart">Начать заново</button>
+  </div>
+
+  <script>
+    window.__GROK_PENDING_FACTION = null;
+    window.startGrokBot = function startGrokBot(faction) {
+      window.__GROK_PENDING_FACTION = faction;
+    };
+  </script>
+  <script type="module" src="js/main.js"></script>
+  <script nomodule>
+    document.getElementById("boot-error").hidden = false;
+    document.getElementById("boot-error").textContent =
+      "Нужен браузер с ES modules. Игру надо открывать по http (GitHub Pages или python3 -m http.server), не как file://.";
+  </script>
+</body>
+</html>
