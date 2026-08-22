@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ДЖВА ГОДА — 3D-экшон по ТЗ Кирилла (hermes ox-alpha)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="vignette"></div>
+  <div id="blindfold"></div>
+  <div id="bloodflash"></div>
+  <div id="hitmark">✕</div>
+
+  <div id="crosshair">+<span id="usehint"></span></div>
+
+  <div id="topbar">
+    <div id="zoneLabel"></div>
+    <div id="questLabel"></div>
+    <div id="clock"></div>
+  </div>
+
+  <div id="stats">
+    <div class="bar"><label>ЗДОРОВЬЕ</label><div class="track"><div id="hpFill" class="fill hp"></div></div><b id="hpText"></b></div>
+    <div class="bar"><label>ВЫНОСЛИВОСТЬ</label><div class="track"><div id="stamFill" class="fill stam"></div></div><b></b></div>
+    <div id="goldRow"><span id="goldVal"></span> золота</div>
+    <div id="bodyRow">
+      <span id="bodyLArm" title="Левая рука"> рука </span>
+      <span id="bodyRArm" title="Правая рука">рука </span>
+      <span id="bodyLLeg" title="Левая нога"> нога </span>
+      <span id="bodyRLeg" title="Правая нога">нога </span>
+      <span id="bodyEye" title="Глаз">глаз</span>
+    </div>
+    <div id="bleedWarn" class="hidden">⚠ КРОВОТЕЧЕНИЕ! Нужен лекарь или бинт!</div>
+  </div>
+
+  <div id="squadBox"></div>
+  <div id="logbox"></div>
+  <div id="lootbox"></div>
+  <div id="waveBanner" class="hidden"></div>
+  <div id="helpHint">F1 — управление · M — карта · TAB — инвентарь/экипировка</div>
+</div>
+
+<!-- ===== Меню / выбор фракции ===== -->
+<div id="menu" class="screen">
+  <h1>ДЖВА ГОДА</h1>
+  <p class="tagline">3D-экшон по легендарному ТЗ Кирилла · вариант hermes_ox_alpha</p>
+  <p class="quote">«Пользователь может играть лесными эльфами, охраной дворца и злодеем…
+    Можно грабить корованы… Я джва года хочу такую игру.»</p>
+  <div id="menuButtons"></div>
+  <div class="foot">Three.js · вид от первого лица · всё рисуется кодом, без ассетов</div>
+</div>
+
+<!-- ===== Карта ===== -->
+<div id="mapScreen" class="screen hidden">
+  <h2>КАРТА МИРА</h2>
+  <canvas id="mapCanvas" width="640" height="640"></canvas>
+  <div id="mapInfo"></div>
+  <div class="rowbtn">
+    <button data-close="mapScreen">Закрыть [M]</button>
+  </div>
+</div>
+
+<!-- ===== Лавка ===== -->
+<div id="shopScreen" class="screen hidden">
+  <h2 id="shopTitle">ЛАВКА</h2>
+  <div class="goldline">У вас: <b id="shopGold"></b> золота</div>
+  <div id="shopGoods"></div>
+  <div class="rowbtn"><button data-close="shopScreen">Уйти [Esc]</button></div>
+</div>
+
+<!-- ===== Инвентарь ===== -->
+<div id="invScreen" class="screen hidden">
+  <h2>ИНВЕНТАРЬ И ЭКИПИРОВКА</h2>
+  <div id="invBody"></div>
+  <div class="rowbtn"><button data-close="invScreen">Закрыть [TAB]</button></div>
+</div>
+
+<!-- ===== Смерть ===== -->
+<div id="deathScreen" class="screen hidden">
+  <h2 id="deathTitle">ВЫ ПОГИБЛИ</h2>
+  <p id="deathCause"></p>
+  <div class="rowbtn">
+    <button id="btnLoadLast">Загрузить последнее сохранение</button>
+    <button id="btnDeathMenu">В главное меню</button>
+  </div>
+</div>
+
+<!-- ===== Пауза ===== -->
+<div id="pauseScreen" class="screen hidden">
+  <h2>ПАУЗА</h2>
+  <div class="rowbtn col">
+    <button id="btnResume">Продолжить [Esc]</button>
+    <button id="btnSaveGame">Сохранить игру</button>
+    <button id="btnLoadGame">Загрузить игру</button>
+    <button id="btnPauseMenu">Выйти в меню</button>
+  </div>
+</div>
+
+<!-- ===== Управление ===== -->
+<div id="controlsScreen" class="screen hidden">
+  <h2>УПРАВЛЕНИЕ</h2>
+  <table class="ctrltable">
+    <tr><td>W A S D</td><td>движение</td><td>Мышь</td><td>обзор</td></tr>
+    <tr><td>Shift</td><td>бег</td><td>Space</td><td>прыжок</td></tr>
+    <tr><td>ЛКМ</td><td>удар / выстрел из лука</td><td>E</td><td>говорить / грабить / обыскать / войти в лавку</td></tr>
+    <tr><td>R</td><td>переключить оружие (меч ⇄ лук)</td><td>C</td><td>приказ отряду «в атаку» / «за мной»</td></tr>
+    <tr><td>M</td><td>карта мира</td><td>TAB</td><td>инвентарь, протезы, бинты</td></tr>
+    <tr><td>F5</td><td>быстрое сохранение</td><td>F9</td><td>быстрая загрузка</td></tr>
+    <tr><td>Esc</td><td>пауза</td><td>F1</td><td>это окно</td></tr>
+  </table>
+  <p class="note">Травмы: отрубленная рука выпадает из строя (и кровоточит!), выбитый глаз
+  закрывает половину экрана, отрубленная нога валит с ног — ползком или на коляске.
+  Лекарь в деревне и у дворца лечит и ставит протезы. Сохранение — F5.</p>
+  <div class="rowbtn"><button data-close="controlsScreen">Закрыть [F1]</button></div>
+</div>
+
+<div id="clickToPlay" class="hidden">Кликните мышью, чтобы захватить курсор · Esc — пауза</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

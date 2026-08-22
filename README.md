@@ -51,6 +51,7 @@ SOTA-варианты закреплены в начале таблицы, да�
 | **GPT-5.6-sol** | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
 | **Opus 5** | 2026-07-25 15:07 | — | [`Opus-5/`](Opus-5/) | [играть](https://rai220.github.io/korovany/Opus-5/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 | **Grok Bot** | 2026-08-19 16:51 | — | [`grok_bot/`](grok_bot/) | [играть](https://rai220.github.io/korovany/grok_bot/) | Three.js (ES modules, CDN), вид от 1-го или 3-го лица, без сборки |
+| **ox-alpha (Hermes)** | 2026-08-22 12:30 | — | [`hermes_ox_alpha/`](hermes_ox_alpha/) | [играть](https://rai220.github.io/korovany/hermes_ox_alpha/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 
 ### Opus 5 — что внутри
 
