@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КОРОВАНЫ — Fable 5.1</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060806;
+    font-family: "Courier New", monospace; color: #e8d8a0; }
+  #game { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  .overlay { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: rgba(4, 6, 4, .88); }
+  .hidden { display: none !important; }
+
+  /* ---------- Start screen ---------- */
+  #start { overflow-y: auto; padding: 30px 16px; justify-content: flex-start; }
+  #start h1 { color: #d4af37; letter-spacing: 10px; text-shadow: 3px 3px 0 #5a1010; font-size: 54px; margin-top: 10px; }
+  #start .sub { color: #b8a878; margin: 6px 0 14px; letter-spacing: 2px; }
+  #start .quote { color: #8a7a5a; font-style: italic; max-width: 660px; line-height: 1.55; font-size: 13px; margin-bottom: 22px; }
+  .factions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; max-width: 980px; }
+  .fcard { width: 280px; border: 2px solid #555030; background: #14160e; padding: 18px 16px;
+    cursor: pointer; transition: border-color .15s, transform .15s; text-align: left; }
+  .fcard:hover { border-color: #d4af37; transform: translateY(-3px); }
+  .fcard .fico { font-size: 40px; display: block; text-align: center; margin-bottom: 8px; }
+  .fcard b { color: #ffd76a; font-size: 17px; display: block; text-align: center; margin-bottom: 8px; }
+  .fcard span { color: #9a8a6a; font-size: 12.5px; line-height: 1.55; display: block; }
+  #btnContinue { margin: 20px 0 4px; padding: 12px 34px; font-family: inherit; font-size: 16px;
+    background: #2a2410; color: #ffd76a; border: 2px solid #d4af37; cursor: pointer; letter-spacing: 1px; }
+  #btnContinue:hover { background: #3a3418; }
+  .controls-help { margin-top: 22px; color: #7a6f52; font-size: 12.5px; line-height: 1.75; max-width: 700px; }
+  .controls-help b { color: #b8a878; }
+  #start .foot { margin-top: 18px; color: #5a5040; font-size: 12px; font-style: italic; }
+  #worldStatus { color: #7f9f78; margin-bottom: 14px; font-size: 13px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: none; }
+  #hud.on { display: block; }
+
+  #crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    width: 14px; height: 14px; opacity: .85; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #e8d8a0; }
+  #crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; }
+  #crosshair::after { left: 0; top: 6px; width: 14px; height: 2px; }
+
+  #zoneLabel { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    color: #d4c290; font-size: 14px; letter-spacing: 2px; text-shadow: 1px 1px 2px #000; }
+
+  #minimap { position: absolute; top: 14px; left: 14px; border: 2px solid #555030;
+    background: #0a0c08; image-rendering: pixelated; }
+
+  #msgs { position: absolute; top: 200px; left: 14px; max-width: 380px; }
+  .msg { color: #ffe9b0; font-size: 13.5px; margin-bottom: 5px; text-shadow: 1px 1px 2px #000;
+    background: rgba(10,10,6,.55); padding: 4px 8px; border-left: 3px solid #d4af37; }
+
+  #orderBox { position: absolute; top: 14px; right: 14px; width: 300px; background: rgba(12,14,8,.72);
+    border: 2px solid #555030; padding: 10px 12px; text-align: left; }
+  #orderBox .otitle { color: #d4af37; font-size: 12px; letter-spacing: 2px; margin-bottom: 5px; }
+  #orderText { color: #e8d8a0; font-size: 13px; line-height: 1.45; }
+  #orderProg { color: #9fbf78; font-size: 12.5px; margin-top: 5px; }
+
+  #statusBL { position: absolute; left: 14px; bottom: 14px; width: 300px; text-align: left; }
+  #hpBar { width: 100%; height: 18px; background: #29140f; border: 2px solid #555030; }
+  #hpFill { height: 100%; width: 100%; background: linear-gradient(#c8402a, #8a2418); transition: width .18s; }
+  #hpText { font-size: 12px; color: #e8b8a0; margin-top: 3px; text-shadow: 1px 1px 1px #000; }
+  #injuryList { margin-top: 6px; font-size: 12.5px; color: #e09070; line-height: 1.5; text-shadow: 1px 1px 1px #000; }
+  #bleedWarn { margin-top: 4px; color: #ff5a3a; font-weight: bold; font-size: 13.5px;
+    animation: blink 0.8s infinite; text-shadow: 1px 1px 2px #000; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  #statusBR { position: absolute; right: 14px; bottom: 14px; text-align: right;
+    font-size: 14px; line-height: 1.75; text-shadow: 1px 1px 2px #000; }
+  #statusBR .gold { color: #ffd76a; font-size: 17px; }
+  #statusBR .dim { color: #a89a74; font-size: 12.5px; }
+
+  #hintText { position: absolute; left: 50%; bottom: 21%; transform: translateX(-50%);
+    color: #ffe9b0; font-size: 15px; background: rgba(10,10,6,.6); padding: 6px 14px;
+    border: 1px solid #555030; text-shadow: 1px 1px 2px #000; }
+
+  /* damage / blood / eye overlays */
+  #flash { position: fixed; inset: 0; z-index: 20; pointer-events: none; background: #a01808;
+    opacity: 0; transition: opacity .25s; }
+  #vignette { position: fixed; inset: 0; z-index: 19; pointer-events: none; opacity: 0;
+    box-shadow: inset 0 0 180px 60px rgba(150, 10, 5, .85); transition: opacity .4s; }
+  #eyeOverlay { position: fixed; top: 0; left: 0; bottom: 0; width: 50%; z-index: 18;
+    pointer-events: none; background: linear-gradient(90deg, #000 82%, transparent); display: none; }
+
+  /* ---------- Panels ---------- */
+  .panel { background: #14160e; border: 2px solid #d4af37; padding: 22px 26px; max-width: 460px;
+    width: 92%; text-align: left; box-shadow: 0 0 40px rgba(0,0,0,.7); }
+  .panel h2 { color: #d4af37; letter-spacing: 3px; font-size: 20px; margin-bottom: 12px; text-align: center; }
+  .pbtn { display: block; width: 100%; margin-top: 10px; padding: 10px 14px; font-family: inherit;
+    font-size: 14px; background: #211d0e; color: #e8d8a0; border: 1px solid #555030; cursor: pointer;
+    text-align: left; }
+  .pbtn:hover { border-color: #d4af37; color: #ffd76a; }
+  .pbtn .price { float: right; color: #ffd76a; }
+  .pbtn:disabled { opacity: .38; cursor: default; }
+  .pnote { color: #8a7a5a; font-size: 12px; margin-top: 10px; line-height: 1.5; }
+  #shopGold { color: #ffd76a; text-align: center; margin-bottom: 4px; }
+
+  #deathReason { color: #e09070; text-align: center; line-height: 1.6; margin-bottom: 8px; }
+  #death .panel h2 { color: #c8402a; }
+
+  #lockHint { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center;
+    justify-content: center; color: #ffd76a; font-size: 18px; letter-spacing: 1px;
+    background: rgba(4,6,4,.45); cursor: pointer; text-shadow: 1px 1px 3px #000; }
+
+  #savedToast { position: fixed; top: 46%; left: 50%; transform: translate(-50%,-50%); z-index: 35;
+    color: #9fbf78; font-size: 18px; letter-spacing: 2px; text-shadow: 1px 1px 3px #000;
+    opacity: 0; transition: opacity .3s; pointer-events: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="crosshair"></div>
+    <div id="zoneLabel"></div>
+    <canvas id="minimap" width="170" height="170"></canvas>
+    <div id="msgs"></div>
+    <div id="orderBox">
+      <div class="otitle" id="orderTitle">ПРИКАЗ</div>
+      <div id="orderText">—</div>
+      <div id="orderProg"></div>
+    </div>
+    <div id="statusBL">
+      <div id="hpBar"><div id="hpFill"></div></div>
+      <div id="hpText"></div>
+      <div id="injuryList"></div>
+      <div id="bleedWarn" class="hidden">КРОВОТЕЧЕНИЕ! [X] — перевязать</div>
+    </div>
+    <div id="statusBR"></div>
+    <div id="hintText" class="hidden"></div>
+  </div>
+
+  <div id="eyeOverlay"></div>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="savedToast">— СОХРАНЕНО —</div>
+
+  <!-- Start screen -->
+  <div id="start" class="overlay">
+    <h1>КОРОВАНЫ</h1>
+    <div class="sub">Fable 5.1 — 3Д-экшон суть такова</div>
+    <div class="quote">«Здраствуйте. Я, Кирилл. Хотел бы чтобы вы сделали игру, 3Д-экшон суть такова...
+      Пользователь может играть лесными эльфами, охраной дворца и злодеем. Можно грабить корованы...
+      А движок можно поставить так что вдали деревья картинкой, когда подходиш они преобразовываются
+      в 3-хмерные деревья... P.S. Я джва года хочу такую игру.»</div>
+    <div id="worldStatus">Мир создаётся...</div>
+    <div class="factions" id="factionCards">
+      <div class="fcard" data-faction="elf">
+        <span class="fico">🧝</span><b>Лесные эльфы</b>
+        <span>Густой лес, деревяные домики. Вдали деревья картинкой — подходиш, и они
+        преобразовываются в 3-хмерные. Лук в руках, корованы на тракте. На деревню
+        набигают солдаты дворца и злодеи — нагибай их в ответ.</span>
+      </div>
+      <div class="fcard" data-faction="guard">
+        <span class="fico">🛡️</span><b>Охрана дворца</b>
+        <span>Надо слушаться командира: защищай дворец от Злого, шпионов и партизанов
+        эльфов, ходи на набеги. Приказы — в правом верхнем углу. За службу платят золотом.</span>
+      </div>
+      <div class="fcard" data-faction="villain">
+        <span class="fico">😈</span><b>Злой (имя я не придумал)</b>
+        <span>Горы, старый форт. Ты сам себе командир: делай что сам захочешь, найми войско,
+        прикажи ему с тобой самим напасть на дворец — и пойдёт в атаку. Шпионы и партизаны
+        эльфов иногда нападают.</span>
+      </div>
+    </div>
+    <button id="btnContinue" class="hidden">▶ Продолжить сохранённую игру</button>
+    <div class="controls-help">
+      <b>WASD</b> — движение · <b>Shift</b> — бег · <b>Space</b> — прыжок · <b>Мышь</b> — осмотр ·
+      <b>ЛКМ</b> — атака · <b>1/2</b> — меч/лук · <b>E</b> — обыскать/грабить/говорить/лавка ·
+      <b>Q</b> — зелье · <b>X</b> — перевязать рану · <b>F</b> — отряд: за мной · <b>G</b> — отряд: стоять ·
+      <b>T</b> — отряд: В АТАКУ · <b>K</b> — сохраниться · <b>Esc</b> — пауза
+    </div>
+    <div class="foot">Я джва года хочу такую игру.</div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>ПАУЗА</h2>
+      <button class="pbtn" id="btnResume">▶ Продолжить</button>
+      <button class="pbtn" id="btnSave">💾 Сохранить игру [K]</button>
+      <button class="pbtn" id="btnMenu">⬅ В главное меню</button>
+      <div class="pnote">WASD — движение, ЛКМ — атака, 1/2 — меч/лук, E — взаимодействие,
+        Q — зелье, X — перевязка, F/G/T — приказы отряду, K — сохранить.</div>
+    </div>
+  </div>
+
+  <!-- Shop -->
+  <div id="shop" class="overlay hidden">
+    <div class="panel">
+      <h2 id="shopTitle">ЛАВКА</h2>
+      <div id="shopGold"></div>
+      <div id="shopItems"></div>
+      <button class="pbtn" id="shopClose" style="text-align:center">Закрыть [E / Esc]</button>
+      <div class="pnote">Можно покупать и т.п. возможности как в Daggerfall.</div>
+    </div>
+  </div>
+
+  <!-- Death -->
+  <div id="death" class="overlay hidden">
+    <div class="panel">
+      <h2>ТЫ УМЕР</h2>
+      <div id="deathReason"></div>
+      <button class="pbtn" id="btnDeathLoad">📜 Загрузить сохранение</button>
+      <button class="pbtn" id="btnDeathMenu">⬅ В главное меню</button>
+    </div>
+  </div>
+
+  <div id="lockHint" class="hidden">Кликни, чтобы взять управление</div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
