@@ -1408,6 +1408,11 @@ const keys = {};
 addEventListener('keydown', (e) => {
   if (e.code === 'Tab') e.preventDefault();
   keys[e.code] = true;
+  if (state === 'menu') {
+    const f = { Digit1: 'elf', Digit2: 'guard', Digit3: 'villain' }[e.code];
+    if (f) { audioInit(); startGame(f); }
+    return;
+  }
   if (state !== 'playing') return;
   if (shopOpen) {
     if (e.code === 'KeyE' || e.code === 'Escape') closeShop();
