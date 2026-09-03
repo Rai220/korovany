@@ -1321,7 +1321,9 @@ vmBow.rotation.set(0.1, -1.15, -0.12);
 vmBow.scale.setScalar(0.3);
 vm.add(vmSword); vm.add(vmBow);
 let vmSwing = 0;
+vm.visible = false;
 function updateWeaponVM() {
+  vm.visible = state === 'playing';
   vmSword.visible = player.weapon === 'sword';
   vmBow.visible = player.weapon === 'bow' && canBow();
 }
