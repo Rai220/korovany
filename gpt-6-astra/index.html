@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#182823" />
+    <meta
+      name="description"
+      content="КОРОВАНЫ — четыре земли, три судьбы. Самостоятельный 3D-экшон GPT-6 (astra) по ТЗ Кирилла."
+    />
+    <title>КОРОВАНЫ · GPT-6 (astra)</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23182823'/%3E%3Ctext x='32' y='47' font-family='serif' font-size='48' text-anchor='middle' fill='%23e7c797'%3EК%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="game.js" defer></script>
+  </head>
+  <body>
+    <canvas id="world" aria-label="Трёхмерный мир игры КОРОВАНЫ"></canvas>
+    <div id="vignette"></div>
+    <div id="damage"></div>
+    <div id="blind">
+      <span
+        >Глаз потерян<br /><small>Стеклянный глаз вернёт зрение</small></span
+      >
+    </div>
+    <main id="menu">
+      <header class="masthead">
+        <a href="../">← МУЗЕЙ ВАРИАНТОВ</a
+        ><span>GPT-6 <b>astra</b> / 2026</span>
+      </header>
+      <section class="intro">
+        <div class="eyebrow">
+          <span class="tiny-star">✦</span> ПО МОТИВАМ ОДНОГО ТЕХЗАДАНИЯ
+        </div>
+        <h1>КОРОВАНЫ<span>ЧЕТЫРЕ ЗЕМЛИ. ТРИ СУДЬБЫ.</span></h1>
+        <p class="lead">
+          Лес помнит набеги. Дворец ждёт осады.<br />А на старом тракте снова
+          скрипят колёса.
+        </p>
+        <div class="factions" role="group" aria-label="Выберите фракцию">
+          <button
+            class="faction selected"
+            data-faction="elf"
+            aria-pressed="true"
+          >
+            <span class="sigil">♧</span
+            ><span
+              ><b>Лесной эльф</b
+              ><small>Защити свой лес. Забери чужое золото.</small></span
+            ><span class="choice">01</span>
+          </button>
+          <button class="faction" data-faction="guard" aria-pressed="false">
+            <span class="sigil">♜</span
+            ><span
+              ><b>Дворцовая стража</b
+              ><small>Присяга, приказы и стены императора.</small></span
+            ><span class="choice">02</span>
+          </button>
+          <button class="faction" data-faction="evil" aria-pressed="false">
+            <span class="sigil">♛</span
+            ><span
+              ><b>Злой. Имя не придумал.</b
+              ><small>Твой форт. Твоя армия. Твоя воля.</small></span
+            ><span class="choice">03</span>
+          </button>
+        </div>
+        <div class="start-row">
+          <button id="start" class="primary" disabled>
+            ПРОКЛАДЫВАЕМ ТРАКТ…</button
+          ><button id="continue" class="secondary" disabled>Продолжить</button>
+        </div>
+        <div id="load-status" role="status">
+          Загружаем мир · понадобится интернет для Three.js
+        </div>
+      </section>
+      <aside class="world-caption">
+        <span>01 / ШЕЛЕСТЯЩИЙ БОР</span>
+        <p>«Можно грабить корованы…»</p>
+        <i>Кирилл, автор мира</i>
+      </aside>
+      <footer class="menu-footer">
+        <span
+          >WASD · МЫШЬ · ПРОБЕЛ<span class="sep">/</span>НАСТОЯЩИЕ ДЖВА ГОДА
+          ОЖИДАНИЯ</span
+        ><button id="menu-help">Как играть ↗</button>
+      </footer>
+    </main>
+    <div id="hud" hidden>
+      <div class="location">
+        <span class="eyebrow" id="faction-label">ЛЕСНОЙ ЭЛЬФ</span>
+        <h2 id="zone-name">Шелестящий бор</h2>
+        <small id="zone-sub">Территория эльфов</small>
+      </div>
+      <div class="compass">
+        <span>З</span><span>·</span><span>С</span><b id="heading">СВ · 045°</b
+        ><span>В</span><span>·</span><span>Ю</span>
+      </div>
+      <div class="map-wrap">
+        <canvas
+          id="minimap"
+          width="240"
+          height="240"
+          aria-label="Миникарта четырёх земель"
+        ></canvas
+        ><button id="map-button">M <span>ЧЕТЫРЕ ЗЕМЛИ</span> ↗</button>
+      </div>
+      <div id="quest">
+        <div class="eyebrow" id="quest-label">ЛЕС НЕ СДАЁТСЯ</div>
+        <p id="quest-text"></p>
+        <small id="quest-detail"></small>
+      </div>
+      <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+      <div id="target"></div>
+      <div id="interact" hidden><kbd>E</kbd><span></span></div>
+      <div id="announcements" role="status" aria-live="polite"></div>
+      <div class="survival">
+        <div class="health-label">
+          <b id="health-text">100 <small>/ 100</small></b
+          ><span id="life-label">ЖИЗНЬ</span>
+        </div>
+        <div class="bar health"><i id="health-bar"></i></div>
+        <div class="bar stamina"><i id="stamina-bar"></i></div>
+        <div class="body-status">
+          <span id="arm-status">РУКА ●</span><span id="eye-status">ГЛАЗ ●</span
+          ><span id="leg-status">НОГА ●</span>
+        </div>
+      </div>
+      <div class="quickslots">
+        <button id="sword-slot" class="active">
+          <kbd>1</kbd><span>⚔</span><small>КЛИНОК</small></button
+        ><button id="bow-slot">
+          <kbd>2</kbd><span>➶</span
+          ><small>ЛУК · <b id="arrows">24</b></small></button
+        ><button id="heal-slot">
+          <kbd>Q</kbd><span>✚</span><small>БИНТ · <b id="bandages">3</b></small>
+        </button>
+      </div>
+      <div class="purse">
+        <span>◈</span> <b id="gold">80</b><small>ЗОЛОТЫХ</small>
+        <div id="squad-count"></div>
+      </div>
+      <div class="bottom-hints">
+        <span
+          >ЛКМ удар <i>·</i> ПКМ блок <i>·</i> Shift бег <i>·</i> Пробел
+          прыжок</span
+        ><span
+          >J журнал <i>·</i> C приказы <i>·</i> F5 сохранить <i>·</i> Esc
+          пауза</span
+        >
+      </div>
+      <button id="capture" hidden>Нажмите, чтобы вернуться в игру</button>
+      <div id="fps" hidden></div>
+    </div>
+    <div
+      id="modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <section class="panel">
+        <button id="close-modal" class="close" aria-label="Закрыть">×</button>
+        <div class="eyebrow" id="modal-kicker">КОРОВАНЫ</div>
+        <h2 id="modal-title"></h2>
+        <div id="modal-content"></div>
+        <p id="modal-status" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+    <noscript>Для игры включите JavaScript в браузере.</noscript>
+  </body>
+</html>
