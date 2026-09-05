@@ -21,6 +21,11 @@
   a.variant time { float: right; color: #7f9f78; font-size: 12px; letter-spacing: .04em; }
   a.variant span { display: block; color: #9a8a6a; font-size: 13px; margin-top: 4px; line-height: 1.5; }
   a.variant img { display: block; width: 100%; height: auto; border: 1px solid #555030; margin-bottom: 10px; }
+  .release-sources { width: 100%; max-width: 560px; margin-top: 24px; color: #9a8a6a; font-size: 12px; line-height: 1.6; }
+  .release-sources summary { color: #b8a878; cursor: pointer; }
+  .release-sources a { color: #d4af37; }
+  .release-sources ul { padding-left: 20px; }
+  .release-sources li { margin-bottom: 6px; }
   .foot { margin-top: 40px; color: #5a5040; font-size: 12px; }
   @media (max-width: 520px) {
     body { padding: 24px 12px; }
@@ -31,76 +36,23 @@
 </head>
 <body>
   <h1>КОРОВАНЫ</h1>
-  <div class="sub">Одно ТЗ — разные модели. Сравниваем варианты.</div>
+  <div class="sub">Одно ТЗ — разные модели. Свежие релизы сверху.</div>
   <div class="quote">«Здраствуйте. Я, Кирилл. Хотел бы чтобы вы сделали игру, 3Д-экшон суть такова...
     Пользователь может играть лесными эльфами, охраной дворца и злодеем... Можно грабить корованы...
     P.S. Я джва года хочу такую игру.»</div>
   <div class="variants">
-    <a class="variant sota" href="kimi-k3/">
-      <img src="kimi_3_5_screen.jpg" alt="Скриншот Kimi K3: эльф в густом LOD-лесу и корован" loading="lazy">
-      <b>Kimi K3 <small class="sota-badge">SOTA</small></b>
-      <time datetime="2026-07-22T11:46:00+03:00">22 июля 2026 · 11:46</time>
-      <span>Three.js 3D-экшон от 3-го лица: эльфы / охрана дворца / Злой, 4 зоны,
-      густой LOD-лес (картинка → 3D), ездовой корован с коровой, приказы командира
-      и военный стол Злого со штурмом дворца, расчленёнка (рука/глаз/нога),
-      кровотечение, протезы и коляска, лавка и лекарь, карта на M, сохранения.</span>
+    <a class="variant sota" href="gpt-6-astra/" data-release-source="https://openai.com/index/gpt-6-astra/">
+      <img src="gpt-6-astra/screen.jpg" alt="Скриншот GPT-6 (astra): эльф с луком в деревянной деревне и густой LOD-лес" loading="lazy">
+      <b>GPT-6 (astra) <small class="sota-badge">SOTA</small></b>
+      <time datetime="2026-09-03" title="Дата официального выхода модели">Релиз: 3 сентября 2026</time>
+      <span>Three.js от 1-го лица: три фракции со своими историями, четыре бесшовные земли,
+      густой LOD-лес, корованы с волами и конвоем, дворцовые приказы и штурм с отрядом,
+      объёмные трупы и расчленёнка, кровотечение, протезы и коляска, лавки, карта и сохранения.</span>
     </a>
-    <a class="variant sota" href="fable_5/">
-      <img src="fable_5_screen.jpg" alt="Скриншот Fable 5" loading="lazy">
-      <b>Fable 5 <small class="sota-badge">SOTA</small></b>
-      <time datetime="2026-06-10T08:57:35+03:00">10 июня 2026 · 08:57</time>
-      <span>Three.js, три фракции, LOD-лес («вдали деревья картинкой»), грабёж корованов,
-      отрубание рук и протезы, 4 зоны, штурм дворца, сохранения.</span>
-    </a>
-    <a class="variant" href="Opus-4.8/">
-      <b>Opus 4.8</b>
-      <time datetime="2026-06-10T13:30:53+03:00">10 июня 2026 · 13:30</time>
-      <span>Three.js, вид от 1-го лица: эльфы / охрана / злодей, LOD-лес (билборд → 3D вблизи),
-      грабёж корованов, расчленёнка и протезы (рука/глаз/нога/коляска), приказы командира,
-      штурм дворца, лавка как в Daggerfall, сохранения.</span>
-    </a>
-    <a class="variant" href="gpt-5.5/">
-      <b>GPT-5.5</b>
-      <time datetime="2026-06-10T13:50:55+03:00">10 июня 2026 · 13:50</time>
-      <span>Three.js 3D-экшон: три стороны конфликта, четыре зоны, густой LOD-лес,
-      корованы, дворцовые приказы, старый форт злодея, 3D-враги и трупы,
-      травмы руки/глаза/ноги, протезы, магазин и сохранения.</span>
-    </a>
-    <a class="variant" href="glm-5.2/">
-      <b>GLM-5.2</b>
-      <time datetime="2026-06-18T11:47:34+03:00">18 июня 2026 · 11:47</time>
-      <span>Three.js 3D-экшон от 1-го лица: эльфы / охрана дворца / злодей, 4 зоны (люди,
-      дворец, густой лес, горный форт), LOD-лес (билборд → 3D), грабёж корованов,
-      приказы и штурм дворца, расчленёнка (рука/глаз/нога), протезы и коляска,
-      лавка как в Daggerfall, сохранения.</span>
-    </a>
-    <a class="variant" href="gpt-5.6-sol/">
-      <b>GPT-5.6-sol</b>
-      <time datetime="2026-07-14T12:52:22+03:00">14 июля 2026 · 12:52</time>
-      <span>Полированный 3D-экшон от третьего лица: три самостоятельных фракционных сценария,
-      бесшовные четыре земли, LOD-лес, движущийся корован, союзники и приказы,
-      травмы, кровотечение, протезы, торговля, финальные битвы и сохранения.</span>
-    </a>
-    <a class="variant" href="Opus-5/">
-      <b>Opus 5</b>
-      <time datetime="2026-07-25T15:07:00+03:00">25 июля 2026 · 15:07</time>
-      <span>Three.js от 1-го лица: эльфы / охрана дворца / Злой, бесшовные 4 зоны,
-      LOD-лес из 14 000 деревьев (картинка → 3D на 66 м), корованы с флагом на тракте
-      вдоль опушки, отряд по найму и приказ «в атаку», расчленёнка с отлетающими
-      конечностями и 3D-трупами, кровотечение, протезы и коляска, 6 лавок и лекарь,
-      карта с быстрым перемещением, сохранения.</span>
-    </a>
-    <a class="variant" href="grok_bot/">
-      <b>Grok Bot</b>
-      <time datetime="2026-08-19T16:51:00+03:00">19 августа 2026 · 16:51</time>
-      <span>Three.js от 1-го лица (V — третье): эльфы / охрана / Владыка Морвейн, 4 зоны,
-      LOD-лес (билборд → 3D), корован на тракте, приказы командира и штурм дворца,
-      расчленёнка (рука/глаз/нога), кровотечение, протезы и коляска, лавка и лекарь, сохранения.</span>
-    </a>
-    <a class="variant" href="fable_5_1/">
+    <a class="variant" href="fable_5_1/" data-release-source="https://www.anthropic.com/claude-fable-and-mythos-5-1">
       <img src="fable_5_1/screen.jpg" alt="Скриншот Fable 5.1: эльф с луком у деревяных домиков в густом LOD-лесу" loading="lazy">
       <b>Fable 5.1</b>
-      <time datetime="2026-09-03T20:41:00+03:00">3 сентября 2026 · 20:41</time>
+      <time datetime="2026-09-01" title="Дата официального выхода модели">Релиз: 1 сентября 2026</time>
       <span>Three.js от 1-го лица: эльфы / охрана дворца / Злой (имя не придумал),
       бесшовные 4 зоны с горами и старым фортом, LOD-лес ~6200 деревьев (картинка → 3D на 72 м),
       два корована с охраной груза на тракте, приказы командира и старейшины, злодей —
@@ -108,10 +60,10 @@
       конечностями (рука/глаз/нога), кровотечение, протезы, коляска и стеклянный глаз,
       лавки как в Daggerfall во всех зонах, обыск 3D-трупов, миникарта 4 зон, сохранения.</span>
     </a>
-    <a class="variant" href="hermes_ox_alpha/">
+    <a class="variant" href="hermes_ox_alpha/" data-release-source="https://openrouter.ai/stealth/ox-alpha">
       <img src="hermes_ox_alpha/screen.jpg" alt="Скриншот hermes_ox_alpha: эльф в LOD-лесу, домики на деревьях" loading="lazy">
       <b>ox-alpha (Hermes)</b>
-      <time datetime="2026-08-22T12:30:00+03:00">22 августа 2026 · 12:30</time>
+      <time datetime="2026-08-20" title="Публичное превью ox-alpha; релиз под именем GLM-5.3-Flash — 26 августа 2026">Превью: 20 августа 2026</time>
       <span>Three.js от 1-го лица: три фракции с разными сценариями (волны на эльфов,
       приказы командира у охраны, штурм дворца за Злого [V]), мир 2×2 км с рекой,
       мостом и дорогами, LOD-лес — ~9000 деревьев-картинок одним draw call,
@@ -120,15 +72,87 @@
       лавки как в Daggerfall, обыск 3D-трупов, карта с быстрым перемещением,
       день-ночь, сохранения.</span>
     </a>
-    <a class="variant" href="gpt-6-astra/">
-      <img src="gpt-6-astra/screen.jpg" alt="Скриншот GPT-6 (astra): эльф с луком в деревянной деревне и густой LOD-лес" loading="lazy">
-      <b>GPT-6 (astra)</b>
-      <time datetime="2026-09-05T14:07:41+03:00">5 сентября 2026 · 14:07</time>
-      <span>Three.js от 1-го лица: три фракции со своими историями, четыре бесшовные земли,
-      густой LOD-лес, корованы с волами и конвоем, дворцовые приказы и штурм с отрядом,
-      объёмные трупы и расчленёнка, кровотечение, протезы и коляска, лавки, карта и сохранения.</span>
+    <a class="variant" href="grok_bot/" data-release-source="https://x.ai/news/introducing-grok-bot">
+      <b>Grok Bot</b>
+      <time datetime="2026-08-11" title="Grok Bot — агентный продукт; базовая модель в экспонате не указана">Запуск агента: 11 августа 2026</time>
+      <span>Three.js от 1-го лица (V — третье): эльфы / охрана / Владыка Морвейн, 4 зоны,
+      LOD-лес (билборд → 3D), корован на тракте, приказы командира и штурм дворца,
+      расчленёнка (рука/глаз/нога), кровотечение, протезы и коляска, лавка и лекарь, сохранения.</span>
+    </a>
+    <a class="variant" href="Opus-5/" data-release-source="https://www.anthropic.com/news/claude-opus-5">
+      <b>Opus 5</b>
+      <time datetime="2026-07-24" title="Дата официального выхода модели">Релиз: 24 июля 2026</time>
+      <span>Three.js от 1-го лица: эльфы / охрана дворца / Злой, бесшовные 4 зоны,
+      LOD-лес из 14 000 деревьев (картинка → 3D на 66 м), корованы с флагом на тракте
+      вдоль опушки, отряд по найму и приказ «в атаку», расчленёнка с отлетающими
+      конечностями и 3D-трупами, кровотечение, протезы и коляска, 6 лавок и лекарь,
+      карта с быстрым перемещением, сохранения.</span>
+    </a>
+    <a class="variant" href="kimi-k3/" data-release-source="https://www.kimi.com/blog/kimi-k3">
+      <img src="kimi_3_5_screen.jpg" alt="Скриншот Kimi K3: эльф в густом LOD-лесу и корован" loading="lazy">
+      <b>Kimi K3</b>
+      <time datetime="2026-07-16" title="Дата официального выхода модели">Релиз: 16 июля 2026</time>
+      <span>Three.js 3D-экшон от 3-го лица: эльфы / охрана дворца / Злой, 4 зоны,
+      густой LOD-лес (картинка → 3D), ездовой корован с коровой, приказы командира
+      и военный стол Злого со штурмом дворца, расчленёнка (рука/глаз/нога),
+      кровотечение, протезы и коляска, лавка и лекарь, карта на M, сохранения.</span>
+    </a>
+    <a class="variant" href="gpt-5.6-sol/" data-release-source="https://openai.com/index/gpt-5-6/">
+      <b>GPT-5.6-sol</b>
+      <time datetime="2026-07-09" title="Дата официального выхода модели">Релиз: 9 июля 2026</time>
+      <span>Полированный 3D-экшон от третьего лица: три самостоятельных фракционных сценария,
+      бесшовные четыре земли, LOD-лес, движущийся корован, союзники и приказы,
+      травмы, кровотечение, протезы, торговля, финальные битвы и сохранения.</span>
+    </a>
+    <a class="variant" href="glm-5.2/" data-release-source="https://z.ai/blog/glm-5.2">
+      <b>GLM-5.2</b>
+      <time datetime="2026-06-16" title="Дата официального выхода модели">Релиз: 16 июня 2026</time>
+      <span>Three.js 3D-экшон от 1-го лица: эльфы / охрана дворца / злодей, 4 зоны (люди,
+      дворец, густой лес, горный форт), LOD-лес (билборд → 3D), грабёж корованов,
+      приказы и штурм дворца, расчленёнка (рука/глаз/нога), протезы и коляска,
+      лавка как в Daggerfall, сохранения.</span>
+    </a>
+    <a class="variant" href="fable_5/" data-release-source="https://www.anthropic.com/news/claude-fable-5-mythos-5">
+      <img src="fable_5_screen.jpg" alt="Скриншот Fable 5" loading="lazy">
+      <b>Fable 5</b>
+      <time datetime="2026-06-09" title="Дата официального выхода модели">Релиз: 9 июня 2026</time>
+      <span>Three.js, три фракции, LOD-лес («вдали деревья картинкой»), грабёж корованов,
+      отрубание рук и протезы, 4 зоны, штурм дворца, сохранения.</span>
+    </a>
+    <a class="variant" href="Opus-4.8/" data-release-source="https://www.anthropic.com/news/claude-opus-4-8">
+      <b>Opus 4.8</b>
+      <time datetime="2026-05-28" title="Дата официального выхода модели">Релиз: 28 мая 2026</time>
+      <span>Three.js, вид от 1-го лица: эльфы / охрана / злодей, LOD-лес (билборд → 3D вблизи),
+      грабёж корованов, расчленёнка и протезы (рука/глаз/нога/коляска), приказы командира,
+      штурм дворца, лавка как в Daggerfall, сохранения.</span>
+    </a>
+    <a class="variant" href="gpt-5.5/" data-release-source="https://openai.com/index/introducing-gpt-5-5/">
+      <b>GPT-5.5</b>
+      <time datetime="2026-04-23" title="Дата официального выхода модели">Релиз: 23 апреля 2026</time>
+      <span>Three.js 3D-экшон: три стороны конфликта, четыре зоны, густой LOD-лес,
+      корованы, дворцовые приказы, старый форт злодея, 3D-враги и трупы,
+      травмы руки/глаза/ноги, протезы, магазин и сохранения.</span>
     </a>
   </div>
+  <details class="release-sources">
+    <summary>Даты релизов и источники</summary>
+    <p>Карточки отсортированы по датам официальных релизов — от новых к старым, а не по датам создания игр.
+    Для ox-alpha указано начало публичного превью, для Grok Bot — запуск агентного продукта.
+    SOTA — выбор автора среди представленных реализаций игры.</p>
+    <ul>
+      <li><a href="https://openai.com/index/gpt-6-astra/" target="_blank" rel="noopener noreferrer">GPT-6 (astra) — 3 сентября 2026</a>; <a href="https://developers.openai.com/api/docs/changelog#september-2026" target="_blank" rel="noopener noreferrer">дата в журнале OpenAI</a>.</li>
+      <li><a href="https://www.anthropic.com/claude-fable-and-mythos-5-1" target="_blank" rel="noopener noreferrer">Fable 5.1 — 1 сентября 2026</a>; <a href="https://platform.claude.com/docs/en/models/fable-5-1/overview" target="_blank" rel="noopener noreferrer">дата в каталоге Anthropic</a>.</li>
+      <li><a href="https://openrouter.ai/stealth/ox-alpha" target="_blank" rel="noopener noreferrer">ox-alpha (Hermes) — 20 августа 2026</a> (публичное превью); <a href="https://z.ai/blog/glm-5.3-flash" target="_blank" rel="noopener noreferrer">GLM-5.3-Flash — 26 августа 2026</a> (официальный релиз).</li>
+      <li><a href="https://x.ai/news/introducing-grok-bot" target="_blank" rel="noopener noreferrer">Grok Bot — 11 августа 2026</a> (запуск агентного продукта; базовая модель в экспонате не указана).</li>
+      <li><a href="https://www.anthropic.com/news/claude-opus-5" target="_blank" rel="noopener noreferrer">Opus 5 — 24 июля 2026</a>.</li>
+      <li><a href="https://www.kimi.com/blog/kimi-k3" target="_blank" rel="noopener noreferrer">Kimi K3 — 16 июля 2026</a>; <a href="https://www.kimi.com/blog" target="_blank" rel="noopener noreferrer">дата в индексе блога</a>.</li>
+      <li><a href="https://openai.com/index/gpt-5-6/" target="_blank" rel="noopener noreferrer">GPT-5.6-sol — 9 июля 2026</a> (общий релиз; закрытое превью началось 26 июня).</li>
+      <li><a href="https://z.ai/blog/glm-5.2" target="_blank" rel="noopener noreferrer">GLM-5.2 — 16 июня 2026</a>.</li>
+      <li><a href="https://www.anthropic.com/news/claude-fable-5-mythos-5" target="_blank" rel="noopener noreferrer">Fable 5 — 9 июня 2026</a>.</li>
+      <li><a href="https://www.anthropic.com/news/claude-opus-4-8" target="_blank" rel="noopener noreferrer">Opus 4.8 — 28 мая 2026</a>.</li>
+      <li><a href="https://openai.com/index/introducing-gpt-5-5/" target="_blank" rel="noopener noreferrer">GPT-5.5 — 23 апреля 2026</a>.</li>
+    </ul>
+  </details>
   <div class="foot">Новые варианты от других моделей появятся здесь же.</div>
 </body>
 </html>

@@ -32,28 +32,33 @@
 
 ## Экспонаты музея (варианты по моделям)
 
-SOTA-варианты закреплены в начале таблицы, дальше — хронологический порядок от
-первых к новым. Время указано по Москве. Рейтинг — субъективная оценка Кирилла,
-★★★★★ = 5 звёзд.
+Варианты на главной и в таблице отсортированы по дате выхода модели — от новых к старым.
+На главной показаны даты релизов, а не создания игр; ссылки на источники находятся
+в сворачиваемом блоке под карточками. Даты создания игр сохранены в отдельном
+столбце таблицы (МСК). Рейтинг — субъективная оценка Кирилла, ★★★★★ = 5 звёзд.
 
-> **Текущие SOTA: Kimi K3 и Fable 5.** На данный момент это лучшие варианты среди
+Для ox-alpha указано начало публичного превью — 20 августа 2026; официальный
+релиз под именем GLM-5.3-Flash состоялся 26 августа. Grok Bot — агентный продукт,
+а не название модели, поэтому указана дата его запуска; базовая модель экспоната не установлена.
+
+> **Текущая SOTA: GPT-6 (astra).** На данный момент это лучший вариант среди
 > представленных реализаций и основной ориентир для сравнения следующих поколений.
 
-![Kimi K3 — густой LOD-лес и корован на тракте](kimi_3_5_screen.jpg)
+![GPT-6 (astra) — эльфийская деревня и густой LOD-лес](gpt-6-astra/screen.jpg)
 
-| Модель | Дата | Рейтинг | Директория | Поиграть | Стек |
-|---|---|---|---|---|---|
-| **Kimi K3 — SOTA** | 2026-07-22 11:46 | ★★★★★ | [`kimi-k3/`](kimi-k3/) | [играть](https://rai220.github.io/korovany/kimi-k3/) | Three.js (ES modules, локальная копия), вид от 3-го лица, без сборки |
-| **Fable 5 — SOTA** | 2026-06-10 08:57 | ★★★★★ | [`fable_5/`](fable_5/) | [играть](https://rai220.github.io/korovany/fable_5/) | Three.js, ванильный JS, без сборки |
-| **Opus 4.8** | 2026-06-10 13:30 | ★★★☆☆ | [`Opus-4.8/`](Opus-4.8/) | [играть](https://rai220.github.io/korovany/Opus-4.8/) | Three.js, ванильный JS, вид от 1-го лица, без сборки |
-| **GPT-5.5** | 2026-06-10 13:50 | ★★☆☆☆ | [`gpt-5.5/`](gpt-5.5/) | [играть](https://rai220.github.io/korovany/gpt-5.5/) | Three.js, без сборки |
-| **GLM-5.2** | 2026-06-18 11:47 | ★★★★☆ | [`glm-5.2/`](glm-5.2/) | [играть](https://rai220.github.io/korovany/glm-5.2/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **GPT-5.6-sol** | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
-| **Opus 5** | 2026-07-25 15:07 | — | [`Opus-5/`](Opus-5/) | [играть](https://rai220.github.io/korovany/Opus-5/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **Grok Bot** | 2026-08-19 16:51 | — | [`grok_bot/`](grok_bot/) | [играть](https://rai220.github.io/korovany/grok_bot/) | Three.js (ES modules, CDN), вид от 1-го или 3-го лица, без сборки |
-| **ox-alpha (Hermes)** | 2026-08-22 12:30 | — | [`hermes_ox_alpha/`](hermes_ox_alpha/) | [играть](https://rai220.github.io/korovany/hermes_ox_alpha/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **Fable 5.1** | 2026-09-03 20:41 | — | [`fable_5_1/`](fable_5_1/) | [играть](https://rai220.github.io/korovany/fable_5_1/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **GPT-6 (astra)** | 2026-09-05 14:07 | — | [`gpt-6-astra/`](gpt-6-astra/) | [играть](https://rai220.github.io/korovany/gpt-6-astra/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го лица, без сборки |
+| Модель | Релиз / запуск | Игра создана (МСК) | Рейтинг | Директория | Поиграть | Стек |
+|---|---|---|---|---|---|---|
+| **GPT-6 (astra) — SOTA** | [2026-09-03](https://openai.com/index/gpt-6-astra/) | 2026-09-05 14:07 | — | [`gpt-6-astra/`](gpt-6-astra/) | [играть](https://rai220.github.io/korovany/gpt-6-astra/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го лица, без сборки |
+| **Fable 5.1** | [2026-09-01](https://www.anthropic.com/claude-fable-and-mythos-5-1) | 2026-09-03 20:41 | — | [`fable_5_1/`](fable_5_1/) | [играть](https://rai220.github.io/korovany/fable_5_1/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
+| **ox-alpha (Hermes)** | [2026-08-20](https://openrouter.ai/stealth/ox-alpha) (превью) | 2026-08-22 12:30 | — | [`hermes_ox_alpha/`](hermes_ox_alpha/) | [играть](https://rai220.github.io/korovany/hermes_ox_alpha/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
+| **Grok Bot** | [2026-08-11](https://x.ai/news/introducing-grok-bot) (агент) | 2026-08-19 16:51 | — | [`grok_bot/`](grok_bot/) | [играть](https://rai220.github.io/korovany/grok_bot/) | Three.js (ES modules, CDN), вид от 1-го или 3-го лица, без сборки |
+| **Opus 5** | [2026-07-24](https://www.anthropic.com/news/claude-opus-5) | 2026-07-25 15:07 | — | [`Opus-5/`](Opus-5/) | [играть](https://rai220.github.io/korovany/Opus-5/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
+| **Kimi K3** | [2026-07-16](https://www.kimi.com/blog/kimi-k3) | 2026-07-22 11:46 | ★★★★★ | [`kimi-k3/`](kimi-k3/) | [играть](https://rai220.github.io/korovany/kimi-k3/) | Three.js (ES modules, локальная копия), вид от 3-го лица, без сборки |
+| **GPT-5.6-sol** | [2026-07-09](https://openai.com/index/gpt-5-6/) | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
+| **GLM-5.2** | [2026-06-16](https://z.ai/blog/glm-5.2) | 2026-06-18 11:47 | ★★★★☆ | [`glm-5.2/`](glm-5.2/) | [играть](https://rai220.github.io/korovany/glm-5.2/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
+| **Fable 5** | [2026-06-09](https://www.anthropic.com/news/claude-fable-5-mythos-5) | 2026-06-10 08:57 | ★★★★★ | [`fable_5/`](fable_5/) | [играть](https://rai220.github.io/korovany/fable_5/) | Three.js, ванильный JS, без сборки |
+| **Opus 4.8** | [2026-05-28](https://www.anthropic.com/news/claude-opus-4-8) | 2026-06-10 13:30 | ★★★☆☆ | [`Opus-4.8/`](Opus-4.8/) | [играть](https://rai220.github.io/korovany/Opus-4.8/) | Three.js, ванильный JS, вид от 1-го лица, без сборки |
+| **GPT-5.5** | [2026-04-23](https://openai.com/index/introducing-gpt-5-5/) | 2026-06-10 13:50 | ★★☆☆☆ | [`gpt-5.5/`](gpt-5.5/) | [играть](https://rai220.github.io/korovany/gpt-5.5/) | Three.js, без сборки |
 
 ### GPT-6 (astra) — что внутри
 
@@ -98,3 +103,5 @@ python3 -m http.server 8123
 Все варианты — чистая статика (Three.js из CDN), деплоится на GitHub Pages
 из корня ветки `main`. Новые экспонаты от других моделей добавляются в свою
 директорию + карточка в корневой `index.html` и строка в этот README.
+Для новой карточки нужна подтверждённая дата выхода модели и ссылка на первоисточник;
+место в списке определяется этой датой (свежие сверху), не датой генерации игры.
