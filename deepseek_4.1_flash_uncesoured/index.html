@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>КОРОВАНЫ: ЧЕТЫРЕ ЗЕМЛИ — 3D-экшон по ТЗ Кирилла</title>
+<meta name="description" content="3D-экшон: лесные эльфы, охрана дворца и злодей. Четыре зоны, густой LOD-лес, корованы, расчленёнка, протезы, коляска, сохранения.">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="game-canvas"></canvas>
+
+  <!-- ======================= ЭКРАН ЗАГРУЗКИ ======================= -->
+  <div id="screen-loading" class="screen">
+    <div class="loading-inner">
+      <h1 class="logo">КОРОВАНЫ</h1>
+      <div class="logo-sub">ЧЕТЫРЕ ЗЕМЛИ</div>
+      <div class="load-bar"><div id="load-fill"></div></div>
+      <div id="load-text" class="load-text">проращиваем лес…</div>
+      <div id="load-tip" class="load-tip"></div>
+    </div>
+  </div>
+
+  <!-- ======================= ГЛАВНОЕ МЕНЮ ======================= -->
+  <div id="screen-start" class="screen hidden">
+    <div class="start-wrap">
+      <header class="start-head">
+        <h1 class="logo">КОРОВАНЫ</h1>
+        <div class="logo-sub">ЧЕТЫРЕ ЗЕМЛИ · 3D-ЭКШОН</div>
+        <p class="quote">«Здраствуйте. Я, Кирилл. Хотел бы чтобы вы сделали игру, 3D-экшон суть такова…
+          Можно грабить корованы… P.S. Я джва года хочу такую игру.»</p>
+      </header>
+
+      <div class="faction-pick">
+        <div class="pick-title">Выбери, за кого играть</div>
+        <div class="factions">
+          <button class="faction-card" data-faction="elf">
+            <span class="fc-glyph">🏹</span>
+            <span class="fc-name">Лесные эльфы</span>
+            <span class="fc-place">Луннолесье, зона 3</span>
+            <span class="fc-desc">Деревянные домики на ветвях, густая чаща, луки и тропы.
+              Солдаты дворца и наёмники Злодея набегают на деревню — нагибай их обратно.
+              Корованы людей идут через лес: можно грабить.</span>
+            <span class="fc-kit">Начало: эльфийский лук, кинжал, 40 золотых, 3 бинта</span>
+            <span class="fc-diff">Сложность: средняя · скорость и стрельба</span>
+          </button>
+          <button class="faction-card" data-faction="guard">
+            <span class="fc-glyph">🛡️</span>
+            <span class="fc-name">Охрана дворца</span>
+            <span class="fc-place">Златоверхий дворец, зона 2</span>
+            <span class="fc-desc">Ты служишь капитану Ратмиру. Приказы: патруль стен, отлов шпионов,
+              отпор эльфийским партизанам, набег на чащу или на горный форт. Дослужись до сотника.</span>
+            <span class="fc-kit">Начало: палаш, щит, кольчуга, 25 золотых</span>
+            <span class="fc-diff">Сложность: низкая · дисциплина и строй</span>
+          </button>
+          <button class="faction-card" data-faction="villain">
+            <span class="fc-glyph">☠️</span>
+            <span class="fc-name">Злодей — Владыка Дрегар</span>
+            <span class="fc-place">Чёрный Шпиль, зона 4</span>
+            <span class="fc-desc">Ты сам себе командир: в горах твой старый форт, легион теней и рабы.
+              Шпионы эльфов и партизаны лезут через перевалы. Наймёшь отряд — прикажешь идти в атаку на дворец.</span>
+            <span class="fc-kit">Начало: двуручный меч «Грызло», 250 золотых, 4 тёмных кристалла</span>
+            <span class="fc-diff">Сложность: высокая · командование и осада</span>
+          </button>
+        </div>
+
+        <div class="start-opts">
+          <label>Сложность
+            <select id="opt-difficulty">
+              <option value="easy">Оруженосец</option>
+              <option value="normal" selected>Витязь</option>
+              <option value="hard">Без пощады</option>
+              <option value="ironman">Железный (одна жизнь)</option>
+            </select>
+          </label>
+          <label>Мир
+            <select id="opt-seed">
+              <option value="0">Случайный</option>
+              <option value="1337">Лунная грива</option>
+              <option value="260910">Перевал Дрегара</option>
+              <option value="777">Долина корованов</option>
+            </select>
+          </label>
+          <label class="chk"><input type="checkbox" id="opt-tutorial" checked> Обучение в начале</label>
+        </div>
+
+        <div class="start-buttons">
+          <button id="btn-start" class="big">ВЫЙТИ В МИР</button>
+          <button id="btn-continue">Продолжить (автосейв)</button>
+          <button id="btn-controls">Управление</button>
+          <button id="btn-about">Об игре</button>
+        </div>
+        <div id="start-hint" class="start-hint"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= ОБУЧЕНИЕ / СПРАВКА ======================= -->
+  <div id="screen-controls" class="screen hidden">
+    <div class="paper">
+      <h2>Управление</h2>
+      <div class="keys">
+        <div><b>W A S D</b><span>идти</span></div>
+        <div><b>Мышь</b><span>обзор</span></div>
+        <div><b>ЛКМ</b><span>удар / выстрел</span></div>
+        <div><b>ПКМ</b><span>блок щитом или оружием</span></div>
+        <div><b>Shift</b><span>бег (тратит выносливость)</span></div>
+        <div><b>Space</b><span>прыжок</span></div>
+        <div><b>Ctrl</b><span>присесть / крадучись</span></div>
+        <div><b>E</b><span>взять, обыскать, поговорить, войти</span></div>
+        <div><b>R</b><span>сменить оружие (меч / лук / кулаки)</span></div>
+        <div><b>1…4</b><span>быстрые слоты: бинт, зелье, нож, факел</span></div>
+        <div><b>F</b><span>перевязать рану (остановить кровь)</span></div>
+        <div><b>G</b><span>сесть в коляску / встать</span></div>
+        <div><b>V</b><span>вид от 1-го / 3-го лица</span></div>
+        <div><b>I</b><span>инвентарь</span></div>
+        <div><b>C</b><span>персонаж, раны, протезы, репутация</span></div>
+        <div><b>J</b><span>журнал: приказы и задания</span></div>
+        <div><b>M</b><span>карта четырёх земель и переходы</span></div>
+        <div><b>T</b><span>отряд: нанять, приказы</span></div>
+        <div><b>Esc</b><span>пауза, сохранение, настройки</span></div>
+        <div><b>F5 / F9</b><span>быстрое сохранение / загрузка</span></div>
+      </div>
+      <p class="note">Телефон и планшет: слева джойстик, справа свайп-обзор, кнопки внизу.
+        Тяжёлые травмы лечатся у лекаря, протезы продаёт мастер-костоправ.</p>
+      <button class="close-panel" data-close="screen-controls">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="screen-about" class="screen hidden">
+    <div class="paper">
+      <h2>Об игре</h2>
+      <p><b>КОРОВАНЫ: Четыре земли</b> — вольная реализация ТЗ Кирилла. Мир 2×2 км без загрузок:
+        нейтральная зона людей, земли Императора с дворцом, густой эльфийский лес и горный форт Злодея.</p>
+      <p>Три playable-фракции со своими сюжетами. Корованы ходят по тракту. Лес вдали нарисован картинками,
+        а вблизи превращается в объёмные деревья. Враги и трупы — трёхмерные, конечности отрубаются:
+        рука даёт кровотечение, глаз отнимает пол-экрана, нога — ползание, коляска или протез.</p>
+      <p>Магазины, кабак, банк, обучение у ветерана, слухи, карта, быстрые переходы, сохранения в браузере.
+        Игра — чистая статика, работает на GitHub Pages, собирается без сборщика.</p>
+      <p class="note">Управление — клавиши выше либо кнопка «Управление». Совет: начни с обучения, если
+        впервые. Дрегар не ждёт, но и дворец не убежит.</p>
+      <button class="close-panel" data-close="screen-about">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- ======================= HUD ======================= -->
+  <div id="hud" class="hidden">
+    <div id="eye-left" class="eye-blind left"></div>
+    <div id="eye-right" class="eye-blind right"></div>
+    <div id="vignette"></div>
+    <div id="blood-vignette"></div>
+    <div id="hit-flash"></div>
+    <div id="lowhp-flash"></div>
+
+    <div id="minimap-panel">
+      <canvas id="minimap" width="220" height="220"></canvas>
+      <div id="zone-name">—</div>
+      <div id="clock"><span id="clock-time">09:00</span> · <span id="clock-day">день 1</span></div>
+    </div>
+
+    <div id="compass">
+      <div id="compass-strip"></div>
+      <div id="compass-needle"></div>
+    </div>
+
+    <div id="quest-tracker" class="hidden">
+      <div class="qt-title">Приказ</div>
+      <div id="qt-text">—</div>
+      <div id="qt-sub" class="qt-sub"></div>
+    </div>
+
+    <div id="squad-panel" class="hidden">
+      <div class="sq-title">Отряд</div>
+      <div id="squad-list"></div>
+      <div class="sq-hint">[T] — приказы отряду, [H] — держать, [Y] — в атаку</div>
+    </div>
+
+    <div id="vitals">
+      <div class="bar-row">
+        <span class="bar-label">ЖИЗНЬ</span>
+        <div class="bar"><div id="bar-health" class="fill health"></div><span id="num-health" class="barnum">100</span></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">СИЛА</span>
+        <div class="bar"><div id="bar-stamina" class="fill stamina"></div><span id="num-stamina" class="barnum">100</span></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">КРОВЬ</span>
+        <div class="bar"><div id="bar-blood" class="fill blood"></div><span id="num-blood" class="barnum">100%</span></div>
+      </div>
+      <div id="status-line">
+        <span id="status-wound"></span>
+        <span id="gold-line">🪙 <b id="gold-num">0</b></span>
+      </div>
+    </div>
+
+    <div id="weapon-panel">
+      <div id="weapon-name">Кулаки</div>
+      <div id="ammo-line" class="hidden">Стрелы: <b id="ammo-num">0</b></div>
+      <div id="quickbar"></div>
+      <div id="stance-line"></div>
+    </div>
+
+    <div id="body-panel">
+      <canvas id="body-silhouette" width="150" height="230"></canvas>
+      <div id="injury-list"></div>
+    </div>
+
+    <div id="crosshair"><span class="ch-dot"></span><span class="ch-ring"></span></div>
+    <div id="hitmarker">✕</div>
+    <div id="enemy-hp" class="hidden"><div id="enemy-hp-name"></div><div class="ehp-bar"><div id="enemy-hp-fill"></div></div></div>
+
+    <div id="prompt" class="hidden"></div>
+    <div id="subtitles"></div>
+    <div id="notifications"></div>
+    <div id="killfeed"></div>
+    <div id="banner"></div>
+    <div id="objective-toast" class="hidden"></div>
+    <div id="lux-indicator"></div>
+    <div id="debug" class="hidden"></div>
+
+    <div id="touch-controls" class="hidden">
+      <div id="touch-stick"><div id="touch-stick-knob"></div></div>
+      <div id="touch-buttons">
+        <button data-touch="attack">⚔</button>
+        <button data-touch="jump">⤒</button>
+        <button data-touch="use">✋</button>
+        <button data-touch="block">🛡</button>
+        <button data-touch="switch">🏹</button>
+        <button data-touch="bandage">🩹</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= ПАНЕЛИ ======================= -->
+  <div id="panel-inventory" class="screen panel hidden">
+    <div class="panel-box wide">
+      <div class="panel-head"><h2>Сумка</h2><div class="panel-sub" id="inv-sub"></div>
+        <button class="x" data-close="panel-inventory">✕</button></div>
+      <div class="panel-cols">
+        <div class="panel-col"><h3>Надето</h3><div id="inv-equipped" class="item-grid"></div>
+          <h3>Раны и протезы</h3><div id="inv-injuries" class="injury-grid"></div></div>
+        <div class="panel-col grow"><h3>Вещи</h3><div id="inv-list" class="item-list"></div></div>
+        <div class="panel-col"><h3>Пояс</h3><div id="inv-quick" class="item-grid"></div>
+          <div id="inv-stats" class="stat-block"></div></div>
+      </div>
+      <div class="panel-foot"><span id="inv-gold"></span><span id="inv-hint">ЛКМ — надеть / применить, ПКМ — выбросить</span></div>
+    </div>
+  </div>
+
+  <div id="panel-character" class="screen panel hidden">
+    <div class="panel-box">
+      <div class="panel-head"><h2 id="char-name">Персонаж</h2><div class="panel-sub" id="char-sub"></div>
+        <button class="x" data-close="panel-character">✕</button></div>
+      <div class="panel-cols">
+        <div class="panel-col"><h3>Навыки</h3><div id="char-skills" class="skill-list"></div>
+          <div id="char-level" class="stat-block"></div></div>
+        <div class="panel-col grow"><h3>Тело</h3><div id="char-body" class="injury-report"></div>
+          <h3>Репутация</h3><div id="char-rep" class="rep-list"></div></div>
+      </div>
+      <div class="panel-foot"><span id="char-hint">Раны залечивают у лекаря. Протезы ставит костоправ.</span></div>
+    </div>
+  </div>
+
+  <div id="panel-journal" class="screen panel hidden">
+    <div class="panel-box">
+      <div class="panel-head"><h2>Журнал</h2><div class="panel-sub">приказы, задания, слухи</div>
+        <button class="x" data-close="panel-journal">✕</button></div>
+      <div class="panel-cols">
+        <div class="panel-col grow"><h3>Активные</h3><div id="journal-active" class="journal-list"></div></div>
+        <div class="panel-col grow"><h3>Завершённые</h3><div id="journal-done" class="journal-list done"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-map" class="screen panel hidden">
+    <div class="panel-box wide map-box">
+      <div class="panel-head"><h2>Карта четырёх земель</h2><div class="panel-sub" id="map-legend"></div>
+        <button class="x" data-close="panel-map">✕</button></div>
+      <div class="map-wrap">
+        <canvas id="worldmap" width="900" height="900"></canvas>
+        <div id="map-side">
+          <h3>Переходы</h3>
+          <div id="map-places"></div>
+          <div id="map-info" class="stat-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-shop" class="screen panel hidden">
+    <div class="panel-box wide">
+      <div class="panel-head"><h2 id="shop-name">Лавка</h2><div class="panel-sub" id="shop-sub"></div>
+        <button class="x" data-close="panel-shop">✕</button></div>
+      <div class="panel-cols">
+        <div class="panel-col grow"><h3 id="shop-stock-title">Товар</h3><div id="shop-stock" class="item-list"></div></div>
+        <div class="panel-col grow"><h3>Твои вещи</h3><div id="shop-mine" class="item-list"></div></div>
+        <div class="panel-col"><h3>Сделка</h3><div id="shop-deal" class="stat-block"></div>
+          <button id="shop-haggle">Торговаться</button>
+          <div id="shop-log" class="shop-log"></div></div>
+      </div>
+      <div class="panel-foot"><span id="shop-gold"></span><span>ЛКМ по товару — купить, по своему — продать</span></div>
+    </div>
+  </div>
+
+  <div id="panel-dialogue" class="screen panel hidden">
+    <div class="panel-box dialogue">
+      <div class="panel-head"><h2 id="dlg-name">—</h2><div class="panel-sub" id="dlg-role"></div>
+        <button class="x" data-close="panel-dialogue">✕</button></div>
+      <div id="dlg-text" class="dlg-text"></div>
+      <div id="dlg-options" class="dlg-options"></div>
+    </div>
+  </div>
+
+  <div id="panel-squad" class="screen panel hidden">
+    <div class="panel-box">
+      <div class="panel-head"><h2>Военный совет</h2><div class="panel-sub" id="squad-sub"></div>
+        <button class="x" data-close="panel-squad">✕</button></div>
+      <div id="squad-body" class="squad-body"></div>
+      <div class="panel-foot"><span id="squad-hint"></span></div>
+    </div>
+  </div>
+
+  <div id="panel-loot" class="screen panel hidden">
+    <div class="panel-box">
+      <div class="panel-head"><h2 id="loot-title">Обыск</h2><div class="panel-sub" id="loot-sub"></div>
+        <button class="x" data-close="panel-loot">✕</button></div>
+      <div class="panel-cols">
+        <div class="panel-col grow"><h3>Что внутри</h3><div id="loot-list" class="item-list"></div></div>
+        <div class="panel-col"><h3>Твоя сумка</h3><div id="loot-mine" class="item-list"></div></div>
+      </div>
+      <div class="panel-foot"><button id="loot-take-all">Взять всё</button><span id="loot-hint"></span></div>
+    </div>
+  </div>
+
+  <div id="screen-pause" class="screen hidden">
+    <div class="paper narrow">
+      <h2>Пауза</h2>
+      <div id="pause-summary" class="stat-block"></div>
+      <div class="pause-grid">
+        <button id="btn-resume" class="big">Продолжить</button>
+        <button id="btn-save">Сохранить</button>
+        <button id="btn-load">Загрузить</button>
+        <button id="btn-settings">Настройки</button>
+        <button id="btn-help">Управление</button>
+        <button id="btn-tomenu">В главное меню</button>
+      </div>
+      <div id="pause-hint" class="note"></div>
+    </div>
+  </div>
+
+  <div id="screen-settings" class="screen hidden">
+    <div class="paper narrow">
+      <h2>Настройки</h2>
+      <label class="slider">Дальность обзора <input type="range" id="set-view" min="300" max="1200" step="50"><span id="set-view-v"></span></label>
+      <label class="slider">Угол обзора <input type="range" id="set-fov" min="60" max="100" step="1"><span id="set-fov-v"></span></label>
+      <label class="slider">Чувствительность <input type="range" id="set-sens" min="0.2" max="3" step="0.1"><span id="set-sens-v"></span></label>
+      <label class="slider">Громкость <input type="range" id="set-vol" min="0" max="1" step="0.05"><span id="set-vol-v"></span></label>
+      <label class="chk"><input type="checkbox" id="set-shadows"> Тени</label>
+      <label class="chk"><input type="checkbox" id="set-grass" checked> Трава и мелкая листва</label>
+      <label class="chk"><input type="checkbox" id="set-invert"> Инвертировать мышь</label>
+      <label class="chk"><input type="checkbox" id="set-blood" checked> Кровь и расчленёнка</label>
+      <label class="chk"><input type="checkbox" id="set-music" checked> Музыка и звук</label>
+      <label class="chk"><input type="checkbox" id="set-hints" checked> Подсказки на экране</label>
+      <div class="panel-foot"><button id="btn-settings-back">Назад</button></div>
+    </div>
+  </div>
+
+  <div id="screen-saves" class="screen hidden">
+    <div class="paper">
+      <h2>Сохранения</h2>
+      <div id="saves-list" class="saves-list"></div>
+      <div class="panel-foot"><button id="btn-saves-back">Назад</button>
+        <span class="note">Сохранения лежат в localStorage браузера.</span></div>
+    </div>
+  </div>
+
+  <div id="screen-death" class="screen hidden">
+    <div class="paper narrow death">
+      <h2>Ты погиб</h2>
+      <div id="death-text" class="dlg-text"></div>
+      <div id="death-stats" class="stat-block"></div>
+      <div class="pause-grid">
+        <button id="btn-respawn" class="big">Очнуться у лекаря</button>
+        <button id="btn-load-death">Загрузить сохранение</button>
+        <button id="btn-menu-death">В главное меню</button>
+      </div>
+      <div class="note" id="death-hint"></div>
+    </div>
+  </div>
+
+  <div id="screen-victory" class="screen hidden">
+    <div class="paper narrow">
+      <h2 id="victory-title">Победа</h2>
+      <div id="victory-text" class="dlg-text"></div>
+      <div class="pause-grid">
+        <button id="btn-victory-continue" class="big">Остаться в мире</button>
+        <button id="btn-victory-menu">В главное меню</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

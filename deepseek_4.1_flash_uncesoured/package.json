@@ -1,0 +1,14 @@
+{
+  "name": "korovany-deepseek-4-1-flash-uncesoured",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "КОРОВАНЫ: Четыре земли — 3D-экшон по ТЗ Кирилла (эльфы / охрана дворца / злодей)",
+  "scripts": {
+    "serve": "python3 -m http.server 8123",
+    "smoke": "node tests/smoke.mjs",
+    "play": "node tests/play.mjs",
+    "shots": "node tests/shots.mjs",
+    "card": "node tests/card.mjs"
+  }
+}
