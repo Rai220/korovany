@@ -752,6 +752,12 @@ function updateHumanoidAnimOnly(p, dt) {
       }
       if (A.block > 0.05 && side === 'L') { baseX = -1.25 * A.block; rotZ = 0.5 * A.block; }
       if (p.drawing && side === 'R') { baseX = -1.1 * A.draw; }
+      // вид от первого лица: руки приподняты, чтобы оружие было видно
+      if (p.view === 1 && A.attack <= 0.01 && !p.drawing) {
+        const kindNow = weaponKind(p.equip.weapon);
+        if (side === 'R') { baseX = -0.88; rotZ = -0.2; }
+        else if (kindNow !== 'bow') { baseX = -0.52; rotZ = 0.32; }
+      }
       arm.sh.rotation.x = damp(arm.sh.rotation.x, baseX, 14, dt);
       arm.sh.rotation.z = damp(arm.sh.rotation.z, rotZ, 12, dt);
     }

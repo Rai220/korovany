@@ -323,7 +323,8 @@ function rollLoot(kind, rich) {
   const table = {
     cheap: [['bandage', 0.35], ['bread', 0.3], ['apple', 0.25], ['arrows', 0.3], ['ale', 0.2], ['dagger', 0.08]],
     food: [['bread', 0.6], ['apple', 0.5], ['cheese', 0.4], ['ale', 0.3], ['meat', 0.3]],
-    rich: [['bandage', 0.5], ['potion_heal', 0.5], ['potion_stamina', 0.35], ['arrows', 0.3], ['gem', 0.2], ['silver_ring', 0.25], ['lockpick', 0.2]],
+    rich: [['bandage', 0.5], ['potion_heal', 0.5], ['potion_stamina', 0.35], ['arrows', 0.3], ['gem', 0.2], ['silver_ring', 0.25], ['lockpick', 0.2],
+      ['hook_arm', 0.08], ['wood_leg', 0.08], ['glass_eye', 0.06], ['iron_leg', 0.04], ['mech_arm', 0.03]],
   }[kind] || [];
   for (const [id, p] of table) if (rnd.float() < p) loot.push({ id, qty: 1 });
   if (rich && rnd.float() < 0.35) loot.push({ id: 'iron_sword', qty: 1 });
