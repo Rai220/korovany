@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080c0f">
+  <meta name="description" content="Корованы: Четыре Земли — браузерный 3D-экшен о лесных эльфах, страже дворца и злодее. Модель: deepseek-v4.1-flash-1017.">
+  <title>Корованы: Четыре Земли — deepseek-v4.1-flash-1017</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="gameCanvas" aria-label="Игровой мир"></canvas>
+    <div id="vignette"></div>
+    <div id="damage-flash"></div>
+    <div id="eye-blind" aria-hidden="true"></div>
+
+    <div class="hud" id="hud">
+      <div id="hud-brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <div class="brand-title">Корованы: Четыре Земли</div>
+          <div class="brand-model">deepseek-v4.1-flash-1017</div>
+        </div>
+      </div>
+
+      <div id="vitals">
+        <div class="vitals-row"><span id="player-label">Стражник</span><strong id="health-text">100 / 100</strong></div>
+        <div class="bar health"><i id="health-fill"></i></div>
+        <div class="vitals-row"><span>Выносливость</span><strong id="stamina-text">100</strong></div>
+        <div class="bar stamina"><i id="stamina-fill"></i></div>
+        <div class="bar bleed" id="bleed-bar"><i id="bleed-fill"></i></div>
+        <div class="wallet"><span class="coin">¤</span><span id="gold-text">0</span><span style="color:#8f8775;font-size:10px">золота</span></div>
+        <div id="injury-chips"></div>
+      </div>
+
+      <div id="top-center">
+        <div id="zone-name">Вольная Марка</div>
+        <div id="zone-sub">Нейтральная зона людей</div>
+      </div>
+      <div id="compass">С · В · Ю · З</div>
+
+      <div id="minimap-panel">
+        <canvas id="minimap" width="392" height="304"></canvas>
+        <div class="minimap-foot"><span id="map-coords">900 / 700</span><span>M — карта мира</span></div>
+      </div>
+
+      <div id="quest-panel">
+        <div class="eyebrow">Текущее поручение</div>
+        <div id="quest-title">Выберите сторону</div>
+        <div id="quest-desc">Начните игру, чтобы получить цель.</div>
+        <div id="quest-progress"><i></i></div>
+      </div>
+
+      <div id="toast-stack"></div>
+      <div id="interaction"><kbd>E</kbd><span id="interaction-text"></span></div>
+      <div id="screen-hint"></div>
+      <div id="crosshair"></div>
+
+      <div id="control-strip">
+        <span><kbd>WASD</kbd> движение</span>
+        <span><kbd>Shift</kbd> бег</span>
+        <span><kbd>Space</kbd> прыжок</span>
+        <span><kbd>ЛКМ</kbd> удар</span>
+        <span><kbd>ПКМ</kbd> блок</span>
+        <span><kbd>E</kbd> действие</span>
+        <span><kbd>Tab</kbd> состояние</span>
+        <span><kbd>V</kbd> приказ</span>
+        <span><kbd>F6</kbd> сохранить</span>
+        <span><kbd>F9</kbd> загрузить</span>
+      </div>
+      <div id="fps-tag">canvas3d · 0 fps</div>
+    </div>
+
+    <section id="start-screen" class="screen">
+      <div class="start-inner">
+        <div class="title-block">
+          <div class="kicker">Хроники пограничья · 3D-экшен</div>
+          <h1 class="game-title">Корованы<span class="thin">Четыре Земли</span><span class="model-name">deepseek-v4.1-flash-1017</span></h1>
+          <p class="tagline">Густой лес, старый форт в горах, дворец императора и пыльные торговые тракты. Выберите, чью волю вы будете исполнять — и сколько золота готовы за это потерять.</p>
+          <div class="start-meta">
+            <span>4 зоны</span><span>3 фракции</span><span>LOD-лес</span><span>раны и протезы</span><span>сохранения</span>
+          </div>
+        </div>
+
+        <div class="faction-panel">
+          <div class="faction-heading">
+            <h2>Кем вы будете?</h2>
+            <small>ОДИН ВЫБОР · ОДНА ИСТОРИЯ</small>
+          </div>
+          <div class="faction-cards">
+            <button class="faction-card" data-faction="elf" style="--accent:#62a96f">
+              <span class="faction-glyph">⌁</span>
+              <span class="faction-copy"><strong>Лесной эльф</strong><span>Защищайте деревянные дома от солдат и злодеев. Грабить караваны — ваша древняя традиция.</span></span>
+              <span class="faction-diff">ЛЕС</span>
+            </button>
+            <button class="faction-card" data-faction="guard" style="--accent:#d4a84e">
+              <span class="faction-glyph">♜</span>
+              <span class="faction-copy"><strong>Стража дворца</strong><span>Слушайтесь командира Ардена, ловите шпионов и ходите в набеги на врагов империи.</span></span>
+              <span class="faction-diff">ДОЛГ</span>
+            </button>
+            <button class="faction-card" data-faction="villain" style="--accent:#a675c7">
+              <span class="faction-glyph">♞</span>
+              <span class="faction-copy"><strong>Злодей Морвейн</strong><span>Старый форт в горах — ваш. Отдавайте приказы войску и ведите его на штурм дворца.</span></span>
+              <span class="faction-diff">ВЛАСТЬ</span>
+            </button>
+          </div>
+
+          <div class="start-actions">
+            <button class="btn primary" id="continue-btn" disabled>Загрузить сохранение</button>
+            <button class="btn" id="help-btn">Управление</button>
+            <span class="start-note">Работает как статический сайт<br>мышь + клавиатура</span>
+          </div>
+          <div class="controls-mini">
+            <div><span>Движение</span><b>W A S D</b></div>
+            <div><span>Камера</span><b>мышь / ← →</b></div>
+            <div><span>Атака / блок</span><b>ЛКМ / ПКМ</b></div>
+            <div><span>Действие</span><b>E</b></div>
+            <div><span>Прыжок</span><b>Space</b></div>
+            <div><span>Приказ отряду</span><b>V</b></div>
+            <div><span>Состояние</span><b>Tab</b></div>
+            <div><span>Карта</span><b>M</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="modal-backdrop" id="shop-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="shop-title">Торговец</h2>
+            <p>«Всё честно куплено. Почти всё».</p>
+          </div>
+          <button class="btn small modal-close" data-close="shop-modal">Закрыть</button>
+        </div>
+        <div class="modal-body">
+          <div class="shop-wallet"><span class="coin">¤</span><span id="shop-gold">0</span><span style="color:#8f8775;font-size:10px">золота</span></div>
+          <div class="shop-grid" id="shop-grid"></div>
+          <div class="shop-actions">
+            <button class="btn" id="heal-btn">Лечение — 25 ¤</button>
+            <span class="start-note" style="margin-left:auto">Протезы восстанавливают конечность и снимают штраф</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="inventory-modal" hidden>
+      <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="inv-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="inv-title">Состояние героя</h2>
+            <p id="inv-subtitle">Тело, имущество и решения</p>
+          </div>
+          <button class="btn small modal-close" data-close="inventory-modal">Закрыть</button>
+        </div>
+        <div class="modal-body">
+          <div class="status-layout">
+            <section class="body-status">
+              <h3>Тело</h3>
+              <div id="body-lines"></div>
+            </section>
+            <section class="inventory-list">
+              <h3>Сумка</h3>
+              <div id="inventory-rows"></div>
+              <div class="inv-actions">
+                <button class="btn small" id="use-bandage">Использовать бинт</button>
+                <button class="btn small" id="use-potion">Выпить эликсир</button>
+                <button class="btn small" id="toggle-chair">Сложить/разложить коляску</button>
+              </div>
+            </section>
+          </div>
+          <div class="inv-actions" style="border-top:1px solid rgba(229,185,93,.14);padding-top:13px;margin-top:15px">
+            <button class="btn primary" id="inv-save">F6 · Сохранить</button>
+            <button class="btn" id="inv-load">F9 · Загрузить</button>
+            <button class="btn danger" id="inv-menu">В главное меню</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="command-modal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="command-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="command-title">Военный совет</h2>
+            <p>Вы сами себе командир. Войско ждёт волю.</p>
+          </div>
+          <button class="btn small modal-close" data-close="command-modal">Закрыть</button>
+        </div>
+        <div class="modal-body">
+          <div class="command-grid" id="command-grid"></div>
+          <div class="command-note" id="command-note"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="map-modal" hidden>
+      <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="map-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="map-title">Карта Четырёх Земель</h2>
+            <p>Дороги, караваны, посты и ваше положение</p>
+          </div>
+          <button class="btn small modal-close" data-close="map-modal">Закрыть</button>
+        </div>
+        <div class="modal-body">
+          <div class="map-wrap"><canvas id="big-map" width="1000" height="760"></canvas></div>
+          <div class="map-legend">
+            <span><i style="background:#dfc06b"></i>вы</span>
+            <span><i style="background:#74b67c"></i>союзники</span>
+            <span><i style="background:#d46354"></i>враги</span>
+            <span><i style="background:#a6a18f"></i>люди</span>
+            <span><i style="background:#9a7044"></i>караваны</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="pause-screen" hidden>
+      <div class="pause-card">
+        <div class="kicker">Пауза</div>
+        <h2>Корованы: Четыре Земли</h2>
+        <p>Мир не движется, пока вы читаете. Мышь освобождена из захвата.</p>
+        <div class="pause-actions">
+          <button class="btn primary" id="resume-btn">Продолжить</button>
+          <button class="btn" id="pause-save">Сохранить</button>
+          <button class="btn" id="pause-load">Загрузить</button>
+          <button class="btn danger" id="pause-menu">В главное меню</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="death-screen" class="screen" hidden>
+      <div class="death-card">
+        <div class="kicker">Кровь на тракте</div>
+        <h2>ВЫ ПАЛИ</h2>
+        <p id="death-text">Раны оказались сильнее. Империя, лес и горы продолжают жить без вас.</p>
+        <div class="death-actions">
+          <button class="btn primary" id="death-load">Загрузить сохранение</button>
+          <button class="btn" id="death-restart">Новая жизнь</button>
+          <button class="btn" id="death-menu">Главное меню</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="fatal-error" role="alert" hidden>
+      <strong>Игра не запустилась</strong>
+      <span id="fatal-error-text"></span>
+      <small>Откройте консоль браузера (F12 → Console) и пришлите текст ошибки.</small>
+    </div>
+
+    <noscript>
+      <div id="noscript-note">
+        Для запуска игры нужен включённый JavaScript. Откройте <b>index.html</b> в современном браузере.
+      </div>
+    </noscript>
+
+    <pre id="selftest-results" aria-live="polite"></pre>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      var shown = false;
+      window.__showKorovanyError = function (message) {
+        if (shown) return;
+        shown = true;
+        var box = document.getElementById('fatal-error');
+        var text = document.getElementById('fatal-error-text');
+        if (!box || !text) return;
+        text.textContent = String(message || 'Неизвестная ошибка.');
+        box.hidden = false;
+      };
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target.tagName === 'SCRIPT') {
+          window.__showKorovanyError('Не удалось загрузить game.js. Проверьте, что файл лежит рядом с index.html.');
+          return;
+        }
+        if (event.message) window.__showKorovanyError(event.message + (event.filename ? ' — ' + event.filename + ':' + event.lineno : ''));
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason && (event.reason.stack || event.reason.message) || event.reason;
+        window.__showKorovanyError('Ошибка Promise: ' + reason);
+      });
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          if (!window.KOROVANY) {
+            window.__showKorovanyError('game.js не создал игровой объект. Проверьте, что JavaScript включён и файл game.js доступен по относительному пути.');
+          }
+        }, 2500);
+      });
+    })();
+  </script>
+  <script src="game.js"></script>
+</body>
+</html>
