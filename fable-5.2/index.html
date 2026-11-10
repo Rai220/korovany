@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>КОРОВАНЫ: джва года спустя — Fable 5.2</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="crosshair"></div>
+  <div id="bars">
+    <div class="bar"><div id="hpFill" class="fill hp"></div><span id="hpText"></span></div>
+    <div class="bar small"><div id="stFill" class="fill st"></div></div>
+    <div id="bleed" class="hidden">🩸 КРОВОТЕЧЕНИЕ! Перевяжи рану (B) или найди лекаря</div>
+    <div id="bodyState"></div>
+    <div id="weapon"></div>
+  </div>
+  <div id="topLeft">
+    <div id="zone"></div>
+    <div id="info"></div>
+  </div>
+  <div id="mapBox"><canvas id="minimap" width="176" height="176"></canvas><div id="clock"></div></div>
+  <div id="mission"></div>
+  <div id="focus" class="hidden"><div id="focusName"></div><div class="bar small"><div id="focusFill" class="fill hp"></div></div></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="log"></div>
+  <div id="banner"></div>
+  <div id="floats"></div>
+</div>
+
+<div id="eyeL" class="eye hidden"></div>
+<div id="eyeR" class="eye hidden"></div>
+<div id="hurt"></div>
+
+<div id="panel" class="hidden"><div id="panelBox"></div></div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card">
+    <h2>Пауза</h2>
+    <p class="dim">Кликни «Продолжить», чтобы захватить мышь</p>
+    <button id="btnResume">Продолжить</button>
+    <button id="btnSave">Сохранить игру (F5)</button>
+    <button id="btnLoad">Загрузить игру (F9)</button>
+    <button id="btnMenu">В главное меню</button>
+    <div class="help" id="pauseHelp"></div>
+  </div>
+</div>
+
+<div id="death" class="overlay hidden">
+  <div class="card">
+    <h1 class="red">ТЫ ПОГИБ</h1>
+    <p id="deathCause"></p>
+    <button id="btnDeathLoad">Загрузить сохранение</button>
+    <button id="btnRespawn">Очнуться на своей базе (−половина золота, увечья остаются)</button>
+    <button id="btnDeathMenu">В главное меню</button>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="card wide">
+    <h1>КОРОВАНЫ</h1>
+    <div class="sub">джва года спустя · 3Д-экшон · сделано моделью <b>Fable 5.2</b></div>
+    <p class="dim">Четыре зоны: земли людей, зона Императора, лес эльфов и горы Злого. Выбери, за кого играть:</p>
+    <div id="factions">
+      <div class="fcard" data-f="elf"><h3 style="color:#4fc45a">Лесные эльфы</h3><p>Густой лес, деревяные домики. На тебя набигают солдаты дворца и злодеи. Обороняй деревню, ходи в партизанские вылазки и грабь корованы.</p><button>Играть эльфом</button></div>
+      <div class="fcard" data-f="empire"><h3 style="color:#4f86e8">Охрана дворца</h3><p>Слушайся командира: дозоры, ловля шпионов, оборона дворца от Злого и партизан эльфов, набеги на врагов. За службу — жалованье и звания.</p><button>Играть стражником</button></div>
+      <div class="fcard" data-f="evil"><h3 style="color:#b04fe0">Злой</h3><p>Ты сам себе командир. Старый форт в горах, своё войско. Прикажи войскам идти с тобой на дворец, устрой засаду на корованы. Берегись шпионов эльфов.</p><button>Играть Злым</button></div>
+    </div>
+    <button id="btnContinue" class="hidden">Продолжить сохранённую игру</button>
+    <div class="help" id="menuHelp"></div>
+    <div id="loading">Строю мир…</div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
