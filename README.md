@@ -41,15 +41,16 @@
 релиз под именем GLM-5.3-Flash состоялся 26 августа. Grok Bot — агентный продукт,
 а не название модели, поэтому указана дата его запуска; базовая модель экспоната не установлена.
 
-> **Текущая SOTA: GPT-6 (astra).** На данный момент это лучший вариант среди
+> **Текущая SOTA: Fable 5.2.** На данный момент это лучший вариант среди
 > представленных реализаций и основной ориентир для сравнения следующих поколений.
 
-![GPT-6 (astra) — эльфийская деревня и густой LOD-лес](gpt-6-astra/screen.jpg)
+![Fable 5.2 — эльфийская деревня и густой LOD-лес](fable-5.2/screen.jpg)
 
 | Модель | Релиз / запуск | Игра создана (МСК) | Рейтинг | Директория | Поиграть | Стек |
 |---|---|---|---|---|---|---|
+| **Fable 5.2 — SOTA** | не подтверждён ([о модели](https://www.anthropic.com/claude/fable)) | 2026-11-10 14:41 | — | [`fable-5.2/`](fable-5.2/) | [играть](https://rai220.github.io/korovany/fable-5.2/) | Three.js (ES modules, локальная копия), ванильный JS, вид от 1-го и 3-го лица, без сборки |
 | **DeepSeek 4.1 Flash (uncensored)** | [2026-09-10](https://api-docs.deepseek.com/news/news260910) | 2026-10-02 23:20 | — | [`deepseek_4.1_flash_uncesoured/`](deepseek_4.1_flash_uncesoured/) | [играть](https://rai220.github.io/korovany/deepseek_4.1_flash_uncesoured/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го и 3-го лица, без сборки |
-| **GPT-6 (astra) — SOTA** | [2026-09-03](https://openai.com/index/gpt-6-astra/) | 2026-09-05 14:07 | — | [`gpt-6-astra/`](gpt-6-astra/) | [играть](https://rai220.github.io/korovany/gpt-6-astra/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го лица, без сборки |
+| **GPT-6 (astra)** | [2026-09-03](https://openai.com/index/gpt-6-astra/) | 2026-09-05 14:07 | — | [`gpt-6-astra/`](gpt-6-astra/) | [играть](https://rai220.github.io/korovany/gpt-6-astra/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го лица, без сборки |
 | **Fable 5.1** | [2026-09-01](https://www.anthropic.com/claude-fable-and-mythos-5-1) | 2026-09-03 20:41 | — | [`fable_5_1/`](fable_5_1/) | [играть](https://rai220.github.io/korovany/fable_5_1/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 | **ox-alpha (Hermes)** | [2026-08-20](https://openrouter.ai/stealth/ox-alpha) (превью) | 2026-08-22 12:30 | — | [`hermes_ox_alpha/`](hermes_ox_alpha/) | [играть](https://rai220.github.io/korovany/hermes_ox_alpha/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 | **Grok Bot** | [2026-08-11](https://x.ai/news/introducing-grok-bot) (агент) | 2026-08-19 16:51 | — | [`grok_bot/`](grok_bot/) | [играть](https://rai220.github.io/korovany/grok_bot/) | Three.js (ES modules, CDN), вид от 1-го или 3-го лица, без сборки |
