@@ -48,6 +48,8 @@ P.S. Я джва года хочу такую игру.
 На главной показаны даты релизов, а не создания игр; ссылки на источники находятся
 в сворачиваемом блоке под карточками. Даты создания игр сохранены в отдельном
 столбце таблицы (МСК). Рейтинг — субъективная оценка Кирилла, ★★★★★ = 5 звёзд.
+Fable 5.2 задаёт текущую планку в 5 звёзд; прежние оценки снижены на одну звезду.
+Прочерк означает, что оценка ещё не выставлена.
 
 Для ox-alpha указано начало публичного превью — 20 августа 2026; официальный
 релиз под именем GLM-5.3-Flash состоялся 26 августа. Grok Bot — агентный продукт,
@@ -60,19 +62,19 @@ P.S. Я джва года хочу такую игру.
 
 | Модель | Релиз / запуск | Игра создана (МСК) | Рейтинг | Директория | Поиграть | Стек |
 |---|---|---|---|---|---|---|
-| **Fable 5.2 — SOTA** | не подтверждён ([о модели](https://www.anthropic.com/claude/fable)) | 2026-11-10 14:41 | — | [`fable-5.2/`](fable-5.2/) | [играть](https://rai220.github.io/korovany/fable-5.2/) | Three.js (ES modules, локальная копия), ванильный JS, вид от 1-го и 3-го лица, без сборки |
+| **Fable 5.2 — SOTA** | не подтверждён ([о модели](https://www.anthropic.com/claude/fable)) | 2026-11-10 14:41 | ★★★★★ | [`fable-5.2/`](fable-5.2/) | [играть](https://rai220.github.io/korovany/fable-5.2/) | Three.js (ES modules, локальная копия), ванильный JS, вид от 1-го и 3-го лица, без сборки |
 | **DeepSeek 4.1 Flash (uncensored)** | [2026-09-10](https://api-docs.deepseek.com/news/news260910) | 2026-10-02 23:20 | — | [`deepseek_4.1_flash_uncesoured/`](deepseek_4.1_flash_uncesoured/) | [играть](https://rai220.github.io/korovany/deepseek_4.1_flash_uncesoured/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го и 3-го лица, без сборки |
 | **GPT-6 (astra)** | [2026-09-03](https://openai.com/index/gpt-6-astra/) | 2026-09-05 14:07 | — | [`gpt-6-astra/`](gpt-6-astra/) | [играть](https://rai220.github.io/korovany/gpt-6-astra/) | Three.js (ES modules, CDN), ванильный JS, вид от 1-го лица, без сборки |
 | **Fable 5.1** | [2026-09-01](https://www.anthropic.com/claude-fable-and-mythos-5-1) | 2026-09-03 20:41 | — | [`fable_5_1/`](fable_5_1/) | [играть](https://rai220.github.io/korovany/fable_5_1/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 | **ox-alpha (Hermes)** | [2026-08-20](https://openrouter.ai/stealth/ox-alpha) (превью) | 2026-08-22 12:30 | — | [`hermes_ox_alpha/`](hermes_ox_alpha/) | [играть](https://rai220.github.io/korovany/hermes_ox_alpha/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
 | **Grok Bot** | [2026-08-11](https://x.ai/news/introducing-grok-bot) (агент) | 2026-08-19 16:51 | — | [`grok_bot/`](grok_bot/) | [играть](https://rai220.github.io/korovany/grok_bot/) | Three.js (ES modules, CDN), вид от 1-го или 3-го лица, без сборки |
 | **Opus 5** | [2026-07-24](https://www.anthropic.com/news/claude-opus-5) | 2026-07-25 15:07 | — | [`Opus-5/`](Opus-5/) | [играть](https://rai220.github.io/korovany/Opus-5/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **Kimi K3** | [2026-07-16](https://www.kimi.com/blog/kimi-k3) | 2026-07-22 11:46 | ★★★★★ | [`kimi-k3/`](kimi-k3/) | [играть](https://rai220.github.io/korovany/kimi-k3/) | Three.js (ES modules, локальная копия), вид от 3-го лица, без сборки |
+| **Kimi K3** | [2026-07-16](https://www.kimi.com/blog/kimi-k3) | 2026-07-22 11:46 | ★★★★☆ | [`kimi-k3/`](kimi-k3/) | [играть](https://rai220.github.io/korovany/kimi-k3/) | Three.js (ES modules, локальная копия), вид от 3-го лица, без сборки |
 | **GPT-5.6-sol** | [2026-07-09](https://openai.com/index/gpt-5-6/) | 2026-07-14 12:52 | — | [`gpt-5.6-sol/`](gpt-5.6-sol/) | [играть](https://rai220.github.io/korovany/gpt-5.6-sol/) | Three.js (ES modules, CDN), вид от 3-го лица, без сборки |
-| **GLM-5.2** | [2026-06-16](https://z.ai/blog/glm-5.2) | 2026-06-18 11:47 | ★★★★☆ | [`glm-5.2/`](glm-5.2/) | [играть](https://rai220.github.io/korovany/glm-5.2/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
-| **Fable 5** | [2026-06-09](https://www.anthropic.com/news/claude-fable-5-mythos-5) | 2026-06-10 08:57 | ★★★★★ | [`fable_5/`](fable_5/) | [играть](https://rai220.github.io/korovany/fable_5/) | Three.js, ванильный JS, без сборки |
-| **Opus 4.8** | [2026-05-28](https://www.anthropic.com/news/claude-opus-4-8) | 2026-06-10 13:30 | ★★★☆☆ | [`Opus-4.8/`](Opus-4.8/) | [играть](https://rai220.github.io/korovany/Opus-4.8/) | Three.js, ванильный JS, вид от 1-го лица, без сборки |
-| **GPT-5.5** | [2026-04-23](https://openai.com/index/introducing-gpt-5-5/) | 2026-06-10 13:50 | ★★☆☆☆ | [`gpt-5.5/`](gpt-5.5/) | [играть](https://rai220.github.io/korovany/gpt-5.5/) | Three.js, без сборки |
+| **GLM-5.2** | [2026-06-16](https://z.ai/blog/glm-5.2) | 2026-06-18 11:47 | ★★★☆☆ | [`glm-5.2/`](glm-5.2/) | [играть](https://rai220.github.io/korovany/glm-5.2/) | Three.js (ES modules, CDN), вид от 1-го лица, без сборки |
+| **Fable 5** | [2026-06-09](https://www.anthropic.com/news/claude-fable-5-mythos-5) | 2026-06-10 08:57 | ★★★★☆ | [`fable_5/`](fable_5/) | [играть](https://rai220.github.io/korovany/fable_5/) | Three.js, ванильный JS, без сборки |
+| **Opus 4.8** | [2026-05-28](https://www.anthropic.com/news/claude-opus-4-8) | 2026-06-10 13:30 | ★★☆☆☆ | [`Opus-4.8/`](Opus-4.8/) | [играть](https://rai220.github.io/korovany/Opus-4.8/) | Three.js, ванильный JS, вид от 1-го лица, без сборки |
+| **GPT-5.5** | [2026-04-23](https://openai.com/index/introducing-gpt-5-5/) | 2026-06-10 13:50 | ★☆☆☆☆ | [`gpt-5.5/`](gpt-5.5/) | [играть](https://rai220.github.io/korovany/gpt-5.5/) | Three.js, без сборки |
 
 ### DeepSeek 4.1 Flash (uncensored) — что внутри
 
