@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#171817" />
+    <title>Корованы: Пепельная десятина — Gpt-6.2-Astra + Goal (gpt-6.2-astra)</title>
+    <link rel="preload" as="image" href="./assets/cover.webp" fetchpriority="high" />
+    <link rel="prefetch" as="image" href="./assets/atlas.webp" />
+    <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./edition.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="bar-inner">
+        <a class="brand" href="#campaign" aria-label="Корованы: Пепельная десятина — Gpt-6.2-Astra + Goal"
+          ><span class="brand-mark" data-icon="brand"></span>
+          <h1 class="brand-text">
+            <strong>Корованы</strong><small title="Модель gpt-6.2-astra">Gpt-6.2-Astra + Goal</small
+            ><span class="sr">Модель gpt-6.2-astra</span>
+          </h1></a
+        >
+        <nav aria-label="Главное меню">
+          <button data-page="campaign" class="active"><i data-icon="swords"></i>Кампания</button
+          ><button data-page="atlas"><i data-icon="map"></i>Карта мира</button
+          ><button id="help"><i data-icon="keys"></i>Управление</button>
+        </nav>
+        <div class="utilities">
+          <button id="audio" class="icon-button" aria-label="Включить звук" title="Включить звук"></button
+          ><button id="settings" class="icon-button" title="Настройки" aria-label="Настройки">⚙</button
+          ><button id="full" class="icon-button" aria-label="Полный экран" title="Полный экран">
+            <i data-icon="expand"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main id="menu">
+      <section id="campaign">
+        <div class="title-scene">
+          <div class="title-copy">
+            <span class="chapter-label">Хроники Пограничья</span>
+            <h2>Пепельная<br /><em>десятина</em></h2>
+            <p>
+              В короване везут зерно для четырёх земель.<br />В тайнике — приказ сжечь его до последнего
+              мешка.
+            </p>
+          </div>
+        </div>
+        <div class="muster">
+          <div class="muster-head">
+            <span class="chapter-label">Выберите свою сторону</span><span class="rule"></span>
+          </div>
+          <div id="factions" role="group" aria-label="Фракция героя"></div>
+          <div class="launch-line">
+            <p id="hero-desc"></p>
+            <div>
+              <button class="resume" id="resume">Продолжить</button
+              ><button class="primary" id="begin" disabled>
+                <i data-icon="swords"></i><span id="start-label">Подготовка мира…</span
+                ><i data-icon="arrow"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="atlas">
+        <div class="atlas-head">
+          <i data-icon="compass"></i>
+          <h2>Атлас мира</h2>
+          <span class="rule"></span><span class="region-count">4 региона</span>
+        </div>
+        <div id="menu-map" aria-label="Атлас Пограничья"></div>
+        <div id="regions"></div>
+      </section>
+    </main>
+    <footer id="footer">
+      <span><i class="tiny-diamond"></i> Корованы</span><span>Gpt-6.2-Astra + Goal</span>
+    </footer>
+    <section id="play" hidden aria-label="Игровой мир">
+      <div id="view"></div>
+      <div class="bearing" aria-hidden="true"><span>◇</span><b id="compass-dir">С</b><span>◇</span></div>
+      <div id="blind" hidden></div>
+      <div id="hurt"></div>
+      <div class="cross"></div>
+      <div id="chapter-toast" aria-live="polite"></div>
+      <div id="subtitle" aria-live="polite"></div>
+      <div id="hitmark" aria-hidden="true">×</div>
+      <div id="foe" hidden>
+        <span id="foe-name"></span><progress id="foe-hp" value="1" max="1"></progress>
+      </div>
+      <div class="hud top-hud">
+        <div class="eyebrow" id="side-label"></div>
+        <strong id="area"></strong><small id="quest"></small><small id="direction"></small>
+      </div>
+      <button id="pause" class="hud-btn">Меню <kbd>Esc</kbd></button
+      ><button id="map-key" class="hud-btn">Карта <kbd>M</kbd></button>
+      <button id="journal-key" class="hud-btn">Дневник <kbd>J</kbd></button>
+      <div id="event" role="status"></div>
+      <div id="interact"></div>
+      <div class="hud vitals">
+        <div class="vital-line"><span>Здоровье</span><b id="hp"></b></div>
+        <div class="meter"><b id="hpbar"></b></div>
+        <div class="energy"><b id="stamina-bar"></b></div>
+        <small id="supplies"></small><small id="condition"></small>
+      </div>
+      <div class="hud hints">
+        <span><kbd>ЛКМ</kbd> Удар</span><span><kbd>E</kbd> Действие</span><span><kbd>R</kbd> Блок</span
+        ><span><kbd>2</kbd> Лук</span><span><kbd>J</kbd> Дневник</span>
+      </div>
+      <div id="touch-controls">
+        <div id="stick" aria-label="Виртуальный джойстик"><i></i></div>
+        <div class="touch-actions">
+          <button data-key="Digit2">Оружие</button><button id="touch-block" type="button">Блок</button
+          ><button data-key="KeyE">Действие</button><button data-key="Space">Прыжок</button
+          ><button data-key="KeyH">Бинт</button><button data-key="KeyF">Удар</button
+          ><button data-key="KeyQ" id="touch-order">Приказ</button>
+        </div>
+      </div>
+    </section>
+    <dialog id="dialog">
+      <div class="modal-top">
+        <span class="eyebrow" id="dialog-kicker"></span
+        ><button class="icon-button" id="close" aria-label="Закрыть"><i data-icon="close"></i></button>
+      </div>
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body"></div>
+    </dialog>
+    <div id="message" role="status"></div>
+    <script src="./interface.js"></script>
+    <script src="./vendor/three.min.js"></script>
+    <script src="./assets/materials.js"></script>
+    <script src="./assets/figures.js"></script>
+    <script src="./world.js"></script>
+    <script src="./landscape.js"></script>
+    <script src="./hamlets.js"></script>
+    <script src="./interiors.js"></script>
+    <script src="./cast.js"></script>
+    <script src="./trails.js"></script>
+    <script src="./chronicle.js"></script>
+    <script src="./sound.js"></script>
+    <script src="./settings.js"></script>
+    <script src="./game.js"></script>
+  </body>
+</html>
