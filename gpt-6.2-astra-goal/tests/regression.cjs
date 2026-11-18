@@ -87,6 +87,19 @@ async function main() {
     await page.reload();
     await page.click('#resume');
     await page.waitForFunction(() => game?.story.hoof === true && game.robbed === 1);
+    const merchantWithSquad = await page.evaluate(() => {
+      cancelAnimationFrame(frame);
+      game.side = 2;
+      game.stage = 0;
+      game.story.phase = 'origin';
+      game.actors = [];
+      game.x = -53.7;
+      game.z = 53.2;
+      actor('merchant', 'neutral', -56, 52.65, 'shop');
+      actor('lord', 'friend', -53, 54, 'squad');
+      return interactable()?.a.tag;
+    });
+    assert.equal(merchantWithSquad, 'shop');
     assert.deepEqual(errors, []);
     console.log(
       'PASS — WebGL, road seam, solid bodies, wagon yielding, eight legs, cow dialogue and save/load.',

@@ -605,11 +605,16 @@ function interactable() {
   );
   options.push({ a: bovineOffice(), cow: true, label: 'Переговоры с Бурёнкой' });
   options.push({ a: g.wagon, label: 'Ограбить корован · V для переговоров' });
-  const objective = goal().target;
+  const target = goal().target;
+  // Orders have their own Q binding. A follower beside a stall should leave E to the merchant.
+  const objective = target?.team === 'friend' ? null : target;
   return options
     .filter((v) => distance(g, v.a) < (v.a === g.wagon ? 4.8 : 3.6))
     .sort(
-      (a, b) => Number(b.a === objective) - Number(a.a === objective) || distance(g, a.a) - distance(g, b.a),
+      (a, b) =>
+        Number(b.a === objective) - Number(a.a === objective) ||
+        Number(a.a.team === 'friend') - Number(b.a.team === 'friend') ||
+        distance(g, a.a) - distance(g, b.a),
     )[0];
 }
 function interact() {
