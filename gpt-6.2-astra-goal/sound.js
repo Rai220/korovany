@@ -79,3 +79,19 @@ function soundscape(dt, moving, sprinting) {
     noiseFoley(0.8, 520, 0.035);
   }
 }
+
+let lastHoofMark = 0;
+function harnessFoley(s, travel) {
+  const mark = Math.floor(travel / 0.48);
+  if (mark === lastHoofMark) return;
+  lastHoofMark = mark;
+  if (!soundOn || s.inside) return;
+  const gain = 1 - Math.min(1, distance(s, bovineOffice()) / 21);
+  if (gain < 0.02) return;
+  noiseFoley(0.055, 570, 0.13 * gain);
+  tone(95, 0.075, 'triangle', 0.14 * gain, 50);
+  if (mark % 4 === 0) {
+    tone(782, 0.29, 'sine', 0.032 * gain, 767);
+    tone(1321, 0.19, 'triangle', 0.014 * gain, 1309);
+  }
+}

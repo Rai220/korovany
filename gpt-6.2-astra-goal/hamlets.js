@@ -53,6 +53,12 @@ class Borderlands extends FrontierLandscape {
     const n = Math.ceil(length / 2),
       dx = Math.cos(yaw),
       dz = -Math.sin(yaw);
+    this.bound(
+      x + (dx * length) / 2,
+      z + (dz * length) / 2,
+      Math.abs(dx) * length + 0.14,
+      Math.abs(dz) * length + 0.14,
+    );
     for (let j = 0; j <= n; j++)
       this.block(
         x + (dx * j * length) / n,
@@ -132,20 +138,15 @@ class Borderlands extends FrontierLandscape {
     this.lookout();
     this.fence(-68, -31, 13, 0);
     this.fence(-68, -31, 9, -Math.PI / 2);
-    const cropMat = foliageMaterial('grass'),
-      stalks = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), cropMat, 960);
-    let n = 0;
-    for (let i = 0; i < 18; i++)
-      for (let j = 0; j < 23; j++) {
-        const x = -67 + i * 0.66 + this.rnd() * 0.17,
-          z = -30 + j * 0.43,
-          h = 1.02 + this.rnd() * 0.29;
-        for (let k = 0; k < 2; k++)
-          stalks.setMatrixAt(n++, this.matrix(x, ground(x, z) + h / 2, z, 0.95, h, 1, k * 1.57 + j * 0.16));
+    for (let i = 0; i < 14; i++)
+      for (let j = 0; j < 18; j++) {
+        const x = -67 + i * 0.8,
+          z = -30 + j * 0.53,
+          y = ground(x, z),
+          h = 0.84 + this.rnd() * 0.28;
+        this.put(this.spire, 0xc68a38, x, y + h * 0.5, z, 0.086, h, 0.086, 0, 0, 0.09);
+        this.put(this.head, 0xefba55, x + 0.035, y + h * 0.87, z, 0.083, 0.19, 0.073, 0, 0, -0.12);
       }
-    stalks.count = n;
-    stalks.receiveShadow = true;
-    this.scene.add(stalks);
     // Leaning roadside signposts use Russian place names painted onto weathered boards.
     for (const [x, z, name, angle] of [
       [-46, 55, 'СОЛЯНОЙ МОСТ', 0.1],
@@ -174,28 +175,6 @@ class Borderlands extends FrontierLandscape {
       m.rotation.y = angle;
       this.scene.add(m);
     }
-    // Outside the navigable valley, layered ridges close the gap to the panoramic peaks.
-    const p = [],
-      uv = [],
-      ix = [];
-    for (let j = 0; j < 4; j++)
-      for (let i = 0; i <= 192; i++) {
-        const a = (i * 2 * Math.PI) / 192,
-          r = [152, 176, 190, 220][j] + Math.sin(a * 7 + j) * 7,
-          h = [-5, 2, 8, -8][j] + (j === 2 ? 5 + Math.sin(a * 10) * 3 + Math.sin(a * 23) * 2 : 0);
-        p.push(Math.cos(a) * r, h, Math.sin(a) * r);
-        uv.push(i / 5, j);
-        if (j && i) {
-          const v = j * 193 + i;
-          ix.push(v - 194, v - 1, v, v - 194, v, v - 193);
-        }
-      }
-    this.scene.add(
-      new THREE.Mesh(
-        geometry(p, uv, ix),
-        new THREE.MeshLambertMaterial({ map: texture('moss'), color: 0x8d9c82, side: THREE.DoubleSide }),
-      ),
-    );
   }
   lookout() {
     const z = 56;
@@ -236,16 +215,28 @@ class Borderlands extends FrontierLandscape {
       const g = new THREE.Group();
       g.position.set(p.x, ground(p.x, p.z), p.z);
       this.scene.add(g);
-      this.storyObjects.push({ mesh: g, show });
+      this.storyObjects.push({ mesh: g, show, x: p.x, z: p.z });
       return g;
     };
     const herbs = add(herbBed, (s) => s.story.herbs !== 'gathered' && s.story.herbs !== 'done');
     this.part(herbs, this.stone, 0x716e60, 0.75, 0.45, 0.32, 0.47, 0.79, 0.46);
     for (let j = 0; j < 5; j++) {
-      const bloom = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.92), foliageMaterial('flower'));
-      bloom.position.set(Math.sin(j * 4) * 0.45, 0.43, Math.cos(j * 4) * 0.44);
-      bloom.rotation.y = j * 0.78;
-      herbs.add(bloom);
+      const x = Math.sin(j * 4) * 0.45,
+        z = Math.cos(j * 4) * 0.44;
+      this.part(herbs, this.log, 0x326746, x, 0.24, z, 0.025, 0.48, 0.025);
+      for (let k = 0; k < 5; k++)
+        this.part(
+          herbs,
+          this.head,
+          0xc387ee,
+          x + 0.09 * Math.sin(k * 1.256),
+          0.5,
+          z + 0.09 * Math.cos(k * 1.256),
+          0.096,
+          0.065,
+          0.1,
+        );
+      this.part(herbs, this.head, 0xfbd452, x, 0.55, z, 0.07, 0.055, 0.07);
     }
     let g = add(places.bridge, (s) => s.story.phase !== 'done');
     const hub = this.part(g, new THREE.TorusGeometry(0.72, 0.095, 6, 24), 0x594431, 0, 0.48, 0, 1, 1, 1);
@@ -351,10 +342,13 @@ class Borderlands extends FrontierLandscape {
     this.weatherTick = 0;
   }
   updateAtmosphere(s, t) {
-    const alpha = Math.min(1, Math.max(0, (s.x - 6) / 24)) * Math.min(1, Math.max(0, (s.z - 6) / 24));
+    const alpha =
+      (1 - rimBlend(s.x, s.z)) *
+      Math.min(1, Math.max(0, (s.x - 6) / 24)) *
+      Math.min(1, Math.max(0, (s.z - 6) / 24));
     this.storm = alpha;
-    this.scene.fog.density = 0.0065 + alpha * 0.009;
-    this.scene.fog.color.setHex(alpha > 0.6 ? 0xa3acb0 : 0xb7bca9);
+    this.scene.fog.density = 0.012 + alpha * 0.004;
+    this.scene.fog.color.setHex(alpha > 0.6 ? 0xa9acbf : 0xb6cdbb);
     this.sun.intensity = 2.1 - alpha * 1.25;
     this.skyMesh.material.color.setRGB(1 - alpha * 0.39, 0.97 - alpha * 0.29, 0.89 - alpha * 0.13);
     this.rain.visible = alpha > 0.16;
@@ -362,7 +356,7 @@ class Borderlands extends FrontierLandscape {
     this.rain.material.opacity = alpha * 0.32;
     this.smoke.forEach(({ m, vent, offset }) => {
       const p = (t * 0.15 + offset) % 1;
-      m.position.set(vent[0] + p * p * 1.8, vent[1] + p * 3, vent[2] + p * 0.35);
+      m.position.set(nearest(vent[0] + p * p * 1.8, s.x), vent[1] + p * 3, nearest(vent[2] + p * 0.35, s.z));
       m.scale.setScalar(0.4 + p * 1.9);
     });
     if (t - this.weatherTick > 0.09 || t < this.weatherTick) {

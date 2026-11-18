@@ -13,7 +13,7 @@ let frame = 0,
   flash = 0,
   noticeTime = 0,
   lockBefore = false;
-const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const distance = (a, b) => Math.hypot(wrapped(a.x - b.x), wrapped(a.z - b.z));
 const point = (x, z) => ({ x, z });
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const angles = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -39,13 +39,14 @@ function actor(kind, team, x, z, tag = '') {
   game.actors.push(a);
   return a;
 }
-function clearSpot(x, z) {
-  if (world.free(x, z, 0.5)) return point(x, z);
+function clearSpot(x, z, who = null) {
+  const validAt = (x, z) => livingFree(x, z, who ? bodyRadius(who) : 0.4, who);
+  if (validAt(x, z)) return point(x, z);
   for (let r = 1; r <= 12; r++)
     for (let j = 0; j < 16; j++) {
       const a = (j * Math.PI) / 8,
         p = point(x + r * Math.sin(a), z + r * Math.cos(a));
-      if (world.free(p.x, p.z, 0.5)) return p;
+      if (validAt(p.x, p.z)) return p;
     }
   return point(x, z);
 }
@@ -84,7 +85,12 @@ function newGame() {
     encounter: 70,
     nextId: 1,
     actors: [],
-    wagon: { x: -50, z: 38, angle: Math.PI, node: 0, cool: 0 },
+    wagon:
+      choice === 0
+        ? { x: -42, z: 50, angle: -Math.PI / 2, node: 3, cool: 0 }
+        : choice === 1
+          ? { x: 40, z: -50, angle: Math.PI / 2, node: 1, cool: 0 }
+          : { x: 46, z: 50, angle: -Math.PI / 2, node: 3, cool: 0 },
     hits: 0,
     story: freshStory(),
     stamina: 100,
@@ -98,7 +104,7 @@ function newGame() {
   if (choice === 0) {
     game.x = x - 2.5;
     game.z = z + 15;
-    game.yaw = -0.17;
+    game.yaw = -0.48;
   } else game.yaw = -0.64;
   settle();
   CENTERS.forEach(([a, b]) => {
@@ -106,7 +112,16 @@ function newGame() {
     m.angle = Math.PI;
   });
   actor('commander', choice === 1 ? 'neutral' : 'resident', 52, -51, 'commander');
-  for (let j = 0; j < 2; j++) actor('escort', 'escort', -48 - j * 4, 37, 'escort');
+  for (const side of [-1, 1]) {
+    const w = game.wagon;
+    spawnAt(
+      'escort',
+      'escort',
+      w.x + side * 2.65 * Math.cos(w.angle),
+      w.z - side * 2.65 * Math.sin(w.angle),
+      'escort',
+    );
+  }
   if (choice === 0) {
     spawnAt('guard', 'hostile', x - 3, z - 10, 'first');
     spawnAt('lord', 'hostile', x + 3, z - 15, 'first');
@@ -141,6 +156,10 @@ function start(load) {
   world.clearPeople();
   if (saved) game = saved;
   else newGame();
+  repairSpacing();
+  world.teamLast = null;
+  world.teamEnergy = 0;
+  world.travelPhase = 0;
   active = true;
   keys.clear();
   swing = 0;
@@ -375,7 +394,7 @@ function goal() {
   };
 }
 function targetBearing(t) {
-  const a = angles(Math.atan2(-(t.x - game.x), -(t.z - game.z)) - game.yaw);
+  const a = angles(Math.atan2(-wrapped(t.x - game.x), -wrapped(t.z - game.z)) - game.yaw);
   return Math.abs(a) < 0.23 ? '↑' : Math.abs(a) > 2.5 ? '↓' : a > 0 ? '←' : '→';
 }
 function drawHud() {
@@ -455,8 +474,11 @@ function mapDialog() {
     )
     .join('');
   const body =
-    '<p>Выберите регион для перехода.</p><div class="worldmap">' +
+    '<p>Тракты замыкаются в кольцо. По охристым меткам найдёте четыре молочные заставы. Выберите регион для быстрого перехода.</p><div class="worldmap">' +
     cells +
+    dairies
+      .map((d, i) => pin((g.story.dairyStamps || []).includes(i) ? 'dairy-dot stamped' : 'dairy-dot', d))
+      .join('') +
     pin('wagon-dot', g.wagon) +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? pin('witness-dot', places.rider) : '') +
     (g.story.herbs === 'seek' ? pin('herb-dot', herbBed) : '') +
@@ -479,8 +501,7 @@ function mapDialog() {
         if (g.inside) leaveRoom();
         const dest = Number(el.dataset.travel),
           [x, z] = CENTERS[dest];
-        g.x = x;
-        g.z = z + 5;
+        Object.assign(g, clearSpot(x, z + 5, g));
         g.air = g.vy = 0;
         g.pitch = 0;
         g.yaw = dest === 1 || dest === 3 ? -0.72 : dest === 0 ? 0.51 : -0.13;
@@ -488,7 +509,7 @@ function mapDialog() {
         if (g.order === 'follow')
           g.actors
             .filter((a) => a.team === 'friend' && a.hp > 0)
-            .forEach((a, j) => Object.assign(a, clearSpot(x - 3 + j * 2, z + 7)));
+            .forEach((a, j) => Object.assign(a, clearSpot(x - 3 + j * 2, z + 7, a)));
         closeModal();
         notify(lands[dest].name);
         lodTime = 0;
@@ -579,10 +600,17 @@ function interactable() {
     });
   for (const [id, h] of Object.entries(houses))
     options.push({ a: h.door, label: 'Войти · ' + h.name, house: id });
-  options.push({ a: g.wagon, label: 'Ограбить корован' });
+  dairies.forEach((site, i) =>
+    options.push({ a: site, label: 'Поставить печать · ' + site.title, dairy: i }),
+  );
+  options.push({ a: bovineOffice(), cow: true, label: 'Переговоры с Бурёнкой' });
+  options.push({ a: g.wagon, label: 'Ограбить корован · V для переговоров' });
+  const objective = goal().target;
   return options
     .filter((v) => distance(g, v.a) < (v.a === g.wagon ? 4.8 : 3.6))
-    .sort((a, b) => distance(g, a.a) - distance(g, b.a))[0];
+    .sort(
+      (a, b) => Number(b.a === objective) - Number(a.a === objective) || distance(g, a.a) - distance(g, b.a),
+    )[0];
 }
 function interact() {
   if (game.inside) {
@@ -606,6 +634,14 @@ function interact() {
     g.air = up ? 4.62 : 0;
     g.vy = 0;
     notify(up ? 'Дозорная крона' : 'Лесная тропа');
+    return;
+  }
+  if (it.cow) {
+    speakCow();
+    return;
+  }
+  if (it.dairy !== undefined) {
+    stampDairy(it.dairy);
     return;
   }
   if (it.house) {
@@ -636,13 +672,7 @@ function interact() {
       notify('Охрана корована вступает в бой');
       return;
     }
-    g.coins += 42;
-    g.bandages++;
-    g.robbed++;
-    g.wagon.cool = 95;
-    if (g.side === 0 && g.stage === 1) g.stage = 2;
-    notify('Добыча · 42 монеты и бинт');
-    tone(560, 0.3);
+    claimCargo();
     return;
   }
   if (it.a.tag === 'shop') {
@@ -662,7 +692,7 @@ function interact() {
       modal(
         'Императорская гвардия',
         'Приказ командира',
-        '<p>К южным воротам пробрались шпион и лесной партизан. Остановите их, затем ударьте по гарнизону старого форта в Чёрных горах.</p>',
+        '<p>Бурёнку произвели в почтовые кареты, а она съела лицензию. К южным воротам пробрались шпион и лесной партизан. Остановите их, затем ударьте по гарнизону старого форта в Чёрных горах.</p>',
       );
     } else if (g.stage === 3) {
       g.stage = 4;
@@ -837,7 +867,8 @@ function visiblePath(a, b) {
   const d = distance(a, b),
     n = Math.ceil(d / 0.7);
   for (let j = 1; j < n; j++)
-    if (!world.free(a.x + ((b.x - a.x) * j) / n, a.z + ((b.z - a.z) * j) / n, 0.07)) return false;
+    if (!world.free(a.x + (wrapped(b.x - a.x) * j) / n, a.z + (wrapped(b.z - a.z) * j) / n, 0.07))
+      return false;
   return true;
 }
 function aimedEnemy(range, cone) {
@@ -847,7 +878,7 @@ function aimedEnemy(range, cone) {
   for (const a of g.actors) {
     if (a.hp <= 0 || !['hostile', 'escort', 'resident'].includes(a.team)) continue;
     const d = distance(g, a),
-      diff = Math.abs(angles(Math.atan2(-(a.x - g.x), -(a.z - g.z)) - g.yaw));
+      diff = Math.abs(angles(Math.atan2(-wrapped(a.x - g.x), -wrapped(a.z - g.z)) - g.yaw));
     if (
       d < range &&
       diff < cone &&
@@ -934,13 +965,6 @@ function attack(heavy = false) {
     tone(79, 0.15, 'square', 0.025, 49);
   }
 }
-function move(ent, dx, dz, r = 0.35) {
-  const x = ent.x,
-    z = ent.z;
-  if (world.free(x + dx, z, r)) ent.x += dx;
-  if (world.free(ent.x, z + dz, r)) ent.z += dz;
-  return Math.hypot(x - ent.x, z - ent.z);
-}
 // Find a short detour on the local grid when a building blocks the direct route.
 function detour(a, target) {
   const unit = 1.6,
@@ -968,10 +992,14 @@ function detour(a, target) {
       if (u < 0 || v < 0 || u >= n || v >= n || parents[next] !== -1) continue;
       const x = a.x + (u - mid) * unit,
         z = a.z + (v - mid) * unit;
-      if (!world.free(x, z, 0.4) || !world.free(x - dx, z - dz, 0.4)) continue;
+      if (
+        !livingFree(x, z, bodyRadius(a), a) ||
+        !livingFree(x - dx * unit * 0.5, z - dz * unit * 0.5, bodyRadius(a), a)
+      )
+        continue;
       parents[next] = at;
       queue.push(next);
-      const d = Math.hypot(target.x - x, target.z - z);
+      const d = Math.hypot(wrapped(target.x - x), wrapped(target.z - z));
       if (d < min) {
         min = d;
         nearest = next;
@@ -989,13 +1017,26 @@ function advance(a, t, speed, dt) {
   if (a.pathGoal && distance(a.pathGoal, t) > 7) a.path = null;
   if (a.path?.length && distance(a, a.path[0]) < 0.2) a.path.shift();
   const dest = a.path?.[0] || t,
-    dx = dest.x - a.x,
-    dz = dest.z - a.z,
+    dx = wrapped(dest.x - a.x),
+    dz = wrapped(dest.z - a.z),
     d = Math.hypot(dx, dz);
   if (d < 0.12) return;
   a.angle = Math.atan2(dx, dz);
   const step = Math.min(d, speed * dt);
-  const walked = move(a, (dx / d) * step, (dz / d) * step, 0.32);
+  let walked = move(a, (dx / d) * step, (dz / d) * step);
+  if (walked < step * 0.36) {
+    // Keep the same passing side until the lane opens so two oncoming walkers can separate.
+    for (const angle of [0.82, -0.82, 1.45, -1.45]) {
+      const yaw = a.angle + angle;
+      const x = a.x + Math.sin(yaw) * step,
+        z = a.z + Math.cos(yaw) * step;
+      if (livingFree(x, z, bodyRadius(a), a)) {
+        walked += move(a, Math.sin(yaw) * step, Math.cos(yaw) * step);
+        a.angle = yaw;
+        break;
+      }
+    }
+  }
   a.walk = walked > 0.001;
   if (walked < step * 0.65) {
     a.stuck = (a.stuck || 0) + dt;
@@ -1009,6 +1050,10 @@ function advance(a, t, speed, dt) {
 function wagonTick(dt) {
   const g = game,
     w = g.wagon;
+  if (w.listening > 0) {
+    w.listening = Math.max(0, w.listening - dt);
+    return;
+  }
   if (g.story.phase === 'escort') {
     escortTick(dt);
     return;
@@ -1023,15 +1068,17 @@ function wagonTick(dt) {
       d = Math.hypot(dx, dz);
     if (d < 0.18) w.node = (w.node + 1) % 4;
     else {
-      w.angle = Math.atan2(dx, dz);
+      const heading = Math.atan2(dx, dz);
       const n = Math.min(dt * 1.35, d) / d;
-      w.x += dx * n;
-      w.z += dz * n;
+      rollWagon(w, dx * n, dz * n, heading, dt);
     }
   }
   if (w.cool > 0) {
     w.cool = Math.max(0, w.cool - dt);
-    if (!w.cool) for (const j of [-1, 1]) spawnAt('escort', 'escort', w.x + j * 2.5, w.z, 'escort');
+    if (!w.cool) {
+      const alive = g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).length;
+      for (let i = alive; i < 2; i++) spawnAt('escort', 'escort', w.x + (i ? 1 : -1) * 2.6, w.z, 'escort');
+    }
   }
 }
 function stepActors(dt) {
@@ -1080,7 +1127,7 @@ function stepActors(dt) {
       const d = distance(a, target);
       if (d > 2.05 || !visiblePath(a, target)) advance(a, target, a.team === 'friend' ? 4.3 : 2.45, dt);
       else {
-        a.angle = Math.atan2(target.x - a.x, target.z - a.z);
+        a.angle = Math.atan2(wrapped(target.x - a.x), wrapped(target.z - a.z));
         if (!a.cd) {
           a.cd = 1.5 + Math.random() * 0.6;
           if (target === g) {
@@ -1103,8 +1150,13 @@ function campaignTick(dt) {
   const g = game,
     alive = (tag) => g.actors.some((a) => a.tag === tag && a.hp > 0);
   if (g.side === 0 && g.stage === 0 && !alive('first')) {
-    g.stage = 1;
-    notify('Набег отражён · Найдите торговый корован', 5);
+    g.stage = g.robbed ? 2 : 1;
+    notify(
+      g.robbed
+        ? 'Набег отражён · Доставьте груз торговцу в лесу'
+        : 'Набег отражён · Найдите Бурёнку, нажмите V или ограбьте повозку',
+      5,
+    );
   }
   if (g.side === 1 && g.stage === 1 && !alive('spy')) {
     g.stage = 2;
@@ -1175,7 +1227,7 @@ function step(dt) {
   let bob = 0;
   if (len) {
     const speed = g.leg === 'lost' ? 1.25 : g.leg === 'chair' ? 3.4 : sprint ? 9 : block ? 2.8 : 5.4,
-      delta = (speed * dt) / len;
+      delta = (speed * dt) / (len * (1 + 0.41 * creekDepth(g.x, g.z)));
     move(
       g,
       (Math.cos(g.yaw) * r - Math.sin(g.yaw) * f) * delta,
@@ -1185,8 +1237,11 @@ function step(dt) {
     bob = Math.sin(walking) * 0.044;
   }
   soundscape(dt, len > 0, sprint);
+  const beforeFall = g.air;
   g.vy -= 18 * dt;
   g.air += g.vy * dt;
+  if (beforeFall > 2.05 && g.air <= 2.05 && !livingFree(g.x, g.z, bodyRadius(g), g))
+    Object.assign(g, clearSpot(g.x, g.z, g));
   const deck = watchHeight(g.x, g.z);
   if (deck > 0 && g.air > deck - 0.23 && g.air <= deck + 0.09 && g.vy <= 0) {
     g.air = deck;
@@ -1262,6 +1317,7 @@ document.addEventListener('keydown', (e) => {
     'KeyF',
     'KeyH',
     'KeyQ',
+    'KeyV',
     'KeyM',
     'KeyK',
     'Escape',
@@ -1300,6 +1356,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') interact();
   if (e.code === 'KeyK') save();
   if (e.code === 'KeyM') mapDialog();
+  if (e.code === 'KeyV') speakCow();
   if (e.code === 'KeyQ') raidOrder();
   if (e.code === 'Escape') pauseGame();
 });
@@ -1410,9 +1467,9 @@ function arrowTick(dt) {
   // Substeps keep narrow targets and cover solid even on slower devices.
   for (let i = 0; i < 4; i++) {
     const h = dt / 4;
-    a.x += a.dx * h;
+    a.x = wrapped(a.x + a.dx * h);
     a.y += a.dy * h;
-    a.z += a.dz * h;
+    a.z = wrapped(a.z + a.dz * h);
     a.dy -= 6.4 * h;
     a.life -= h;
     if (a.life <= 0 || a.y <= ground(a.x, a.z) || !world.free(a.x, a.z, 0.015)) {
@@ -1423,7 +1480,7 @@ function arrowTick(dt) {
       (v) =>
         ['hostile', 'escort', 'resident'].includes(v.team) &&
         v.hp > 0 &&
-        Math.hypot(v.x - a.x, v.z - a.z) < 0.54 &&
+        distance(v, a) < 0.54 &&
         Math.abs(a.y - ground(v.x, v.z) - 1.18) < 1.22,
     );
     if (foe) {

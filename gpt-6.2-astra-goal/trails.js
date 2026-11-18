@@ -56,7 +56,7 @@ function settle() {
 function wander(a, dt) {
   if (distance(a, game) > 43) return;
   if (distance(a, game) < 2.75) {
-    a.angle = Math.atan2(game.x - a.x, game.z - a.z);
+    a.angle = Math.atan2(wrapped(game.x - a.x), wrapped(game.z - a.z));
     return;
   }
   if (a.stop > 0) {
@@ -70,7 +70,7 @@ function wander(a, dt) {
       [0, 0],
     ],
     v = offsets[a.legIndex % 4],
-    dest = clearSpot(a.homeX + v[0], a.homeZ + v[1]);
+    dest = point(a.homeX + v[0], a.homeZ + v[1]);
   if (distance(a, dest) < 0.42) {
     a.stop = 4 + (a.id % 4);
     a.legIndex++;

@@ -11,8 +11,16 @@ function texture(name, source = materialImages) {
   textures.set(name, tex);
   return tex;
 }
-const streamZ = (x) => Math.sin(x * 0.049) * 2.8 + Math.sin(x * 0.103) * 0.7;
+const streamZ = (x) =>
+  Math.sin((x * 4 * Math.PI) / WORLD_LIMIT) * 2.8 + Math.sin((x * 5 * Math.PI) / WORLD_LIMIT) * 0.7;
 
+function creekDepth(x, z) {
+  if (Math.min(Math.abs(wrapped(x) - 50), Math.abs(wrapped(x) + 50)) < 2.9) return 0;
+  return Math.max(0, 1 - Math.abs(wrapped(z) - streamZ(x)) / 2.8) * 1.65;
+}
+function walkingSurface(x, z) {
+  return ground(x, z) - creekDepth(x, z);
+}
 function projectedMaterial(name, tint, scale, metalness = 0) {
   const mat = new THREE.MeshStandardMaterial({
     color: tint,
@@ -126,18 +134,17 @@ class FrontierLandscape extends RealmGeometry {
     this.environmentMap = env;
   }
   terrain() {
-    const g = new THREE.PlaneGeometry(290, 290, 220, 220);
+    const g = new THREE.PlaneGeometry(PERIOD, PERIOD, 156, 156);
     g.rotateX(-Math.PI / 2);
     const p = g.attributes.position,
       colors = [];
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i),
-        z = p.getZ(i),
-        wet = Math.abs(z - streamZ(x));
-      const bridge = Math.min(Math.abs(x - 50), Math.abs(x + 50)) < 2.9;
-      p.setY(i, ground(x, z) - (bridge ? 0 : Math.max(0, 1 - wet / 2.8) * 1.65));
-      const tint = new THREE.Color([0xe0e7ba, 0xdfd3b7, 0xb6ceaa, 0xc3c0b1][zoneAt(x, z)]);
-      tint.multiplyScalar(0.93 + 0.1 * Math.sin(x * 0.31 + z * 0.19));
+        z = p.getZ(i);
+      p.setY(i, walkingSurface(x, z));
+      const tint = new THREE.Color([0xf2e6a9, 0xf6d4a8, 0xbade91, 0xd4bec4][zoneAt(x, z)]);
+      tint.lerp(new THREE.Color(0xdfebad), rimBlend(x, z));
+      tint.multiplyScalar(0.96 + 0.08 * Math.sin(((x * 14 + z * 9) * Math.PI) / WORLD_LIMIT));
       colors.push(tint.r, tint.g, tint.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -168,6 +175,7 @@ class FrontierLandscape extends RealmGeometry {
       float forest=(1.-smoothstep(-12.,3.,pos.x))*smoothstep(-5.,15.,pos.y);
       float mountain=smoothstep(5.,32.,pos.x)*smoothstep(4.,29.,pos.y);
       float growth=clamp(.58+.26*sin(pos.x*.27+pos.y*.2)+.16*sin(pos.x*.15-pos.y*.69),.15,.93);
+      float rim=smoothstep(95.,137.,max(abs(pos.x),abs(pos.y))); forest*=1.-rim;mountain*=1.-rim;palace*=1.-rim;
       vec3 wild=mix(soil,texture2D(meadow,pos*.31).rgb,growth);
       wild=mix(wild,mix(soil,texture2D(moss,pos*.36).rgb,growth),forest);
       wild=mix(wild,texture2D(scree,pos*.225).rgb,mountain*.92);
@@ -177,12 +185,12 @@ class FrontierLandscape extends RealmGeometry {
     };
     const land = new THREE.Mesh(g, mat);
     land.receiveShadow = true;
-    this.scene.add(land);
+    this.tileGround(land);
     const verts = [],
       uvs = [],
       ind = [];
     for (let i = 0; i <= 240; i++) {
-      const x = -145 + (i * 290) / 240,
+      const x = -WORLD_LIMIT + (i * PERIOD) / 240,
         z = streamZ(x);
       for (const sign of [-1, 1]) {
         verts.push(x, ground(x, z) - 0.48, z + sign * 2.55);
@@ -213,7 +221,7 @@ class FrontierLandscape extends RealmGeometry {
       float r=sin(waterPos.x*3.9+waterPos.z*15.-riverTime*2.1+sin(waterPos.x*1.4+riverTime));diffuseColor.rgb+=vec3(.07,.1,.105)*pow(max(0.,r),7.);`,
         );
     };
-    this.scene.add(new THREE.Mesh(geometry(verts, uvs, ind), water));
+    this.tileGround(new THREE.Mesh(geometry(verts, uvs, ind), water));
   }
   dressSettlements() {
     for (const [x, z] of CENTERS) {
@@ -301,105 +309,6 @@ class FrontierLandscape extends RealmGeometry {
       this.block(x + k * 0.12, y, z + 0.105, 0.026, 0.37, 0.026, 0x534432);
     }
     this.lightSites.push([x, y + (this.buildHeight || 0), z]);
-  }
-  treeMeshes() {
-    const n = this.trees.length;
-    this.trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 1, 1, 9), this.mat(0x534936), n);
-    const verts = [],
-      uvs = [],
-      idx = [];
-    for (let level = 0; level < 11; level++)
-      for (let j = 0; j < 8; j++) {
-        const v = level / 11,
-          a = j * 2.4 + level * 1.16 + 0.26 * this.rnd(),
-          r = (0.25 * (1 - v) + 0.014) * (0.87 + this.rnd() * 0.2);
-        const y = 0.22 + v * 0.78 + this.rnd() * 0.047,
-          dx = Math.sin(a),
-          dz = Math.cos(a),
-          w = r * 0.45,
-          start = verts.length / 3;
-        // A folded, drooping frond has a central spine and two textured surfaces.
-        [
-          [0, y + 0.035, 0],
-          [dx * r * 0.63 + dz * w, y - 0.024, dz * r * 0.63 - dx * w],
-          [dx * r, y - 0.09 * (1 - v), dz * r],
-          [dx * r * 0.63 - dz * w, y - 0.02, dz * r * 0.63 + dx * w],
-          [dx * r * 0.52, y + 0.008, dz * r * 0.52],
-        ].forEach((p) => verts.push(...p));
-        uvs.push(0, 0.54, 0.58, 1, 1, 0.49, 0.58, 0, 0.5, 0.52);
-        idx.push(
-          start,
-          start + 1,
-          start + 4,
-          start + 1,
-          start + 2,
-          start + 4,
-          start + 2,
-          start + 3,
-          start + 4,
-          start + 3,
-          start,
-          start + 4,
-        );
-      }
-    this.foliage = new THREE.InstancedMesh(geometry(verts, uvs, idx), foliageMaterial('bough'), n);
-    const plane = new THREE.PlaneGeometry(1, 1);
-    this.treeCore = new THREE.InstancedMesh(plane, foliageMaterial('pine'), n * 2);
-    this.far = new THREE.InstancedMesh(plane, foliageMaterial('pine'), n);
-    for (const mesh of [this.trunks, this.foliage, this.far, this.treeCore]) {
-      mesh.frustumCulled = false;
-      mesh.castShadow = mesh !== this.far;
-      mesh.receiveShadow = true;
-      this.scene.add(mesh);
-    }
-    for (const [name, count] of [
-      ['grass', 5200],
-      ['fern', 1600],
-      ['flower', 780],
-    ]) {
-      const m = new THREE.InstancedMesh(plane, foliageMaterial(name), count * 2);
-      let num = 0;
-      for (let j = 0; j < count; j++) {
-        const x = this.rnd() * 216 - 108,
-          z = this.rnd() * 216 - 108;
-        const d = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
-        if (d < 2.65 || Math.abs(z - streamZ(x)) < 2.65 || !this.free(x, z, 0.01)) continue;
-        const h = (name === 'fern' ? 0.48 : name === 'flower' ? 0.38 : 0.39) + this.rnd() * 0.51,
-          w = h * (name === 'fern' ? 1.64 : 0.95),
-          rot = this.rnd() * 3,
-          y = ground(x, z) + h * 0.47;
-        for (let k = 0; k < 2; k++) m.setMatrixAt(num++, this.matrix(x, y, z, w, h, 1, rot + k * 1.57));
-      }
-      m.count = num;
-      m.receiveShadow = true;
-      m.computeBoundingSphere();
-      this.scene.add(m);
-    }
-  }
-  lod(px, pz) {
-    const h = ground(px, pz);
-    this.sun.position.set(px - 37, h + 33, pz - 29);
-    this.sun.target.position.set(px, h, pz);
-    this.renderer.shadowMap.needsUpdate = true;
-    let n = 0,
-      f = 0;
-    for (const tree of this.trees) {
-      const { x, y, z, h, a } = tree;
-      tree.near = Math.hypot(px - x, pz - z) < 39;
-      if (tree.near) {
-        this.trunks.setMatrixAt(n, this.matrix(x, y + h * 0.35, z, h * 0.016, h * 0.7, h * 0.016));
-        this.foliage.setMatrixAt(n, this.matrix(x, y, z, h, h, h, a));
-        for (let k = 0; k < 2; k++)
-          this.treeCore.setMatrixAt(n * 2 + k, this.matrix(x, y + h * 0.5, z, h * 0.44, h, 1, a + k * 1.57));
-        n++;
-      } else
-        this.far.setMatrixAt(f++, this.matrix(x, y + h * 0.5, z, h * 0.49, h, 1, Math.atan2(px - x, pz - z)));
-    }
-    this.far.count = f;
-    this.foliage.count = this.trunks.count = n;
-    this.treeCore.count = n * 2;
-    for (const mesh of [this.far, this.foliage, this.trunks, this.treeCore])
-      mesh.instanceMatrix.needsUpdate = true;
   }
   atmosphere() {
     const pos = new Float32Array(150 * 3);

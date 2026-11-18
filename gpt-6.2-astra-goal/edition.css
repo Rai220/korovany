@@ -53,7 +53,7 @@ main {
   height: clamp(340px, 47vh, 630px);
   min-height: 335px;
   isolation: isolate;
-  background: #38463f url(./assets/cover.webp) center 54% / cover;
+  background: #38463f url(./assets/cover.webp) center 13% / cover;
 }
 .title-scene:after {
   content: '';
@@ -128,10 +128,10 @@ main {
   position: absolute;
   inset: 0;
   z-index: -1;
-  opacity: 0.25;
+  opacity: 0.87;
   background:
-    linear-gradient(90deg, #101814 26%, transparent 90%),
-    var(--face) 67% 23% / cover no-repeat;
+    linear-gradient(90deg, #19241f 47%, #19241fdd 57%, transparent 83%),
+    var(--face) right 33% / 45% auto no-repeat;
 }
 .faction:nth-child(1) {
   --face: url(./assets/elf.webp);
@@ -149,7 +149,7 @@ main {
   color: #e5c58c;
 }
 .faction.on:before {
-  opacity: 0.36;
+  opacity: 1;
 }
 .launch-line,
 .launch-line > div {
@@ -409,7 +409,9 @@ main {
     height: 32px;
   }
   .faction:before {
-    background-position: center 25%;
+    background-position:
+      center,
+      right 34%;
   }
   .launch-line {
     align-items: stretch;
@@ -595,4 +597,62 @@ main {
   #journal-key {
     top: 74px;
   }
+}
+.title-copy h2 em {
+  color: #f5c278;
+}
+.cow-office {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #233d35;
+  border: 1px solid #677451;
+  margin: 10px 0 16px;
+  padding-right: 12px;
+}
+.cow-office img {
+  width: 32%;
+  max-height: 115px;
+  object-fit: cover;
+}
+.cow-office strong,
+.cow-office small {
+  display: block;
+}
+.cow-office strong {
+  font:
+    bold 1.45rem Georgia,
+    serif;
+  color: #ffe4a6;
+}
+.cow-office small {
+  margin-top: 6px;
+  color: #d7ddc2;
+}
+.call-sequence {
+  color: #f7cc88;
+  background: #27382c;
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 12px;
+  letter-spacing: 0.08em;
+}
+.cow-note.action {
+  display: inline-block;
+  width: 30%;
+  margin-right: 2%;
+  text-align: center;
+}
+.worldmap .dairy-dot {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #583618;
+  background: #ffd178;
+  border-radius: 50%;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.worldmap .dairy-dot.stamped {
+  background: #91ca9c;
 }

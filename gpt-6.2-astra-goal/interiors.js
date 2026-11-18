@@ -46,6 +46,7 @@ function leaveRoom() {
   const g = game;
   if (!g.inside) return;
   g.yaw = g.outsideYaw ?? 0;
+  Object.assign(g, clearSpot(g.x, g.z, g));
   g.pitch = 0;
   g.inside = null;
   g.roomX = g.roomZ = 0;

@@ -5,9 +5,19 @@ const CENTERS = [
   [-50, 50],
   [50, 50],
 ];
-const WORLD_LIMIT = 108;
-const zoneAt = (x, z) => (x >= 0 ? 1 : 0) + (z >= 0 ? 2 : 0);
+const WORLD_LIMIT = 144;
+const PERIOD = 2 * WORLD_LIMIT;
+// Signed shortest displacement on the continuous ring roads.
+const wrapped = (n) => n - PERIOD * Math.floor((n + WORLD_LIMIT) / PERIOD);
+const nearest = (n, observer) => observer + wrapped(n - observer);
+const rimBlend = (x, z) => {
+  const t = Math.min(1, Math.max(0, (Math.max(Math.abs(x), Math.abs(z)) - 94) / 43));
+  return t * t * (3 - 2 * t);
+};
+const zoneAt = (x, z) => (wrapped(x) >= 0 ? 1 : 0) + (wrapped(z) >= 0 ? 2 : 0);
 const ground = (x, z) => {
+  x = wrapped(x);
+  z = wrapped(z);
   const d = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
   const t = Math.min(1, Math.max(0, (d - 10) / 18));
   const rise = (v) => {
@@ -16,7 +26,14 @@ const ground = (x, z) => {
   };
   const plateau =
     14 * rise(x) * rise(z) * Math.min(1, Math.max(0, (145 - Math.max(Math.abs(x), Math.abs(z))) / 32));
-  return plateau + t * (1.2 * Math.sin(x * 0.07) + 1.1 * Math.sin(z * 0.12) + 0.8 * Math.cos((x + z) * 0.06));
+  const blend = rimBlend(x, z),
+    a = (2 * Math.PI) / PERIOD;
+  const rim = 1.8 * Math.cos(a * x * 3) * Math.cos(a * z * 2) + 1.4 * Math.cos(a * (x + z) * 2);
+  return (
+    blend * rim +
+    (1 - blend) *
+      (plateau + t * (1.2 * Math.sin(x * 0.07) + 1.1 * Math.sin(z * 0.12) + 0.8 * Math.cos((x + z) * 0.06)))
+  );
 };
 class RealmGeometry {
   constructor() {
@@ -53,6 +70,7 @@ class RealmGeometry {
     this.buckets = new Map();
     this.seed = 13777;
     this.obstacles = [];
+    this.obstacleCells = new Map();
     this.trees = [];
     this.actors = new Map();
     this.tmp = new THREE.Object3D();
@@ -78,7 +96,7 @@ class RealmGeometry {
     return this.tmp.matrix;
   }
   put(geo, c, x, y, z, w, h, d, ry = 0, rz = 0, rx = 0) {
-    const k = geo.uuid + '/' + c;
+    const k = [geo.uuid, c, Math.floor(x / 48), Math.floor(z / 48)].join('/');
     if (!this.buckets.has(k)) this.buckets.set(k, { geo, mat: this.mat(c), items: [] });
     this.buckets
       .get(k)
@@ -98,14 +116,31 @@ class RealmGeometry {
     return o;
   }
   bound(x, z, w, d) {
-    this.obstacles.push([x - w / 2, x + w / 2, z - d / 2, z + d / 2]);
+    const bounds = [x - w / 2, x + w / 2, z - d / 2, z + d / 2];
+    this.obstacles.push(bounds);
+    for (let i = Math.floor(bounds[0] / 12); i <= Math.floor(bounds[1] / 12); i++)
+      for (let j = Math.floor(bounds[2] / 12); j <= Math.floor(bounds[3] / 12); j++) {
+        const key = this.cellKey(i, j);
+        if (!this.obstacleCells.has(key)) this.obstacleCells.set(key, []);
+        this.obstacleCells.get(key).push(bounds);
+      }
+  }
+  cellKey(i, j) {
+    const cells = PERIOD / 12;
+    return (((i % cells) + cells) % cells) * cells + (((j % cells) + cells) % cells);
   }
   free(x, z, r = 0.34) {
-    return (
-      Math.abs(x) < WORLD_LIMIT &&
-      Math.abs(z) < WORLD_LIMIT &&
-      !this.obstacles.some((b) => x > b[0] - r && x < b[1] + r && z > b[2] - r && z < b[3] + r)
-    );
+    for (let i = Math.floor((x - r) / 12); i <= Math.floor((x + r) / 12); i++)
+      for (let j = Math.floor((z - r) / 12); j <= Math.floor((z + r) / 12); j++) {
+        const cell = this.obstacleCells.get(this.cellKey(i, j));
+        if (!cell) continue;
+        for (const [left, right, top, bottom] of cell) {
+          const dx = wrapped(x - (left + right) / 2),
+            dz = wrapped(z - (top + bottom) / 2);
+          if (Math.abs(dx) < (right - left) / 2 + r && Math.abs(dz) < (bottom - top) / 2 + r) return false;
+        }
+      }
+    return true;
   }
   resize() {
     this.refreshFrame = true;
@@ -116,6 +151,7 @@ class RealmGeometry {
     this.camera.updateProjectionMatrix();
   }
   build() {
+    this.tiles = [];
     this.terrain();
     this.sky();
     for (let i = 0; i < 4; i++) {
@@ -151,6 +187,7 @@ class RealmGeometry {
       }
     }
     this.dressSettlements();
+    this.pastures();
     for (const b of this.buckets.values()) {
       const m = new THREE.InstancedMesh(b.geo, b.mat, b.items.length);
       b.items.forEach((v, i) => m.setMatrixAt(i, v));
@@ -160,6 +197,7 @@ class RealmGeometry {
       this.scene.add(m);
     }
     this.buckets.clear();
+    this.collectScenery();
     this.treeMeshes();
     this.makeWagon();
     this.makeWeapon();
@@ -281,9 +319,10 @@ class RealmGeometry {
     }
     if (this.camera.parent !== this.scene) this.scene.add(this.camera);
     const c = this.camera;
+    this.placeScenery(s.x, s.z);
     c.position.set(
       s.x,
-      ground(s.x, s.z) + (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.93) + s.air + bob,
+      walkingSurface(s.x, s.z) + (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.93) + s.air + bob,
       s.z,
     );
     c.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
@@ -298,7 +337,7 @@ class RealmGeometry {
     this.weapon.visible = s.health > 0;
     this.chair.visible = s.leg === 'chair';
     if (this.chair.visible) {
-      this.chair.position.set(s.x, ground(s.x, s.z), s.z);
+      this.chair.position.set(s.x, walkingSurface(s.x, s.z), s.z);
       this.chair.rotation.y = s.yaw;
       this.wheels.forEach((w) => (w.rotation.x = (s.x + s.z) / 0.43));
     }
@@ -312,10 +351,13 @@ class RealmGeometry {
       if (a.hp <= 0 && m.userData.fellAt == null) m.userData.fellAt = t;
       const fall = a.hp <= 0 ? Math.min(1, (t - m.userData.fellAt) * 3) : 0;
       m.position.set(
-        a.x,
-        ground(a.x, a.z) + fall * 0.24 + (a.walk && a.hp > 0 ? 0.034 * Math.abs(Math.sin(t * 8 + a.id)) : 0),
-        a.z,
+        nearest(a.x, s.x),
+        walkingSurface(a.x, a.z) +
+          fall * 0.24 +
+          (a.walk && a.hp > 0 ? 0.034 * Math.abs(Math.sin(t * 8 + a.id)) : 0),
+        nearest(a.z, s.z),
       );
+      m.visible = distance(a, s) < 85;
       m.rotation.set(-Math.PI * 0.5 * fall, a.angle || 0, a.stagger > 0 ? 0.13 : 0, 'YXZ');
       m.userData.legs.forEach(
         (l, j) => (l.rotation.x = a.hp > 0 && a.walk ? Math.sin(t * 8 + j * Math.PI + a.id) * 0.45 : 0),
@@ -330,11 +372,15 @@ class RealmGeometry {
         this.actors.delete(id);
       }
     const w = s.wagon;
-    this.wagon.position.set(w.x, ground(w.x, w.z), w.z);
+    this.wagon.position.set(nearest(w.x, s.x), ground(w.x, w.z), nearest(w.z, s.z));
     this.wagon.rotation.y = w.angle;
     this.marker.visible = !!target;
     if (target) {
-      this.marker.position.set(target.x, ground(target.x, target.z) + 3.8 + 0.18 * Math.sin(t * 2), target.z);
+      this.marker.position.set(
+        nearest(target.x, s.x),
+        ground(target.x, target.z) + 3.8 + 0.18 * Math.sin(t * 2),
+        nearest(target.z, s.z),
+      );
       this.marker.rotation.y = t;
     }
     this.animateDetails(s, t, attackAnim, bob);
