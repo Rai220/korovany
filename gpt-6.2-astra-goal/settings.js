@@ -4,12 +4,23 @@ const defaults = {
   sensitivity: 1,
   music: 0.8,
   effects: 0.8,
+  voice: 0.96,
+  sound: true,
+  subtitles: true,
   motion: !matchMedia('(prefers-reduced-motion:reduce)').matches,
 };
 let prefs = { ...defaults };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem('korovany.goal.preferences')) || {});
 } catch {}
+soundOn = prefs.sound !== false;
+audioButton();
+document.body.classList.toggle('no-subtitles', !prefs.subtitles);
+function persistSettings() {
+  try {
+    localStorage.setItem('korovany.goal.preferences', JSON.stringify(prefs));
+  } catch {}
+}
 function applyGraphics() {
   if (!world) return;
   const level = prefs.quality,
@@ -38,6 +49,7 @@ function settings() {
       [
         ['sensitivity', 'Чувствительность', 0.35, 2.4],
         ['music', 'Музыка', 0, 1],
+        ['voice', 'Русская речь', 0, 1],
         ['effects', 'Эффекты', 0, 1],
       ]
         .map(
@@ -53,23 +65,19 @@ function settings() {
             '" step=".05"></label>',
         )
         .join('') +
-      '<label>Покачивание камеры<input id="motion" type="checkbox"></label></div>',
+      '<label>Субтитры в пути<input id="subtitles" type="checkbox"></label><label>Покачивание камеры<input id="motion" type="checkbox"></label></div>',
   );
-  const write = () => {
-    try {
-      localStorage.setItem('korovany.goal.preferences', JSON.stringify(prefs));
-    } catch {}
-  };
-  for (const id of ['quality', 'sensitivity', 'music', 'effects', 'motion']) {
+  for (const id of ['quality', 'sensitivity', 'music', 'effects', 'voice', 'subtitles', 'motion']) {
     const el = $(id);
-    if (id === 'motion') el.checked = prefs.motion;
+    if (el.type === 'checkbox') el.checked = prefs[id];
     else el.value = prefs[id];
     el.oninput = () => {
-      prefs[id] = id === 'quality' ? el.value : id === 'motion' ? el.checked : Number(el.value);
+      prefs[id] = id === 'quality' ? el.value : el.type === 'checkbox' ? el.checked : Number(el.value);
       if (id === 'quality') applyGraphics();
-      if (id === 'music')
-        music.forEach((a, j) => (a.volume = prefs.music * (j ? scoreMix : 1 - scoreMix) * 0.52));
-      write();
+      if (id === 'music') scoreRefresh();
+      if (id === 'voice') realmVoice.refresh();
+      if (id === 'subtitles') document.body.classList.toggle('no-subtitles', !prefs.subtitles);
+      persistSettings();
     };
   }
 }

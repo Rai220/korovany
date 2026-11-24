@@ -10,6 +10,7 @@
     <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./edition.css" />
+    <link rel="stylesheet" href="./post.css" />
   </head>
   <body>
     <header class="bar">
@@ -61,6 +62,7 @@
               </button>
             </div>
           </div>
+          <button class="post-race" id="post-race" type="button"><span><small>Молочная почта</small><strong>Почтовый перегон</strong><span>Доставьте шесть крынок через Соляной мост.</span></span><b>Взять вожжи <i data-icon="arrow"></i></b></button>
         </div>
       </section>
       <section id="atlas">
@@ -78,9 +80,9 @@
     </footer>
     <section id="play" hidden aria-label="Игровой мир">
       <div id="view"></div>
-      <div class="bearing" aria-hidden="true"><span>◇</span><b id="compass-dir">С</b><span>◇</span></div>
+      <div class="bearing" aria-hidden="true"><b id="compass-dir" class="sr">С</b><canvas id="trail-compass"></canvas></div>
       <div id="blind" hidden></div>
-      <div id="hurt"></div>
+      <div id="hurt"></div><div id="hit-arc"></div>
       <div class="cross"></div>
       <div id="chapter-toast" aria-live="polite"></div>
       <div id="subtitle" aria-live="polite"></div>
@@ -95,6 +97,10 @@
       <button id="pause" class="hud-btn">Меню <kbd>Esc</kbd></button
       ><button id="map-key" class="hud-btn">Карта <kbd>M</kbd></button>
       <button id="journal-key" class="hud-btn">Дневник <kbd>J</kbd></button>
+      <section id="post-hud" aria-label="Почтовый рейс"><div class="post-nav"><small id="post-stage"></small><strong id="post-target"></strong><span id="post-rule"></span></div><b id="post-bearing"></b></section>
+      <section id="post-dash" aria-label="Упряжка"><span><b id="post-speed">0</b><small>км/ч</small></span><span><b id="post-jars">6 / 6</b><small>крынки</small></span><span><b id="post-time">0:00.0</b><small>время</small></span></section>
+      <button id="post-view" title="Сменить вид камеры (V)" aria-pressed="false">Камера <kbd>V</kbd></button>
+      <button id="post-bell">Звонок <kbd>Пробел</kbd></button>
       <div id="event" role="status"></div>
       <div id="interact"></div>
       <div class="hud vitals">
@@ -129,6 +135,7 @@
     <script src="./interface.js"></script>
     <script src="./vendor/three.min.js"></script>
     <script src="./assets/materials.js"></script>
+    <script src="./effects.js"></script>
     <script src="./world.js"></script>
     <script src="./landscape.js"></script>
     <script src="./hamlets.js"></script>
@@ -137,11 +144,14 @@
     <script src="./sculpt.js"></script>
     <script src="./cast.js"></script>
     <script src="./trails.js"></script>
+    <script src="./voice.js"></script>
     <script src="./chronicle.js"></script>
     <script src="./sound.js"></script>
     <script src="./settings.js"></script>
     <script src="./traffic.js"></script>
     <script src="./dairy.js"></script>
+    <script src="./compass.js"></script>
+    <script src="./delivery.js"></script>
     <script src="./game.js"></script>
   </body>
 </html>

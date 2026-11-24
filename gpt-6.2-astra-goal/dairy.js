@@ -42,6 +42,7 @@ function speakCow() {
   let count = 0,
     seen = true,
     message = 'Запомните три знака начальницы. Ответьте в том же порядке.';
+  let lastMessage;
   function render() {
     modal(
       'МУниципальная служба перевозок',
@@ -60,6 +61,10 @@ function speakCow() {
               .map((v, i) => '<button class="cow-note action" data-call="' + i + '">' + v + '</button>')
               .join('')),
     );
+    if (message !== lastMessage) {
+      realmVoice.play('Переводчик', message);
+      lastMessage = message;
+    }
     if (seen)
       $('cow-ready').onclick = () => {
         seen = false;

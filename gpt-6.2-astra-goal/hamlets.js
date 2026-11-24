@@ -348,8 +348,18 @@ class Borderlands extends FrontierLandscape {
       Math.min(1, Math.max(0, (s.z - 6) / 24));
     this.storm = alpha;
     this.scene.fog.density = 0.012 + alpha * 0.004;
-    this.scene.fog.color.setHex(alpha > 0.6 ? 0xa9acbf : 0xb6cdbb);
-    this.sun.intensity = 2.1 - alpha * 1.25;
+    const colors = (this.weatherColors ||= [
+      0xc7d3c5, 0xb5c9bd, 0xabb0c4, 0xffda9d, 0xd8d7ec, 0xd9e8ff, 0xb9c5dc,
+    ].map((c) => new THREE.Color(c)));
+    const forest =
+      THREE.MathUtils.smoothstep(-s.x, 0, 38) *
+      THREE.MathUtils.smoothstep(s.z, 0, 37) *
+      (1 - rimBlend(s.x, s.z));
+    this.scene.fog.color.copy(colors[0]).lerp(colors[1], forest).lerp(colors[2], alpha);
+    this.sun.intensity = 2.25 - alpha * 1.37 - forest * 0.14;
+    this.sun.color.copy(colors[3]).lerp(colors[4], alpha);
+    this.skylight.color.copy(colors[5]).lerp(colors[6], alpha);
+    this.skylight.intensity = 1.28 + alpha * 0.22;
     this.skyMesh.material.color.setRGB(1 - alpha * 0.39, 0.97 - alpha * 0.29, 0.89 - alpha * 0.13);
     this.rain.visible = alpha > 0.16;
     this.rain.position.set(s.x, ground(s.x, s.z) + 4 - ((t * 7) % 4), s.z);

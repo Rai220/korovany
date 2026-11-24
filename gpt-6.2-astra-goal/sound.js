@@ -1,82 +1,399 @@
 'use strict';
-const music = ['road-song', 'pursuit'].map((name) => {
-  const a = new Audio('./assets/' + name + '.mp3');
-  a.preload = 'none';
-  a.loop = true;
-  a.volume = 0;
-  return a;
-});
-let scoreMix = 0,
-  stepBeat = 0,
+
+// These loops share a tonic, with a different metre and ensemble for each activity.
+// Only the incoming and outgoing parts need to play during a cue change.
+const scoreTracks = Object.fromEntries(
+  [
+    ['road', 'salt-road', 40, 6, 60 / (84 * 3)],
+    ['battle', 'fifth-hoof', 32, 10, 60 / (148 * 2)],
+    ['fair', 'customs-reel', 48, 4, 60 / (112 * 2)],
+    ['mill', 'mill-archive', 32, 6, 60 / (87 * 2)],
+  ].map(([key, file, bars, pulses, pulseDuration]) => [
+    key,
+    {
+      url: './assets/music/' + file + '.mp3',
+      bar: pulses * pulseDuration,
+      seconds: bars * pulses * pulseDuration,
+      offset: 0,
+      level: 0,
+      target: 0,
+      started: 0,
+      lastUsed: 0,
+      node: null,
+      gain: null,
+      buffer: null,
+      loading: null,
+      media: null,
+      native: location.protocol === 'file:',
+      playPending: false,
+      retryAfter: 0,
+    },
+  ]),
+);
+let scoreMode = '',
+  scoreTimer = 0,
+  scoreIntent = 'road',
+  scoreLastTick = 0;
+let scoreLastDanger = -Infinity,
+  scoreLastFair = -Infinity,
+  scoreAudible = '';
+let stepBeat = 0,
   birdTime = 0;
-function scoreStart() {
-  if (soundOn)
-    for (const a of music) {
-      if (a.paused) a.play().catch(() => {});
+
+function scoreScene(now) {
+  if (scoreMode === 'menu' || !active || !game) return 'road';
+  if (game.delivery || ($('dialog').open && document.querySelector('#dialog-body .cow-office')))
+    return 'fair';
+  if (game.inside || game.health <= 0) return 'mill';
+  if (!$('dialog').open) {
+    if (game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(game, a) < 17))
+      scoreLastDanger = now;
+    if (game.wagon && distance(game, game.wagon) < 10) scoreLastFair = now;
+  }
+  if (now - scoreLastDanger < 3200) return 'battle';
+  if (now - scoreLastFair < 2200) return 'fair';
+  return 'road';
+}
+
+function scoreFreeDeck(track) {
+  if (track.node) {
+    track.offset = (track.offset + Math.max(0, audioCtx.currentTime - track.started)) % track.buffer.duration;
+    track.node.onended = null;
+    track.node.stop();
+    track.node.disconnect();
+    track.gain.disconnect();
+    track.node = track.gain = null;
+  }
+  if (track.media) {
+    track.offset = Number.isFinite(track.media.currentTime) ? track.media.currentTime : 0;
+    track.media.pause();
+    track.media.volume = 0;
+  }
+  track.level = track.target = 0;
+}
+
+function scoreSilence() {
+  clearInterval(scoreTimer);
+  scoreTimer = 0;
+  stopScoreAir();
+  for (const track of Object.values(scoreTracks)) scoreFreeDeck(track);
+  scoreAudible = '';
+}
+
+function scoreNative(track) {
+  if (!track.media) {
+    track.media = new Audio(track.url);
+    track.media.loop = true;
+    track.media.volume = 0;
+    track.media.preload = 'auto';
+  }
+  if (!track.media.paused || track.playPending || performance.now() < track.retryAfter) return;
+  track.playPending = true;
+  track.media
+    .play()
+    .catch(() => {
+      track.retryAfter = performance.now() + 3500;
+    })
+    .finally(() => {
+      track.playPending = false;
+      if (!scoreMode || !soundOn || document.hidden) track.media.pause();
+    });
+}
+
+function scorePrepare(track) {
+  if (!audioCtx || track.native) {
+    scoreNative(track);
+    return;
+  }
+  if (track.buffer && !track.node) {
+    const node = audioCtx.createBufferSource(),
+      gain = audioCtx.createGain();
+    node.buffer = track.buffer;
+    node.loop = true;
+    node.loopEnd = Math.min(track.buffer.duration, track.seconds);
+    gain.gain.value = 0;
+    node.connect(gain).connect(audioCtx.destination);
+    // Re-enter on a downbeat after a change of ensemble.
+    track.offset = (Math.floor(track.offset / track.bar + 0.5) * track.bar) % track.buffer.duration;
+    track.started = audioCtx.currentTime;
+    node.start(0, track.offset);
+    track.node = node;
+    track.gain = gain;
+    return;
+  }
+  if (track.node || track.loading) return;
+  track.loading = fetch(track.url)
+    .then((response) => {
+      if (!response.ok) throw Error('Music ' + response.status);
+      return response.arrayBuffer();
+    })
+    .then((bytes) => audioCtx.decodeAudioData(bytes))
+    .then((buffer) => {
+      if (!scoreMode || !soundOn || document.hidden) return;
+      track.buffer = buffer;
+      track.lastUsed = performance.now();
+    })
+    .catch(() => {
+      // Local file restrictions and older codecs can still permit ordinary media playback.
+      track.native = true;
+    })
+    .finally(() => {
+      track.loading = null;
+    });
+}
+
+function scoreRefresh() {
+  if (!scoreMode || !soundOn || document.hidden) return;
+  const now = performance.now(),
+    dt = Math.min(0.4, Math.max(0.01, (now - scoreLastTick) / 1000));
+  scoreLastTick = now;
+  scoreIntent = scoreScene(now);
+  const duck = typeof realmVoice !== 'undefined' && realmVoice.active;
+  scoreAir(duck);
+  const ceiling =
+    Math.max(0, Math.min(1, Number(prefs.music) || 0)) *
+    (duck ? 0.23 : 0.72) *
+    (active && $('dialog').open && !document.querySelector('#dialog-body .cow-office') ? 0.76 : 1);
+  const next = scoreTracks[scoreIntent];
+  if (ceiling > 0.0001) {
+    scorePrepare(next);
+    if (next.native || !audioCtx) {
+      if (next.media && !next.media.paused && next.media.readyState >= 2) scoreAudible = scoreIntent;
+    } else if (next.node) scoreAudible = scoreIntent;
+  }
+  const immediateMute = Number(prefs.music) <= 0;
+  for (const [key, track] of Object.entries(scoreTracks)) {
+    const target = key === scoreAudible ? ceiling : 0;
+    const time = duck && target < track.level ? 0.14 : target ? 0.65 : 0.48;
+    const mix = immediateMute ? 1 : 1 - Math.exp(-dt / time);
+    track.level += (target - track.level) * mix;
+    if (track.gain && track.target !== target) {
+      const param = track.gain.gain;
+      param.cancelScheduledValues(audioCtx.currentTime);
+      if (immediateMute) param.setValueAtTime(0, audioCtx.currentTime);
+      else param.setTargetAtTime(target, audioCtx.currentTime, time);
     }
+    track.target = target;
+    if (track.media) track.media.volume = Math.min(1, Math.max(0, track.level));
+    if (
+      (track.node || (track.media && !track.media.paused)) &&
+      track.level < 0.001 &&
+      target === 0 &&
+      (key !== scoreIntent || immediateMute)
+    )
+      scoreFreeDeck(track);
+    if (target > 0) track.lastUsed = now;
+    // Release inactive PCM buffers once a rapid return to their scene becomes unlikely.
+    if (!track.node && track.buffer && key !== scoreIntent && now - track.lastUsed > 9000)
+      track.buffer = null;
+  }
 }
+
+function scoreStart(mode = 'play') {
+  if (!soundOn) return;
+  if (!scoreMode || mode !== scoreMode) {
+    scoreLastDanger = scoreLastFair = -Infinity;
+    scoreLastTick = performance.now() - 100;
+  }
+  scoreMode = mode;
+  try {
+    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
+  } catch {}
+  for (const track of Object.values(scoreTracks)) track.retryAfter = 0;
+  if (!scoreTimer) scoreTimer = setInterval(scoreRefresh, 100);
+  scoreRefresh();
+}
+
 function scoreStop() {
-  music.forEach((a) => a.pause());
+  scoreMode = '';
+  scoreSilence();
+  for (const track of Object.values(scoreTracks)) track.buffer = null;
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) scoreSilence();
+  else if (scoreMode && soundOn) scoreStart(scoreMode);
+});
+window.addEventListener('pagehide', scoreSilence);
+window.addEventListener('pageshow', () => {
+  if (scoreMode && soundOn && !document.hidden) scoreStart(scoreMode);
+});
+window.addEventListener('realmvoicechange', scoreRefresh);
+for (const action of ['pointerdown', 'keydown'])
+  document.addEventListener(
+    action,
+    () => {
+      if (
+        scoreMode &&
+        soundOn &&
+        (audioCtx?.state === 'suspended' ||
+          Object.values(scoreTracks).some((track) => track.retryAfter > performance.now()))
+      )
+        scoreStart(scoreMode);
+    },
+    { passive: true },
+  );
+// Transient body and overtone are shaped independently so a hoof, a blade and a boot
+// have different attacks. Small stereo positions are relative to the listener.
+function resonantFoley(pitch, tail, volume, endPitch = pitch, delay = 0, pan = 0) {
+  if (!soundOn || !audioCtx || !prefs.effects) return;
+  const ctx = audioCtx,
+    at = ctx.currentTime + delay;
+  const osc = ctx.createOscillator(),
+    gain = ctx.createGain(),
+    place = ctx.createStereoPanner();
+  osc.frequency.setValueAtTime(pitch, at);
+  osc.frequency.exponentialRampToValueAtTime(endPitch, at + tail);
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.00011, volume * prefs.effects), at + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + tail);
+  place.pan.value = pan;
+  osc.connect(gain).connect(place).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + tail + 0.009);
+}
+
 function scoreCue(cue) {
   if (!soundOn) return;
   if (cue === 'chapter') {
-    tone(220, 1.1, 'sine', 0.04);
-    tone(330, 0.95, 'triangle', 0.028);
-  }
-  if (cue === 'parry') {
-    tone(1300, 0.48, 'triangle', 0.08, 760);
-    tone(1840, 0.33, 'sine', 0.04, 1480);
-  }
-  if (cue === 'bow') {
-    noiseFoley(0.08, 1800, 0.12);
-    tone(420, 0.17, 'triangle', 0.05, 108);
-  }
-  if (cue === 'impact') {
-    noiseFoley(0.11, 620, 0.17);
-    tone(110, 0.12, 'triangle', 0.08, 50);
+    for (const [pitch, delay, pan] of [
+      [293.66, 0, -0.22],
+      [440, 0.12, 0.1],
+      [587.33, 0.25, 0.31],
+    ]) {
+      resonantFoley(pitch, 0.71, 0.046, pitch, delay, pan);
+      resonantFoley(pitch * 2.97, 0.25, 0.014, pitch * 2.97, delay, pan);
+    }
+  } else if (cue === 'parry') {
+    noiseFoley(0.048, 4600, 0.19, 0.14);
+    for (const [f, decay, v] of [
+      [890, 0.35, 0.1],
+      [1490, 0.46, 0.065],
+      [2325, 0.19, 0.043],
+      [3500, 0.09, 0.025],
+    ])
+      resonantFoley(f, decay, v, f * 0.988, 0, 0.17);
+  } else if (cue === 'bow') {
+    noiseFoley(0.063, 2680, 0.12, -0.22);
+    resonantFoley(228, 0.14, 0.1, 110, 0.003, -0.27);
+    resonantFoley(470, 0.093, 0.046, 218, 0.004, -0.24);
+  } else if (cue === 'impact') {
+    noiseFoley(0.096, 1300, 0.22, 0.14);
+    resonantFoley(108, 0.15, 0.15, 56);
+    resonantFoley(262, 0.085, 0.045, 151, 0.006, 0.12);
   }
 }
+
 let noiseBank;
-function noiseFoley(duration, cutoff, volume) {
-  if (!soundOn || !audioCtx) return;
+function noiseFoley(duration, cutoff, volume, pan = 0, delay = 0) {
+  if (!soundOn || !audioCtx || !prefs.effects) return;
   const ctx = audioCtx;
   if (!noiseBank) {
-    noiseBank = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    noiseBank = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
     const d = noiseBank.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
   const src = ctx.createBufferSource(),
     f = ctx.createBiquadFilter(),
-    amp = ctx.createGain();
+    amp = ctx.createGain(),
+    place = ctx.createStereoPanner();
+  const at = ctx.currentTime + delay;
   src.buffer = noiseBank;
   f.type = 'lowpass';
   f.frequency.value = cutoff;
-  src.connect(f).connect(amp).connect(ctx.destination);
-  amp.gain.setValueAtTime(Math.max(0.0001, volume * prefs.effects), ctx.currentTime);
-  amp.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
-  src.start(0, Math.random() * 0.4);
-  src.stop(ctx.currentTime + duration);
+  place.pan.value = pan;
+  src.connect(f).connect(amp).connect(place).connect(ctx.destination);
+  amp.gain.setValueAtTime(0.0001, at);
+  amp.gain.exponentialRampToValueAtTime(Math.max(0.00011, volume * prefs.effects), at + 0.0035);
+  amp.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  src.start(at, Math.random() * 0.4);
+  src.stop(at + duration + 0.003);
 }
+
+let terrainAudio = null;
+function scoreAir(duck) {
+  if (!audioCtx || !active || !game || !prefs.effects || scoreMode === 'menu') {
+    stopScoreAir();
+    return;
+  }
+  const ctx = audioCtx;
+  if (!terrainAudio) {
+    const buffer = ctx.createBuffer(2, Math.round(ctx.sampleRate * 2.47), ctx.sampleRate);
+    for (let channel = 0; channel < 2; channel++) {
+      const values = buffer.getChannelData(channel);
+      let brown = 0;
+      for (let i = 0; i < values.length; i++) {
+        const white = Math.random() * 2 - 1;
+        brown = 0.964 * brown + 0.18 * white;
+        values[i] = brown * 0.7 + white * 0.19;
+      }
+      // A short overlap hides the splice in this periodic ambience bed.
+      const span = Math.round(ctx.sampleRate * 0.028);
+      for (let i = 0; i < span; i++)
+        values[i] = values[values.length - span + i] * (1 - i / span) + values[i] * (i / span);
+    }
+    terrainAudio = ['lowpass', 'bandpass'].map((kind, i) => {
+      const source = ctx.createBufferSource(),
+        filter = ctx.createBiquadFilter(),
+        gain = ctx.createGain();
+      source.buffer = buffer;
+      source.loop = true;
+      source.playbackRate.value = i ? 1.13 : 0.76;
+      filter.type = kind;
+      filter.frequency.value = i ? 1540 : 430;
+      filter.Q.value = i ? 0.46 : 0.66;
+      gain.gain.value = 0;
+      source.connect(filter).connect(gain).connect(ctx.destination);
+      source.start(0, i * 0.91);
+      return { source, filter, gain };
+    });
+  }
+  const room = game.inside ? 0.085 : 1;
+  const nearness = Math.max(0, 1 - Math.abs(wrapped(game.z - streamZ(game.x))) / 15);
+  const wind = zoneAt(game.x, game.z) === 3 ? 0.088 : 0.046;
+  const level = prefs.effects * (duck ? 0.51 : 1) * room * ($('dialog').open ? 0.5 : 1);
+  terrainAudio[0].gain.gain.setTargetAtTime(wind * level, ctx.currentTime, 0.43);
+  terrainAudio[0].filter.frequency.setTargetAtTime(
+    420 + 130 * Math.sin(ctx.currentTime * 0.43),
+    ctx.currentTime,
+    0.55,
+  );
+  terrainAudio[1].gain.gain.setTargetAtTime(0.17 * nearness * nearness * level, ctx.currentTime, 0.32);
+}
+function stopScoreAir() {
+  if (!terrainAudio) return;
+  for (const layer of terrainAudio) {
+    layer.source.stop();
+    layer.source.disconnect();
+    layer.filter.disconnect();
+    layer.gain.disconnect();
+  }
+  terrainAudio = null;
+}
+
+let stepSide = 1;
 function soundscape(dt, moving, sprinting) {
   if (!soundOn) return;
-  const danger = game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(game, a) < 17);
-  scoreMix += (Number(danger) - scoreMix) * Math.min(1, dt * (danger ? 1.3 : 0.24));
-  music[0].volume = prefs.music * 0.52 * (1 - scoreMix);
-  music[1].volume = prefs.music * 0.57 * scoreMix;
+  const danger = scoreIntent === 'battle';
   stepBeat -= dt;
   birdTime -= dt;
   if (moving && stepBeat <= 0 && game.air <= 0.05) {
     stepBeat = sprinting ? 0.32 : 0.49;
+    stepSide *= -1;
     const stone = zoneAt(game.x, game.z) === 1;
-    noiseFoley(0.11, stone ? 1750 : 760, 0.11);
-    tone(82, 0.09, 'sine', 0.065, 45);
+    const wet = creekDepth(game.x, game.z) > 0.32;
+    const pan = stepSide * 0.13;
+    noiseFoley(wet ? 0.18 : 0.073, wet ? 2630 : stone ? 1850 : 900, wet ? 0.18 : 0.15, pan);
+    noiseFoley(0.105, wet ? 1340 : stone ? 980 : 520, 0.063, pan, 0.044);
+    resonantFoley(stone ? 107 : 82, 0.078, 0.097, 48, 0, pan);
   }
   if (birdTime < 0 && !danger) {
-    birdTime = 6 + Math.random() * 10;
-    const h = 1250 + Math.random() * 430;
-    tone(h, 0.17, 'sine', 0.018, h * 1.35);
-    noiseFoley(0.8, 520, 0.035);
+    birdTime = 8 + Math.random() * 12;
+    const h = 1380 + Math.random() * 440,
+      pan = (Math.random() - 0.5) * 1.5;
+    resonantFoley(h, 0.13, 0.029, h * 1.36, 0, pan);
+    resonantFoley(h * 1.24, 0.12, 0.019, h * 0.94, 0.19, pan);
   }
 }
 
@@ -86,12 +403,19 @@ function harnessFoley(s, travel) {
   if (mark === lastHoofMark) return;
   lastHoofMark = mark;
   if (!soundOn || s.inside) return;
-  const gain = 1 - Math.min(1, distance(s, bovineOffice()) / 21);
+  const cow = bovineOffice(),
+    d = distance(s, cow),
+    gain = 1 - Math.min(1, d / 21);
   if (gain < 0.02) return;
-  noiseFoley(0.055, 570, 0.13 * gain);
-  tone(95, 0.075, 'triangle', 0.14 * gain, 50);
+  const lateral =
+    (wrapped(cow.x - s.x) * Math.cos(s.yaw) - wrapped(cow.z - s.z) * Math.sin(s.yaw)) / Math.max(1, d);
+  const pan = Math.max(-0.87, Math.min(0.87, lateral * 0.7 + (mark % 2 ? 0.1 : -0.1)));
+  const hard = zoneAt(cow.x, cow.z) === 1;
+  noiseFoley(0.049, hard ? 2210 : 1340, 0.16 * gain, pan);
+  resonantFoley(mark % 2 ? 343 : 292, 0.065, 0.064 * gain, 254, 0, pan);
+  resonantFoley(115, 0.088, 0.1 * gain, 61, 0.003, pan);
   if (mark % 4 === 0) {
-    tone(782, 0.29, 'sine', 0.032 * gain, 767);
-    tone(1321, 0.19, 'triangle', 0.014 * gain, 1309);
+    resonantFoley(782, 0.31, 0.044 * gain, 764, 0.035, pan);
+    resonantFoley(1321, 0.19, 0.021 * gain, 1309, 0.036, pan);
   }
 }

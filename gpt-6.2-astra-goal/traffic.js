@@ -23,7 +23,7 @@ function livingFree(x, z, r, who, ignoreWagon = false) {
   if (!world.free(x, z, r)) return false;
   if (!ignoreWagon && game.wagon && hitchDistance(x, z, game.wagon) < r) return false;
   const overlaps = (b) => {
-    if (b === who || (b === game ? game.inside : b.hp <= 0)) return false;
+    if (b === who || (b === game ? game.inside || game.delivery : b.hp <= 0)) return false;
     if ((who === game || b === game) && game.air > 2.05) return false;
     const dx = wrapped(x - b.x),
       dz = wrapped(z - b.z),
@@ -87,7 +87,7 @@ function repairSpacing() {
 function rollWagon(w, dx, dz, heading, dt) {
   const turn = clamp(angles(heading - w.angle), -dt * 1.6, dt * 1.6);
   const pose = { x: w.x + dx, z: w.z + dz, angle: w.angle + turn };
-  if (!game.inside) {
+  if (!game.inside && !game.delivery) {
     const next = hitchDistance(game.x, game.z, pose),
       current = hitchDistance(game.x, game.z, w);
     if (next < bodyRadius(game) || (next < bodyRadius(game) + 0.55 && next < current - 0.00001)) return false;

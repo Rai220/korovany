@@ -47,7 +47,8 @@ class RealmGeometry {
     this.camera = new THREE.PerspectiveCamera(68, 1, 0.06, 430);
     this.camera.rotation.order = 'YXZ';
     this.scene.add(this.camera);
-    this.scene.add(new THREE.HemisphereLight(0xe8edff, 0x777c58, 1.5));
+    this.skylight = new THREE.HemisphereLight(0xd5e8fb, 0x787354, 1.32);
+    this.scene.add(this.skylight);
     const sun = new THREE.DirectionalLight(0xffda9e, 2.05);
     sun.position.set(-70, 95, -45);
     this.scene.add(sun, sun.target);
@@ -344,7 +345,9 @@ class RealmGeometry {
     s.actors.forEach((a) => {
       let m = this.actors.get(a.id);
       if (!m) {
-        m = this.person(a.kind);
+        m = this.person(a.kind, a.tag);
+        m.userData.groundShadow = footShade();
+        this.scene.add(m.userData.groundShadow);
         if (a.hp <= 0) m.userData.fellAt = t - 1;
         this.actors.set(a.id, m);
       }
@@ -357,7 +360,20 @@ class RealmGeometry {
           (a.walk && a.hp > 0 ? 0.034 * Math.abs(Math.sin(t * 8 + a.id)) : 0),
         nearest(a.z, s.z),
       );
-      m.visible = distance(a, s) < 85;
+      const range = distance(a, s);
+      m.visible = range < 85;
+      const contact = m.userData.groundShadow;
+      contact.visible = range < 30;
+      if (contact.visible) {
+        contact.rotation.y = a.angle || 0;
+        contact.scale.set(0.78 + fall * 0.16, 1, 0.66 + fall * 1.13);
+        const offset = -0.62 * fall;
+        contact.position.set(
+          m.position.x + offset * Math.sin(a.angle || 0),
+          walkingSurface(a.x, a.z) + 0.026,
+          m.position.z + offset * Math.cos(a.angle || 0),
+        );
+      }
       m.rotation.set(-Math.PI * 0.5 * fall, a.angle || 0, a.stagger > 0 ? 0.13 : 0, 'YXZ');
       m.userData.legs.forEach(
         (l, j) => (l.rotation.x = a.hp > 0 && a.walk ? Math.sin(t * 8 + j * Math.PI + a.id) * 0.45 : 0),
@@ -368,7 +384,7 @@ class RealmGeometry {
     });
     for (const [id, m] of this.actors)
       if (!s.actors.some((a) => a.id === id)) {
-        this.scene.remove(m);
+        this.scene.remove(m, m.userData.groundShadow);
         this.actors.delete(id);
       }
     const w = s.wagon;
@@ -384,10 +400,13 @@ class RealmGeometry {
       this.marker.rotation.y = t;
     }
     this.animateDetails(s, t, attackAnim, bob);
+    if (s.delivery) setDeliveryCamera(this, s, t);
+    updateFieldEffects(this, s, t);
+    this.updateRiverMirror(s, t, c);
     this.renderer.render(this.scene, c);
   }
   clearPeople() {
-    for (const m of this.actors.values()) this.scene.remove(m);
+    for (const m of this.actors.values()) this.scene.remove(m, m.userData.groundShadow);
     this.actors.clear();
   }
 }

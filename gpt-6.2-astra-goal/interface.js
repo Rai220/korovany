@@ -141,6 +141,7 @@ function refreshResume() {
   }
 }
 function modal(kicker, title, body, onExit = null) {
+  realmVoice.stop();
   if (active) {
     keys.clear();
     if (document.pointerLockElement) {
@@ -155,6 +156,7 @@ function modal(kicker, title, body, onExit = null) {
   if (!$('dialog').open) $('dialog').showModal();
 }
 function closeModal() {
+  realmVoice.stop();
   if ($('dialog').open) $('dialog').close();
   const f = modalExit;
   modalExit = null;
@@ -254,10 +256,15 @@ $('full').onclick = async () => {
 };
 function audioToggle() {
   soundOn = !soundOn;
+  prefs.sound = soundOn;
+  persistSettings();
+  if (soundOn) realmVoice.unlock();
+  else realmVoice.stop();
   if (typeof scoreStop === 'function') {
     if (!soundOn) scoreStop();
-    else if (active) scoreStart();
+    else scoreStart(active ? undefined : 'menu');
   }
+  realmVoice.refresh();
   audioButton();
   tone(260, 0.4);
 }

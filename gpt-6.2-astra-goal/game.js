@@ -131,7 +131,8 @@ function newGame() {
     spawnAt('spy', 'hostile', x + 3, z + 18, 'intruder');
   }
 }
-function start(load) {
+function start(load, post = false) {
+  realmVoice.unlock();
   let saved = null;
   if (load) {
     try {
@@ -156,7 +157,8 @@ function start(load) {
   world.clearPeople();
   if (saved) game = saved;
   else newGame();
-  repairSpacing();
+  if (post) initializeDelivery();
+  else repairSpacing();
   world.teamLast = null;
   world.teamEnergy = 0;
   world.travelPhase = 0;
@@ -184,7 +186,8 @@ function start(load) {
   notify(load ? 'Кампания загружена' : '', 2);
   drawHud();
   frame = requestAnimationFrame(loop);
-  capture();
+  if (post) postDispatch();
+  else capture();
 }
 function valid(s) {
   return (
@@ -241,7 +244,7 @@ function capture() {
   } catch {}
 }
 function save() {
-  if (!active || game.health <= 0) return;
+  if (!active || game.health <= 0 || game.delivery) return;
   try {
     game.writtenAt = Date.now();
     localStorage.setItem(saveKey(), JSON.stringify(game));
@@ -276,6 +279,10 @@ const actions = (arr) =>
   arr.map(([id, s]) => '<button class="action" id="' + id + '">' + s + '</button>').join('');
 function pauseGame() {
   if (!active || game.health <= 0 || $('dialog').open) return;
+  if (game.delivery) {
+    deliveryPause();
+    return;
+  }
   modal(
     'Кампания',
     'Привал',
@@ -359,6 +366,7 @@ function death() {
   };
 }
 function goal() {
+  if (game.delivery) return { text: 'Почтовый перегон', target: postRoad[game.delivery.gate] || null };
   const current = storyGoal();
   if (current) return current;
   const g = game,
@@ -398,12 +406,14 @@ function targetBearing(t) {
   return Math.abs(a) < 0.23 ? '↑' : Math.abs(a) > 2.5 ? '↓' : a > 0 ? '←' : '→';
 }
 function drawHud() {
+  if (game.delivery) return deliveryHud();
   const g = game,
     idx = zoneAt(g.x, g.z),
     obj = goal();
   $('compass-dir').textContent = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'][
     ((Math.round(-g.yaw / (Math.PI / 4)) % 8) + 8) % 8
   ];
+  trailCompass(g, obj.target);
   $('side-label').textContent = sides[g.side].name;
   $('area').textContent = g.inside ? houses[g.inside].name : lands[idx].name;
   $('quest').textContent = obj.text;
@@ -432,6 +442,7 @@ function drawHud() {
   $('interact').textContent = item ? 'E  ·  ' + item.label : '';
   const foe = g.inside ? null : aimedEnemy(10, 0.25);
   $('foe').hidden = !foe;
+  $('foe').classList.toggle('readied', !!foe && foe.windup > 0);
   if (foe) {
     const names = {
       guard: 'Стражник',
@@ -699,6 +710,7 @@ function interact() {
         'Приказ командира',
         '<p>Бурёнку произвели в почтовые кареты, а она съела лицензию. К южным воротам пробрались шпион и лесной партизан. Остановите их, затем ударьте по гарнизону старого форта в Чёрных горах.</p>',
       );
+      realmVoice.play('Капитан Арда', $('dialog-body').querySelector('p').textContent);
     } else if (g.stage === 3) {
       g.stage = 4;
       g.coins += 60;
@@ -707,6 +719,7 @@ function interact() {
         'Приказ исполнен',
         '<p>Гарнизон разбит. Командир вручает вам 60 монет. Вы свободны продолжить путь по Пограничью.</p>',
       );
+      realmVoice.play('Капитан Арда', $('dialog-body').querySelector('p').textContent);
     } else notify(goal().text);
     return;
   }
@@ -771,8 +784,10 @@ function shop() {
             price +
             ' мон.</b></button>',
         )
-        .join(''),
+        .join('') +
+      '<button class="action" id="hire-post">Взять почтовый рейс</button>',
   );
+  $('hire-post').onclick = rideFromShop;
   document.querySelectorAll('[data-buy]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -827,6 +842,11 @@ function hitPlayer(d, attacker) {
     const parry = game.parryWindow > 0;
     game.stamina -= parry ? 3 : 7;
     attacker.cd = parry ? 2.7 : 1.5;
+    fieldImpact(
+      game.x - Math.sin(game.yaw) * 0.85,
+      walkingSurface(game.x, game.z) + 1.45,
+      game.z - Math.cos(game.yaw) * 0.85,
+    );
     scoreCue('parry');
     notify(parry ? 'Парирование · противник открыт' : 'Удар принят на щит', 0.8);
     if (parry) {
@@ -839,6 +859,11 @@ function hitPlayer(d, attacker) {
   g.health = Math.max(0, g.health - d);
   g.hits++;
   flash = 0.42;
+  if (attacker) {
+    const a = angles(Math.atan2(-wrapped(attacker.x - g.x), -wrapped(attacker.z - g.z)) - g.yaw);
+    $('hit-arc').style.transform = 'rotate(' + -a + 'rad)';
+    $('hit-arc').animate([{ opacity: 0.97 }, { opacity: 0 }], { duration: 590 });
+  }
   tone(94, 0.14, 'triangle', 0.09, 45);
   if (g.health <= 0) {
     death();
@@ -856,6 +881,12 @@ function hurtActor(a, amount, byPlayer) {
         { opacity: 0, scale: 0.8 },
       ],
       { duration: 280 },
+    );
+    fieldImpact(
+      a.x,
+      walkingSurface(a.x, a.z) + 1.14,
+      a.z,
+      ['guard', 'regent', 'lord', 'escort'].includes(a.kind) ? 'steel' : 'dust',
     );
     scoreCue('impact');
   }
@@ -899,7 +930,7 @@ function aimedEnemy(range, cone) {
   return target;
 }
 function attack(heavy = false) {
-  if (game?.inside) return;
+  if (game?.inside || game?.delivery) return;
   if (!active || $('dialog').open || game.health <= 0 || swing > 0) return;
   const g = game;
   if (g.blockTime > 0) {
@@ -954,6 +985,11 @@ function attack(heavy = false) {
       !heavy &&
       (target.blocks = (target.blocks || 0) + 1) % 3 !== 0
     ) {
+      fieldImpact(
+        game.x - Math.sin(game.yaw) * 0.85,
+        walkingSurface(game.x, game.z) + 1.45,
+        game.z - Math.cos(game.yaw) * 0.85,
+      );
       scoreCue('parry');
       notify('Вельт держит щит · G — пробивающий удар', 1.3);
       return;
@@ -1205,7 +1241,20 @@ function campaignTick(dt) {
   }
 }
 function step(dt) {
+  if (game.delivery) return deliveryTick(dt);
   if (game.inside) return roomTick(dt);
+  if (!realmVoice.active && gameTime > Math.max(7, subtitleUntil + 2)) {
+    if (game.weapon === 'bow' && !game.story.aimTip) {
+      game.story.aimTip = true;
+      speak('Дозорная Лиора', 'Целься чуть выше. Стрела в полёте опускается.');
+    } else if (
+      game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(a, game) < 6) &&
+      !game.story.shieldTip
+    ) {
+      game.story.shieldTip = true;
+      speak('Капитан Арда', 'Подними щит, когда увидишь замах.');
+    }
+  }
   const g = game;
   const block = keys.has('KeyR') && g.weapon === 'sword' && g.stamina > 5;
   if (block && !g.blockTime) g.parryWindow = 0.3;
@@ -1285,7 +1334,7 @@ function loop(now) {
   let bob = 0;
   if (!$('dialog').open && game.health > 0) {
     gameTime += dt;
-    for (let remaining = dt; remaining > 0 && game.health > 0; remaining -= 0.04)
+    for (let remaining = dt; remaining > 0 && game.health > 0 && !$('dialog').open; remaining -= 0.04)
       bob = step(Math.min(0.04, remaining));
     noticeTime -= dt;
     if (noticeTime <= 0) $('event').textContent = '';
@@ -1304,6 +1353,9 @@ function loop(now) {
 $('start-label').textContent = 'Начать историю';
 $('begin').disabled = false;
 $('begin').onclick = () => start(false);
+$('post-race').onclick = () => start(false, true);
+$('post-bell').onclick = postBell;
+$('post-view').onclick = cyclePostView;
 $('resume').onclick = () => start(true);
 $('pause').onclick = pauseGame;
 $('map-key').onclick = mapDialog;
@@ -1334,6 +1386,12 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   keys.add(e.code);
   if (e.repeat) return;
+  if (game.delivery) {
+    if (e.code === 'Escape') pauseGame();
+    if (e.code === 'Space') postBell();
+    if (e.code === 'KeyV') cyclePostView();
+    return;
+  }
   if (
     e.code === 'Space' &&
     (game.air === 0 ||
@@ -1369,11 +1427,11 @@ document.addEventListener('keyup', (e) => keys.delete(e.code));
 $('view').addEventListener('mousedown', (e) => {
   if (e.button === 0 && active && !$('dialog').open) {
     capture();
-    attack();
+    if (!game.delivery) attack();
   }
 });
 document.addEventListener('mousemove', (e) => {
-  if (active && document.pointerLockElement && !$('dialog').open) {
+  if (active && !game.delivery && document.pointerLockElement && !$('dialog').open) {
     game.yaw -= e.movementX * 0.0024 * prefs.sensitivity;
     game.pitch = clamp(game.pitch - e.movementY * 0.0021 * prefs.sensitivity, -1.18, 1.18);
   }
@@ -1437,7 +1495,7 @@ $('view').onpointerdown = (e) => {
   e.preventDefault();
 };
 $('view').onpointermove = (e) => {
-  if (e.pointerId !== lookId || !active || $('dialog').open) return;
+  if (e.pointerId !== lookId || !active || game.delivery || $('dialog').open) return;
   game.yaw -= (e.clientX - lookX) * 0.008 * prefs.sensitivity;
   game.pitch = clamp(game.pitch - (e.clientY - lookY) * 0.006 * prefs.sensitivity, -1.18, 1.18);
   lookX = e.clientX;
@@ -1477,7 +1535,8 @@ function arrowTick(dt) {
     a.z = wrapped(a.z + a.dz * h);
     a.dy -= 6.4 * h;
     a.life -= h;
-    if (a.life <= 0 || a.y <= ground(a.x, a.z) || !world.free(a.x, a.z, 0.015)) {
+    if (a.life <= 0 || a.y <= walkingSurface(a.x, a.z) || !world.free(a.x, a.z, 0.015)) {
+      if (a.life > 0) fieldImpact(a.x, a.y, a.z, 'dust');
       g.arrow = null;
       return;
     }

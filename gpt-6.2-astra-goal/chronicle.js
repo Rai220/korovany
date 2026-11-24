@@ -74,19 +74,24 @@ function readSlot() {
     .filter((s) => valid(s));
   return saves.sort((a, b) => (b.writtenAt || 0) - (a.writtenAt || 0))[0];
 }
-function checkpoint() {
-  if (game.health <= 0) return;
+function checkpoint(state = game) {
+  if (state.health <= 0 || state.delivery) return;
   try {
-    game.writtenAt = Date.now();
-    localStorage.setItem(saveKey() + '.checkpoint', JSON.stringify(game));
+    state.writtenAt = Date.now();
+    localStorage.setItem(saveKey() + '.checkpoint', JSON.stringify(state));
     refreshResume();
   } catch {}
 }
 let subtitleUntil = 0,
   chapterUntil = 0;
 function speak(who, line) {
-  $('subtitle').textContent = who + ' — «' + line + '»';
-  subtitleUntil = gameTime + Math.max(5, line.length * 0.068);
+  const label = document.createElement('b');
+  label.textContent = who;
+  const words = document.createElement('span');
+  words.textContent = line;
+  $('subtitle').replaceChildren(label, words);
+  const duration = realmVoice.play(who, line);
+  subtitleUntil = gameTime + Math.max(4.3, line.length * 0.065, duration + 0.45);
 }
 function chapter(name, kicker) {
   $('chapter-toast').innerHTML = '<small>' + kicker + '</small>' + name;
@@ -159,11 +164,19 @@ function scene(kicker, title, art, speaker, text, buttons) {
       art +
       '.webp" alt=""><strong class="narrator">' +
       speaker +
-      '</strong><p class="story-text">' +
+      '</strong><button type="button" class="rehear" id="rehear" title="Послушать реплику ещё раз" aria-label="Послушать реплику ещё раз">' +
+      icon('sound') +
+      '</button><p class="story-text">' +
       text +
       '</p>' +
       buttons.map((b, i) => '<button class="action" id="reply' + i + '">' + b[0] + '</button>').join(''),
   );
+  realmVoice.play(speaker, text);
+  $('rehear').hidden = !realmVoice.duration(speaker, text);
+  $('rehear').onclick = () => {
+    if (!soundOn) audioToggle();
+    realmVoice.play(speaker, text);
+  };
   buttons.forEach(
     (b, i) =>
       ($('reply' + i).onclick = () => {
@@ -434,7 +447,7 @@ function storyTick() {
   if (s.phase === 'intercept' && !g.actors.some((a) => a.tag === 'regent' && a.hp > 0)) {
     enterStory('return', 'Сломанная печать', 'Регент пал. Предъявите его печать и опись капитану Арде.');
   }
-  if (gameTime > subtitleUntil) $('subtitle').textContent = '';
+  if (gameTime > subtitleUntil && !realmVoice.active) $('subtitle').textContent = '';
   if (gameTime > chapterUntil) $('chapter-toast').style.opacity = 0;
 }
 function journal() {
