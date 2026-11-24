@@ -1,6 +1,7 @@
 'use strict';
 const defaults = {
   quality: 'balanced',
+  camera: 'first',
   sensitivity: 1,
   music: 0.8,
   effects: 0.8,
@@ -45,7 +46,7 @@ function settings() {
   modal(
     'Параметры игры',
     'Настройки',
-    '<div class="preferences"><label>Графика<select id="quality"><option value="light">Экономная</option><option value="balanced">Сбалансированная</option><option value="high">Высокая</option></select></label>' +
+    '<div class="preferences"><label>Камера героя<select id="camera"><option value="first">От первого лица</option><option value="shoulder">За плечом</option></select></label><label>Графика<select id="quality"><option value="light">Экономная</option><option value="balanced">Сбалансированная</option><option value="high">Высокая</option></select></label>' +
       [
         ['sensitivity', 'Чувствительность', 0.35, 2.4],
         ['music', 'Музыка', 0, 1],
@@ -67,12 +68,12 @@ function settings() {
         .join('') +
       '<label>Субтитры в пути<input id="subtitles" type="checkbox"></label><label>Покачивание камеры<input id="motion" type="checkbox"></label></div>',
   );
-  for (const id of ['quality', 'sensitivity', 'music', 'effects', 'voice', 'subtitles', 'motion']) {
+  for (const id of ['camera', 'quality', 'sensitivity', 'music', 'effects', 'voice', 'subtitles', 'motion']) {
     const el = $(id);
     if (el.type === 'checkbox') el.checked = prefs[id];
     else el.value = prefs[id];
     el.oninput = () => {
-      prefs[id] = id === 'quality' ? el.value : el.type === 'checkbox' ? el.checked : Number(el.value);
+      prefs[id] = el.tagName === 'SELECT' ? el.value : el.type === 'checkbox' ? el.checked : Number(el.value);
       if (id === 'quality') applyGraphics();
       if (id === 'music') scoreRefresh();
       if (id === 'voice') realmVoice.refresh();

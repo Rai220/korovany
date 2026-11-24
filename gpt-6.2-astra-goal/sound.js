@@ -6,7 +6,7 @@ const scoreTracks = Object.fromEntries(
   [
     ['road', 'salt-road', 40, 6, 60 / (84 * 3)],
     ['battle', 'fifth-hoof', 32, 10, 60 / (148 * 2)],
-    ['fair', 'customs-reel', 48, 4, 60 / (112 * 2)],
+    ['fair', 'crossing-at-dawn', 48, 6, 60 / (112 * 3)],
     ['mill', 'mill-archive', 32, 6, 60 / (87 * 2)],
   ].map(([key, file, bars, pulses, pulseDuration]) => [
     key,
@@ -37,8 +37,7 @@ let scoreMode = '',
 let scoreLastDanger = -Infinity,
   scoreLastFair = -Infinity,
   scoreAudible = '';
-let stepBeat = 0,
-  birdTime = 0;
+let stepBeat = 0;
 
 function scoreScene(now) {
   if (scoreMode === 'menu' || !active || !game) return 'road';
@@ -311,73 +310,10 @@ function noiseFoley(duration, cutoff, volume, pan = 0, delay = 0) {
   src.stop(at + duration + 0.003);
 }
 
-let terrainAudio = null;
-function scoreAir(duck) {
-  if (!audioCtx || !active || !game || !prefs.effects || scoreMode === 'menu') {
-    stopScoreAir();
-    return;
-  }
-  const ctx = audioCtx;
-  if (!terrainAudio) {
-    const buffer = ctx.createBuffer(2, Math.round(ctx.sampleRate * 2.47), ctx.sampleRate);
-    for (let channel = 0; channel < 2; channel++) {
-      const values = buffer.getChannelData(channel);
-      let brown = 0;
-      for (let i = 0; i < values.length; i++) {
-        const white = Math.random() * 2 - 1;
-        brown = 0.964 * brown + 0.18 * white;
-        values[i] = brown * 0.7 + white * 0.19;
-      }
-      // A short overlap hides the splice in this periodic ambience bed.
-      const span = Math.round(ctx.sampleRate * 0.028);
-      for (let i = 0; i < span; i++)
-        values[i] = values[values.length - span + i] * (1 - i / span) + values[i] * (i / span);
-    }
-    terrainAudio = ['lowpass', 'bandpass'].map((kind, i) => {
-      const source = ctx.createBufferSource(),
-        filter = ctx.createBiquadFilter(),
-        gain = ctx.createGain();
-      source.buffer = buffer;
-      source.loop = true;
-      source.playbackRate.value = i ? 1.13 : 0.76;
-      filter.type = kind;
-      filter.frequency.value = i ? 1540 : 430;
-      filter.Q.value = i ? 0.46 : 0.66;
-      gain.gain.value = 0;
-      source.connect(filter).connect(gain).connect(ctx.destination);
-      source.start(0, i * 0.91);
-      return { source, filter, gain };
-    });
-  }
-  const room = game.inside ? 0.085 : 1;
-  const nearness = Math.max(0, 1 - Math.abs(wrapped(game.z - streamZ(game.x))) / 15);
-  const wind = zoneAt(game.x, game.z) === 3 ? 0.088 : 0.046;
-  const level = prefs.effects * (duck ? 0.51 : 1) * room * ($('dialog').open ? 0.5 : 1);
-  terrainAudio[0].gain.gain.setTargetAtTime(wind * level, ctx.currentTime, 0.43);
-  terrainAudio[0].filter.frequency.setTargetAtTime(
-    420 + 130 * Math.sin(ctx.currentTime * 0.43),
-    ctx.currentTime,
-    0.55,
-  );
-  terrainAudio[1].gain.gain.setTargetAtTime(0.17 * nearness * nearness * level, ctx.currentTime, 0.32);
-}
-function stopScoreAir() {
-  if (!terrainAudio) return;
-  for (const layer of terrainAudio) {
-    layer.source.stop();
-    layer.source.disconnect();
-    layer.filter.disconnect();
-    layer.gain.disconnect();
-  }
-  terrainAudio = null;
-}
-
 let stepSide = 1;
 function soundscape(dt, moving, sprinting) {
   if (!soundOn) return;
-  const danger = scoreIntent === 'battle';
   stepBeat -= dt;
-  birdTime -= dt;
   if (moving && stepBeat <= 0 && game.air <= 0.05) {
     stepBeat = sprinting ? 0.32 : 0.49;
     stepSide *= -1;
@@ -387,13 +323,6 @@ function soundscape(dt, moving, sprinting) {
     noiseFoley(wet ? 0.18 : 0.073, wet ? 2630 : stone ? 1850 : 900, wet ? 0.18 : 0.15, pan);
     noiseFoley(0.105, wet ? 1340 : stone ? 980 : 520, 0.063, pan, 0.044);
     resonantFoley(stone ? 107 : 82, 0.078, 0.097, 48, 0, pan);
-  }
-  if (birdTime < 0 && !danger) {
-    birdTime = 8 + Math.random() * 12;
-    const h = 1380 + Math.random() * 440,
-      pan = (Math.random() - 0.5) * 1.5;
-    resonantFoley(h, 0.13, 0.029, h * 1.36, 0, pan);
-    resonantFoley(h * 1.24, 0.12, 0.019, h * 0.94, 0.19, pan);
   }
 }
 

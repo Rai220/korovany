@@ -2,19 +2,19 @@
 
 const opening = [
   [
-    'Семь телег и вымя',
+    'Огонь на опушке',
     'Дозорная Лиора',
-    'Шесть телег и корова. Писарь сложил и получил семь телег. Отбей налёт. Потом спроси у Бурёнки, кто тут корован.',
+    'Держи тропу у домов. За оврагом ещё люди. Когда отобьём налёт, я покажу тебе, где искать обоз.',
   ],
   [
-    'Копыто капитана',
+    'Северные ворота',
     'Капитан Арда',
-    'В караульной книге я вчера отелился. Ты же видел мой отпускной? К воротам. Шпионы ещё в городе.',
+    'С северной башни подали знак. У ворот чужие. Встань между ними и городом.',
   ],
   [
-    'Его Молочность',
+    'Дозор на перевале',
     'Сотник Гарт',
-    'Ваше Мрачнейшество, в казне полсыра. Вторую половину назначили казначеем. Куда поведём дружину?',
+    'Дозор вернулся без припасов. До первого снега неделя. Люди ждут твоего приказа.',
   ],
 ];
 const places = {
@@ -31,27 +31,28 @@ const verdicts = {
     name: 'Хлеб без печати',
     place: 2,
     voice:
-      'Пекари ждут муку. Бурёнка ждёт переводчика. Если на тракте засада, спроси у неё разрешение проехать.',
-    end: 'На рассвете Эльда раздала горячие горбушки. Бурёнке достался пирог размером с колесо. В графе «кому вручено» пекарь оставил жирное пятно от носа. Ревизор принял.',
+      'В лесу три дня не топили пекарню. Проведи туда обоз. Если встретишь дозор, возница знает их сигнал.',
+    end: 'К рассвету у мельницы собралась очередь. Эльда разломила первую буханку и отдала обе половины детям. Остальные дождались своей порции. В ту зиму деревню не оставили.',
     perk: 'Торговцы дают бинты и лечат за полцены.',
   },
   law: {
     name: 'Именем свидетелей',
     place: 1,
-    voice: 'Им понадобится не наша правда. Им понадобится его собственная подпись.',
-    end: 'Арда положила рядом две печати. У настоящей сколот левый зубец, у подложной — правый. Бурёнка съела вещдок только после приговора. Так в Палате впервые появилось съедобное право.',
+    voice: 'В суде спросят, кто видел накладную. Найди свидетеля или сверь печать в архиве.',
+    end: 'Арда положила перед судьями обе печати. У настоящей сколот левый клык. На приказе стоял целый. В тот вечер с ворот сняли объявление о сборе.',
     perk: 'Имперская казна оплачивает усиление оружия наполовину.',
   },
   iron: {
     name: 'Право сильного',
     place: 3,
-    voice: 'Возьми железный ключ у казначейства. В форте помнят тех, кто приносит хлеб.',
-    end: 'В форте затопили сорок печей. Дружина получила хлеб, Бурёнка — трон, вы — должность регента при корове. На первой аудиенции Её Молочность потребовала почесать за ухом.',
-    perk: 'Два ветерана форта сопровождают вас в свободной игре.',
+    voice: 'Ключ у казначея. Возьми его и открой амбар в форте. Там тоже ждут хлеба.',
+    end: 'Ворота форта открылись затемно. У печей стояли и солдаты, и семьи с перевала. Хлеба хватило на всех. Наутро за новой порцией пришлось снова идти к часовому.',
+    perk: 'Два ветерана форта останутся в вашей дружине.',
   },
 };
 function freshStory() {
   return {
+    saltEdition: true,
     phase: 'origin',
     clues: [],
     branch: null,
@@ -72,7 +73,43 @@ function readSlot() {
       }
     })
     .filter((s) => valid(s));
-  return saves.sort((a, b) => (b.writtenAt || 0) - (a.writtenAt || 0))[0];
+  const latest = saves.sort((a, b) => (b.writtenAt || 0) - (a.writtenAt || 0))[0];
+  if (latest && !latest.story.saltEdition) restoreJournal(latest);
+  return latest;
+}
+// Journal text was stored verbatim in the first edition. Keep choices, payment, and seals intact.
+function restoreJournal(saved) {
+  const story = saved.story;
+  const previousOpenings = ['Семь телег и вымя', 'Копыто капитана', 'Его Молочность'];
+  const previousPosts = ['Маслобойня', 'Палата удоев', 'Клеверный стан', 'Сырный редут'];
+  story.entries = story.entries.map(([title, line]) => {
+    const faction = previousOpenings.indexOf(title);
+    if (faction >= 0) return [opening[faction][0], opening[faction][2]];
+    const post = previousPosts.indexOf(title);
+    if (post >= 0)
+      return [dairies[post].title, 'В подорожной появилась печать «' + dairies[post].stamp + '».'];
+    if (title === 'Подпись копытом')
+      return ['Подпись возницы', 'Старший обоза заверил накладную. Её можно предъявить в суде.'];
+    if (title === 'Молочная почта') return ['Дворцовая почта', line.replace('крынок', 'сосудов')];
+    if (title === 'Встреча у переправы')
+      return [
+        title,
+        'Вельт перекрыл переправу. Для ареста понадобится ордер, свидетель или накладная возницы.',
+      ];
+    if (story.branch && title === verdicts[story.branch].name)
+      return [title, endingAccount(story, saved.side)];
+    return [title, line];
+  });
+  story.saltEdition = true;
+}
+function endingAccount(story, side) {
+  let account = verdicts[story.branch].end;
+  if (story.branch === 'law') {
+    account = story.arrested
+      ? 'Вельт лично дал показания. ' + account
+      : 'Вместо регента перед судом легла его поддельная печать. Капитан сверила зарубки с показаниями возницы. Этого хватило, чтобы вернуть зерно и отменить сбор. Кто ещё стоял за поддельной печатью, так и осталось неизвестным.';
+  }
+  return account + ' ' + heroCoda(story, side);
 }
 function checkpoint(state = game) {
   if (state.health <= 0 || state.delivery) return;
@@ -103,7 +140,7 @@ function enterStory(phase, title, text) {
   game.story.phase = phase;
   game.story.entries.push([title, text]);
   checkpoint();
-  chapter(title, 'Дело о двух рогах');
+  chapter(title, 'Соляной тракт');
 }
 function storyGoal() {
   const s = game.story;
@@ -124,8 +161,8 @@ function storyGoal() {
     case 'escort':
       return {
         text: game.actors.some((a) => a.tag === 'ambush' && a.hp > 0)
-          ? 'Защитите корован от засады'
-          : 'Проведите корован в лес · держитесь в 12 м',
+          ? 'Защитите караван от засады'
+          : 'Проведите караван в лес · держитесь в 12 м',
         target: game.wagon,
       };
     case 'intercept':
@@ -157,20 +194,33 @@ function storyGoal() {
   }
 }
 function scene(kicker, title, art, speaker, text, buttons) {
+  let key = typeof art === 'number' ? 'tale' + art : 'chapter-' + art;
+  const hasActor = !!dialogueCast[speaker];
+  if (hasActor)
+    key =
+      'land' +
+      (speaker.includes('Арда') ? 1 : speaker.includes('Мара') ? 2 : speaker.includes('Гарт') ? 3 : 0);
+
   modal(
     kicker,
     title,
-    '<img class="story-art" src="./assets/tale' +
-      art +
-      '.webp" alt=""><strong class="narrator">' +
+    '<section class="story-scene' +
+      (hasActor ? ' interview' : '') +
+      '"><div class="scene-plate"' +
+      (hasActor ? ' id="portrait-stage"' : '') +
+      '><img src="./assets/' +
+      key +
+      '.webp?v=salt2" alt=""></div><div class="scene-words"><div class="speaker-line"><strong class="narrator">' +
       speaker +
       '</strong><button type="button" class="rehear" id="rehear" title="Послушать реплику ещё раз" aria-label="Послушать реплику ещё раз">' +
       icon('sound') +
-      '</button><p class="story-text">' +
+      '</button></div><p class="story-text">' +
       text +
-      '</p>' +
-      buttons.map((b, i) => '<button class="action" id="reply' + i + '">' + b[0] + '</button>').join(''),
+      '</p><div class="scene-answers">' +
+      buttons.map((b, i) => '<button class="action" id="reply' + i + '">' + b[0] + '</button>').join('') +
+      '</div></div></section>',
   );
+  openStage(speaker);
   realmVoice.play(speaker, text);
   $('rehear').hidden = !realmVoice.duration(speaker, text);
   $('rehear').onclick = () => {
@@ -201,7 +251,11 @@ function storyOptions() {
       add(
         'arrest',
         boss,
-        s.warrant ? 'Предъявить ордер' : s.aid ? 'Предъявить показания писаря' : 'Предъявить подпись Бурёнки',
+        s.warrant
+          ? 'Предъявить ордер'
+          : s.aid
+            ? 'Предъявить показания писаря'
+            : 'Предъявить накладную возницы',
       );
   }
   if (s.phase === 'requisition' && !game.actors.some((a) => a.tag === 'vault' && a.hp > 0))
@@ -219,7 +273,7 @@ function storyInteraction(k) {
       'Мера зерна',
       1,
       'Эльда, мельничиха',
-      'Весной Бурёнку провели по смете как седьмую телегу. Осенью с неё взяли налог за четыре колеса. Денег ушло восемьдесят мешков. Найди обод у моста и печать у кострища. Посмотрим, где у коровы ось.',
+      'Из леса вышли семь телег. Здесь разгрузили шесть. Вельт говорит, что седьмая сгорела. Сам посмотри у моста. Там осталось колесо. А на дворцовом тракте ищи печать.',
       [
         [
           'Осмотреть места перегрузки',
@@ -240,7 +294,7 @@ function storyInteraction(k) {
       'Чья это зима?',
       0,
       'Эльда',
-      'Нашла приказ. «Сжечь пустые мешки, списать обоз на пожар». Он продал зерно задолго до сбора. Пока мы считали, Вельт вывел последнюю полную повозку на тракт. Зерно можно довезти в лес. Можно отдать дело суду. Можно оставить хлеб тому, у кого хватит мечей удержать амбар. Я положу ключ туда, куда ты скажешь.',
+      'Это приказ Вельта. Велено сжечь мешки и списать зерно на пожар. Последняя телега ещё на тракте. Мы можем отвезти хлеб в лес, передать бумаги в суд или забрать ключ от амбара в горах. Решай, пока не рассвело.',
       [
         ['Отвести зерно голодающим', () => chooseEnding('bread')],
         ['Привлечь регента к суду', () => chooseEnding('law')],
@@ -253,7 +307,7 @@ function storyInteraction(k) {
     const first = k === 'bridge',
       title = first ? 'Семь зарубок' : 'Оловянный волк',
       desc = first
-        ? 'На ободе семь глубоких зарубок. В кузовной описи значатся шесть телег. На последнюю никто не оформлял подорожную.'
+        ? 'На ободе семь зарубок. В описи возницы значатся шесть телег. Седьмая прошла переправу без записи.'
         : 'В кострище лежит половина печати регента. Край в муке, левый зубец цел. У подлинной печати капитана этот зубец давно отколот.';
     scene('Вещдок · Соляной тракт', title, 0, 'Полевая запись', desc, [
       [
@@ -321,7 +375,7 @@ function storyInteraction(k) {
           ? 'Печать подлинная. Уберите клинок, я пойду сам.'
           : s.aid
             ? 'Вы нашли писаря. Тогда мне нечего прибавить.'
-            : 'Подделать такое копыто невозможно. Ведите.',
+            : 'Знаю эти метки. Накладная подлинная. Я пойду с вами.',
       );
     }
     return;
@@ -332,17 +386,8 @@ function storyInteraction(k) {
   }
   if (k === 'ending') {
     const v = verdicts[s.branch],
-      detail =
-        s.branch === 'law'
-          ? s.arrested
-            ? 'Вельт лично дал показания. '
-            : 'Вместо регента перед судом легла его поддельная печать. '
-          : '';
-    const account =
-      s.branch === 'law' && !s.arrested
-        ? 'Капитан сверила зарубки с показаниями возницы. Сбор отменили. Бурёнка получила диплом эксперта по колёсным налогам. Имени Вельта в новой подорожной уже не было.'
-        : v.end;
-    enterStory('done', v.name, detail + account + ' ' + heroCoda(s));
+      account = endingAccount(s, game.side);
+    enterStory('done', v.name, account);
     game.coins += 75;
     if (s.branch === 'iron') {
       for (let i = 0; i < 2; i++) spawnAt('lord', 'friend', game.x - 2 + i * 3, game.z + 2, 'veteran');
@@ -352,11 +397,11 @@ function storyInteraction(k) {
     scene(
       'Эпилог · ' + sides[game.side].name,
       v.name,
-      s.branch === 'iron' ? 2 : 3,
+      s.branch,
       'Из хроники Пограничья',
-      detail + account + ' ' + heroCoda(s) + ' ' + v.perk,
+      account + ' ' + v.perk,
       [
-        ['Продолжить путь', () => speak('Пограничье', 'Акт подписан. Траву под подписью оставьте как есть.')],
+        ['Продолжить путь', () => speak('Пограничье', 'На тракте снова слышны колёса. Дорога открыта.')],
         ['Открыть хронику', journal],
       ],
     );
@@ -387,7 +432,7 @@ function chooseEnding(branch) {
     enterStory(
       'intercept',
       'Встреча у переправы',
-      'Регент перекрыл переправу. Предъявите ордер, показания писаря или заверенную копытом накладную, чтобы взять его живым. Иначе придётся принять бой.',
+      'Регент перекрыл переправу. Предъявите ордер, показания писаря или накладную возницы, чтобы взять его живым. Иначе придётся принять бой.',
     );
   }
   if (branch === 'iron') {
@@ -411,10 +456,7 @@ function escortTick(dt) {
     s.wave++;
     for (let i = 0; i < s.wave; i++)
       spawnAt(i ? 'lord' : 'guard', 'hostile', w.x + 6 + i * 2, w.z + 8, 'ambush');
-    speak(
-      'Возница',
-      'Впереди люди Вельта. Берись за меч или подойди к Бурёнке и нажми V. У неё есть юридическое «му».',
-    );
+    speak('Возница', 'Люди на дороге. Прикрой меня. Если помнишь условный сигнал, обойдёмся без боя.');
   }
   if (w.z >= 48) {
     w.node = 0;
@@ -455,7 +497,7 @@ function journal() {
     obj = goal();
   modal(
     'Полевой дневник',
-    'Дело о двух рогах',
+    'Соляной тракт',
     '<img class="story-art" alt="" src="./assets/tale' +
       (s.phase === 'done' ? 3 : s.phase === 'origin' ? 0 : 1) +
       '.webp"><p class="journal-current">' +

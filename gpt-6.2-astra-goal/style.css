@@ -245,7 +245,7 @@ h3 {
   pointer-events: none;
 }
 #hero-art {
-  background: url('./assets/elf.webp') center 8% / cover;
+  background: url('./assets/elf.webp?v=salt2') center 8% / cover;
   transition: opacity 0.18s;
 }
 .hero-shade {

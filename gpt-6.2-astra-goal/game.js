@@ -342,7 +342,7 @@ function death() {
     'Герой пал',
     '<p>Побеждено врагов — ' +
       game.kills +
-      '. Ограблено корованов — ' +
+      '. Ограблено караванов — ' +
       game.robbed +
       '.</p>' +
       actions([
@@ -376,7 +376,7 @@ function goal() {
     return (
       [
         { text: 'Отбейте набег на лесное поселение', target: tag('first') },
-        { text: 'Ограбьте корован на торговом тракте', target: g.wagon },
+        { text: 'Ограбьте караван на торговом тракте', target: g.wagon },
         {
           text: 'Доставьте добычу лесному торговцу',
           target: g.actors.find((a) => a.tag === 'shop' && a.z > 0 && a.x < 0),
@@ -449,7 +449,7 @@ function drawHud() {
       spy: 'Шпион',
       elf: 'Лесной партизан',
       lord: 'Воин форта',
-      escort: 'Охранник корована',
+      escort: 'Охранник каравана',
       commander: 'Капитан Арда',
       regent: 'Регент Вельт',
     };
@@ -485,7 +485,7 @@ function mapDialog() {
     )
     .join('');
   const body =
-    '<p>Тракты замыкаются в кольцо. По охристым меткам найдёте четыре молочные заставы. Выберите регион для быстрого перехода.</p><div class="worldmap">' +
+    '<p>Тракты замыкаются в кольцо. По охристым меткам найдёте четыре дорожные заставы. Выберите регион для быстрого перехода.</p><div class="worldmap">' +
     cells +
     dairies
       .map((d, i) => pin((g.story.dairyStamps || []).includes(i) ? 'dairy-dot stamped' : 'dairy-dot', d))
@@ -495,7 +495,7 @@ function mapDialog() {
     (g.story.herbs === 'seek' ? pin('herb-dot', herbBed) : '') +
     pin('goal-dot', goalPoint) +
     pin('player-dot', g) +
-    '</div><p class="map-legend"><span>● Герой</span><span>◇ Цель</span><span>■ Корован</span>' +
+    '</div><p class="map-legend"><span>● Герой</span><span>◇ Цель</span><span>■ Караван</span>' +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? '<span>✧ Свидетель</span>' : '') +
     (g.story.herbs === 'seek' ? '<span>✚ Травы</span>' : '') +
     '</p><p id="map-note">' +
@@ -614,8 +614,8 @@ function interactable() {
   dairies.forEach((site, i) =>
     options.push({ a: site, label: 'Поставить печать · ' + site.title, dairy: i }),
   );
-  options.push({ a: bovineOffice(), cow: true, label: 'Переговоры с Бурёнкой' });
-  options.push({ a: g.wagon, label: 'Ограбить корован · V для переговоров' });
+  options.push({ a: bovineOffice(), cow: true, label: 'Окликнуть возницу' });
+  options.push({ a: g.wagon, label: 'Ограбить караван · V для переговоров' });
   const target = goal().target;
   // Orders have their own Q binding. A follower beside a stall should leave E to the merchant.
   const objective = target?.team === 'friend' ? null : target;
@@ -635,7 +635,7 @@ function interact() {
   }
   const it = interactable();
   if (!it) {
-    notify('Приблизьтесь к торговцу, союзнику или коровану');
+    notify('Приблизьтесь к торговцу, союзнику или каравану');
     return;
   }
   const g = game;
@@ -679,13 +679,13 @@ function interact() {
       return;
     }
     if (g.wagon.cool > 0) {
-      notify('Корован пуст. Новый груз будет позже');
+      notify('Караван пуст. Новый груз будет позже');
       return;
     }
     const defenders = g.actors.filter((a) => a.tag === 'escort' && a.hp > 0);
     if (defenders.length) {
       defenders.forEach((a) => (a.team = 'hostile'));
-      notify('Охрана корована вступает в бой');
+      notify('Охрана каравана вступает в бой');
       return;
     }
     claimCargo();
@@ -705,21 +705,25 @@ function interact() {
       g.stage = 1;
       spawnAt('spy', 'hostile', 48, -34, 'spy');
       spawnAt('elf', 'hostile', 55, -33, 'spy');
-      modal(
+      scene(
         'Императорская гвардия',
         'Приказ командира',
-        '<p>Бурёнку произвели в почтовые кареты, а она съела лицензию. К южным воротам пробрались шпион и лесной партизан. Остановите их, затем ударьте по гарнизону старого форта в Чёрных горах.</p>',
+        'law',
+        'Капитан Арда',
+        'У южных ворот видели разведчика и лесного стрелка. Защити ворота. Когда поступит донесение, ударь по гарнизону старого форта в Чёрных горах.',
+        [['Принять приказ', () => {}]],
       );
-      realmVoice.play('Капитан Арда', $('dialog-body').querySelector('p').textContent);
     } else if (g.stage === 3) {
       g.stage = 4;
       g.coins += 60;
-      modal(
+      scene(
         'Императорская гвардия',
         'Приказ исполнен',
-        '<p>Гарнизон разбит. Командир вручает вам 60 монет. Вы свободны продолжить путь по Пограничью.</p>',
+        'law',
+        'Капитан Арда',
+        'Дозор подтвердил. Форт взят. Жалованье у меня, шестьдесят монет. Можешь идти.',
+        [['Вернуться к воротам', () => {}]],
       );
-      realmVoice.play('Капитан Арда', $('dialog-body').querySelector('p').textContent);
     } else notify(goal().text);
     return;
   }
@@ -847,6 +851,7 @@ function hitPlayer(d, attacker) {
       walkingSurface(game.x, game.z) + 1.45,
       game.z - Math.cos(game.yaw) * 0.85,
     );
+    fieldStrike('ring', 0.75);
     scoreCue('parry');
     notify(parry ? 'Парирование · противник открыт' : 'Удар принят на щит', 0.8);
     if (parry) {
@@ -959,7 +964,7 @@ function attack(heavy = false) {
     const cp = Math.cos(g.pitch);
     g.arrow = {
       x: g.x,
-      y: ground(g.x, g.z) + (g.leg === 'lost' ? 0.78 : g.leg === 'chair' ? 1.32 : 1.93) + g.air,
+      y: walkingSurface(g.x, g.z) + (g.leg === 'lost' ? 0.78 : g.leg === 'chair' ? 1.32 : 1.71) + g.air,
       z: g.z,
       dx: -Math.sin(g.yaw) * cp * 55,
       dy: Math.sin(g.pitch) * 55 + 1.6,
@@ -971,8 +976,8 @@ function attack(heavy = false) {
   g.stamina -= cost;
   g.heavy = heavy;
   swing = 1;
-  tone(210, 0.13, 'triangle', 0.07, 55);
-  const target = aimedEnemy(3.75, 0.82);
+  fieldStrike('swish', 0.76, heavy);
+  const target = aimedEnemy(heavy ? 3.18 : 3.02, 0.82);
   if (target) {
     if (target.team === 'escort')
       g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).forEach((a) => (a.team = 'hostile'));
@@ -990,6 +995,7 @@ function attack(heavy = false) {
         walkingSurface(game.x, game.z) + 1.45,
         game.z - Math.cos(game.yaw) * 0.85,
       );
+      fieldStrike('ring', 0.75);
       scoreCue('parry');
       notify('Вельт держит щит · G — пробивающий удар', 1.3);
       return;
@@ -1003,7 +1009,11 @@ function attack(heavy = false) {
       (heavy ? 11 : 0) + (g.arm === 'lost' ? 13 : 29) + g.upgrade * 8 + (target.stagger > 0 ? 16 : 0),
       true,
     );
-    tone(79, 0.15, 'square', 0.025, 49);
+    fieldStrike(
+      'ring',
+      ['guard', 'commander', 'lord', 'escort', 'regent'].includes(target.kind) ? 0.4 : 0.14,
+      heavy,
+    );
   }
 }
 // Find a short detour on the local grid when a building blocks the direct route.
@@ -1195,7 +1205,7 @@ function campaignTick(dt) {
     notify(
       g.robbed
         ? 'Набег отражён · Доставьте груз торговцу в лесу'
-        : 'Набег отражён · Найдите Бурёнку, нажмите V или ограбьте повозку',
+        : 'Набег отражён · Окликните возницу (V) или ограбьте повозку',
       5,
     );
   }
@@ -1350,13 +1360,35 @@ function loop(now) {
   world.display(game, gameTime, swing, prefs.motion ? bob : 0, goal().target);
   frame = requestAnimationFrame(loop);
 }
-$('start-label').textContent = 'Начать историю';
-$('begin').disabled = false;
-$('begin').onclick = () => start(false);
-$('post-race').onclick = () => start(false, true);
+function selectEntry(load, post = false) {
+  if (editionBoot.failed) {
+    location.reload();
+    return;
+  }
+  if (world) {
+    start(load, post);
+    return;
+  }
+  const loading = $('entry-loading');
+  if (!loading.hidden) return;
+  realmVoice.unlock();
+  if (soundOn) scoreStart('menu');
+  loading.hidden = false;
+  setTimeout(() => {
+    try {
+      start(load, post);
+    } finally {
+      loading.hidden = true;
+    }
+  }, 32);
+}
+editionBoot.ready();
+$('begin').onclick = () => selectEntry(false);
+$('post-race').onclick = () => selectEntry(false, true);
 $('post-bell').onclick = postBell;
 $('post-view').onclick = cyclePostView;
-$('resume').onclick = () => start(true);
+$('hero-view').onclick = changeHeroView;
+$('resume').onclick = () => selectEntry(true);
 $('pause').onclick = pauseGame;
 $('map-key').onclick = mapDialog;
 document.addEventListener('keydown', (e) => {
@@ -1374,6 +1406,7 @@ document.addEventListener('keydown', (e) => {
     'KeyF',
     'KeyH',
     'KeyQ',
+    'KeyT',
     'KeyV',
     'KeyM',
     'KeyK',
@@ -1402,6 +1435,7 @@ document.addEventListener('keydown', (e) => {
     game.air += 0.005;
     tone(110, 0.08, 'sine', 0.025, 140);
   }
+  if (e.code === 'KeyT') changeHeroView();
   if (e.code === 'KeyJ') journal();
   if (e.code === 'Digit1' || e.code === 'Digit2') {
     game.weapon = e.code === 'Digit1' || (e.code === 'Digit2' && game.weapon === 'bow') ? 'sword' : 'bow';
@@ -1432,8 +1466,9 @@ $('view').addEventListener('mousedown', (e) => {
 });
 document.addEventListener('mousemove', (e) => {
   if (active && !game.delivery && document.pointerLockElement && !$('dialog').open) {
-    game.yaw -= e.movementX * 0.0024 * prefs.sensitivity;
-    game.pitch = clamp(game.pitch - e.movementY * 0.0021 * prefs.sensitivity, -1.18, 1.18);
+    const focus = game.weapon === 'bow' && keys.has('KeyR') ? 0.56 : 1;
+    game.yaw -= e.movementX * 0.0024 * prefs.sensitivity * focus;
+    game.pitch = clamp(game.pitch - e.movementY * 0.0021 * prefs.sensitivity * focus, -1.18, 1.18);
   }
 });
 document.addEventListener('pointerlockchange', () => {

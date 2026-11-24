@@ -100,7 +100,7 @@ async function main() {
         keys.clear();
       }
     });
-    assert.equal(await p.locator('#dialog-title').innerText(), 'Крынки вдребезги');
+    assert.equal(await p.locator('#dialog-title').innerText(), 'Груз разбит');
     assert.equal(await p.evaluate(() => bestDelivery().jars), 6);
     assert.deepEqual(
       await p.evaluate(() => [
@@ -130,7 +130,7 @@ async function main() {
         readSlot().coins,
         game.story.entries.at(-1)[0],
       ]),
-      [true, 3, 120, 120, 'Молочная почта'],
+      [true, 3, 120, 120, 'Дворцовая почта'],
     );
     await p.close();
 

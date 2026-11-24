@@ -14,7 +14,7 @@
   text-align: left;
   color: #ffebc8;
   border: 1px solid #82724c;
-  background: #233526 url('./assets/post-road.webp') center 26% / cover no-repeat;
+  background: #233526 url('./assets/post-road.webp?v=salt2') center 26% / cover no-repeat;
 }
 .post-race:before {
   position: absolute;
@@ -64,7 +64,7 @@
 }
 .dispatch-art {
   height: clamp(112px, 21vh, 218px);
-  background: #234039 url('./assets/post-road.webp') center 33% / cover;
+  background: #234039 url('./assets/post-road.webp?v=salt2') center 33% / cover;
   border-bottom: 2px solid #ba945b;
 }
 .dispatch-quote {

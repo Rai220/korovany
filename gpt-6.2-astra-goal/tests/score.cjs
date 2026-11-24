@@ -137,7 +137,7 @@ async function run(browser, url) {
     await page.waitForFunction(() => millOutput() > 0.54);
     // Play the same packaged Russian line and public voice API as the regent's hearing.
     const seconds = await page.evaluate(() =>
-      realmVoice.play('Регент Вельт', 'Подделать такое копыто невозможно. Ведите.'),
+      realmVoice.play('Регент Вельт', 'Знаю эти метки. Накладная подлинная. Я пойду с вами.'),
     );
     assert.ok(seconds > 1, 'recorded voice line was found');
     await page.waitForFunction(() => realmVoice.active && millOutput() < 0.22, null, {
@@ -166,7 +166,7 @@ async function run(browser, url) {
         () =>
           !scoreTimer &&
           !scoreMode &&
-          !terrainAudio &&
+          !fieldAirNodes &&
           Object.values(scoreTracks).every((track) => !track.buffer),
       ),
     );

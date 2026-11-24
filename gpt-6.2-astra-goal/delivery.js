@@ -7,19 +7,19 @@ const postRoad = [
   { x: -50, z: 0, name: 'Соляной мост', bridge: true },
   { x: -50, z: -49, name: 'Поворот у мельницы', turn: true },
   { x: -5, z: -50, name: 'Имперская застава', bar: true },
-  { x: 45, z: -50, name: 'Дворцовая кухня' },
+  { x: 45, z: -50, name: 'Дворцовый лазарет' },
 ];
 const postLines = {
-  intro: 'До дворца довези шесть крынок. Вожжи твои, а за посуду отвечаю я.',
+  intro: 'На телеге шесть сосудов с лекарством. Во дворце ждут до рассвета. Бери вожжи.',
   bellNow: 'Звонок!',
-  slowNow: 'Мост! Сбавь до восемнадцати!',
-  gate: 'Бубенцы слышишь? У шлагбаума дай звонок, пока створки перед тобой.',
-  bridge: 'У моста колея. Сбавь ход, если хочешь привезти молоко, а не масло.',
-  turn: 'Вправо на дворцовый тракт. Масло при дворе тоже любят, но платят за молоко.',
+  slowNow: 'Мост! Тише, береги груз!',
+  gate: 'Впереди застава. Подай звонок, пока шлагбаум ещё перед тобой.',
+  bridge: 'На мосту выбило доску. Сбавь ход. Там легко разбить груз.',
+  turn: 'От рынка направо. Держись тракта, он выведет к дворцовому двору.',
   clear: 'Застава открыта. Держи середину дороги!',
-  perfect: 'Приехали! Всё цело. Да тебя сама Бурёнка возьмёт на службу.',
-  dented: 'Доехали. Уцелевшие крынки сдавай во дворец, остальное назовём сметаной.',
-  failed: 'Пустые крынки казна не принимает. Попробуем ещё раз?',
+  perfect: 'Всё цело. Я сдам груз лекарю. Хорошо провёл упряжку.',
+  dented: 'Доехали. Отнеси лекарю уцелевшие сосуды. Он уже вышел встречать.',
+  failed: 'Груз разбит. Придётся возвращаться за новой партией.',
 };
 const recordKey = 'korovany.goal.post-road.1';
 let postReturn = null;
@@ -83,7 +83,7 @@ function initializeDelivery() {
 function postDispatch() {
   const best = bestDelivery();
   modal(
-    'Молочная почта',
+    'Дворцовая почта',
     'Почтовый перегон',
     '<div class="dispatch-art"></div><p class="dispatch-quote">' +
       postLines.intro +
@@ -93,7 +93,7 @@ function postDispatch() {
       (best
         ? '<p class="delivery-best">Ваш рекорд · ' +
           best.jars +
-          '/6 крынок · ' +
+          '/6 сосудов · ' +
           postClock(best.time) +
           '</p>'
         : '') +
@@ -154,7 +154,7 @@ function leaveDelivery(earned = 0) {
     $('chapter-toast').style.opacity = 0;
     drawHud();
     capture();
-    if (earned) notify('Дворцовая кухня выплатила ' + earned + ' монет');
+    if (earned) notify('Дворцовый лазарет выплатил ' + earned + ' монет');
   } else menu();
 }
 function postResult() {
@@ -168,21 +168,21 @@ function postResult() {
     try {
       localStorage.setItem(recordKey, JSON.stringify({ jars: d.jars, time: d.time }));
     } catch {}
-  const title = !won ? 'Крынки вдребезги' : d.jars === 6 ? 'Доставка первого сорта' : 'Молоко доставлено';
+  const title = !won ? 'Груз разбит' : d.jars === 6 ? 'Весь груз доставлен' : 'Лекарство доставлено';
   const line = !won ? postLines.failed : d.jars === 6 ? postLines.perfect : postLines.dented;
   const pay = d.jars * 5 + (d.jars === 6 ? 10 : 0);
   if (postReturn && pay) {
     const campaign = postReturn.game;
     campaign.coins += pay;
     campaign.story.entries.push([
-      'Молочная почта',
-      'Вам выдано ' + pay + ' монет за ' + d.jars + ' из шести крынок.',
+      'Дворцовая почта',
+      'Вам выдано ' + pay + ' монет за ' + d.jars + ' из шести сосудов.',
     ]);
     checkpoint(campaign);
   }
   if (won) scoreCue('chapter');
   modal(
-    'Молочная почта · ведомость',
+    'Дворцовая почта · ведомость',
     title,
     '<div class="dispatch-art"></div><p class="dispatch-quote">' +
       line +
@@ -215,7 +215,7 @@ function postResult() {
 }
 function deliveryPause() {
   modal(
-    'Молочная почта',
+    'Дворцовая почта',
     'Привал на тракте',
     actions([
       ['post-resume', 'Продолжить рейс'],
@@ -340,7 +340,7 @@ function deliveryTick(dt) {
     else if (b.turn) speak('Возница', postLines.turn);
   }
   if (b.bar && !d.opened && until < 5.2 && until > 0 && off < 3.85 && d.speed > 0) {
-    if (d.speed > 4) postDamage('Крынка ударилась о шлагбаум');
+    if (d.speed > 4) postDamage('Сосуд разбился о шлагбаум');
     if (d.phase !== 'running') return 0;
     d.speed = 0;
     w.x -= dx * 0.12;
@@ -349,7 +349,7 @@ function deliveryTick(dt) {
     game.z = w.z;
   }
   if (until <= 0.65 && until >= -6 && off < 3.7 && (!b.bar || d.opened)) {
-    if (b.bridge && d.speed > 5.0) postDamage('На мосту разбилась крынка');
+    if (b.bridge && d.speed > 5.0) postDamage('На мосту разбился сосуд');
     if (d.phase !== 'running') return 0;
     if (++d.gate === postRoad.length) {
       postResult();
@@ -366,7 +366,7 @@ function deliveryTick(dt) {
 function deliveryHud() {
   const d = game.delivery,
     b = postRoad[Math.min(d.gate, postRoad.length - 1)];
-  $('post-stage').textContent = 'Молочная почта  ·  ' + Math.min(5, d.gate) + ' / 5';
+  $('post-stage').textContent = 'Дворцовая почта  ·  ' + Math.min(5, d.gate) + ' / 5';
   $('post-target').textContent = b.name;
   const bearing = targetBearing(b),
     metres = Math.round(distance(game.wagon, b));
@@ -379,7 +379,7 @@ function deliveryHud() {
       ? 'По мосту · до 18 км/ч'
       : b.turn
         ? 'За рынком направо'
-        : 'Доставьте крынки на кухню';
+        : 'Довезите лекарство до лазарета';
   $('post-speed').textContent = Math.round(Math.abs(d.speed) * 3.6);
   $('post-jars').textContent = d.jars + ' / 6';
   $('post-time').textContent = postClock(d.time);
@@ -480,6 +480,7 @@ function setDeliveryCamera(realm, s, t) {
   d.cameraTime = t;
   const { arms, jugs, driver } = realm.postProps;
   driver.visible = !d.seated;
+  poseCharacter(driver, 'drive', t);
   // A passed crossbeam can briefly fall between the chase camera and its target.
   realm.postProps.root.children.forEach((site, i) => {
     const p = postRoad[i + 1];
@@ -552,14 +553,9 @@ function makePostalCargo(realm) {
     jugs.push(jar);
   }
   const driver = realm.person('merchant', 'carter');
-  realm.scene.remove(driver.userData.groundShadow);
   cargo.add(driver);
   driver.position.set(0, 0.79, 1.85);
-  for (let i = 0; i < 2; i++) {
-    driver.userData.legs[i].rotation.x = -1.18;
-    driver.userData.knees[i].rotation.x = 1.25;
-    driver.userData.arms[i].rotation.x = -0.92;
-  }
+  poseCharacter(driver, 'drive', 0);
   carved(cargo, (s) => {
     for (const side of [-1, 1]) {
       s.taper(0x573c2a, [side * 0.32, 1.95, 2.23], [side * 0.58, 1.48, 3.2], 0.015, 0.015);

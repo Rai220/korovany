@@ -71,7 +71,7 @@ async function main() {
       Object.assign(game, clearSpot(cow.x, cow.z + 2.1, game));
     });
     await page.keyboard.press('v');
-    const notes = ['Му-у', 'Динь', 'Топ'];
+    const notes = ['Свист', 'Звон', 'Стук'];
     const sequence = (await page.locator('.call-sequence').innerText())
       .split(' · ')
       .map((n) => notes.indexOf(n));
@@ -102,7 +102,7 @@ async function main() {
     assert.equal(merchantWithSquad, 'shop');
     assert.deepEqual(errors, []);
     console.log(
-      'PASS — WebGL, road seam, solid bodies, wagon yielding, eight legs, cow dialogue and save/load.',
+      'PASS — WebGL, road seam, solid bodies, wagon yielding, eight legs, convoy signals and save/load.',
     );
   } finally {
     await browser.close();

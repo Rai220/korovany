@@ -1,12 +1,13 @@
 const assert = require('node:assert/strict');
 const { resolve } = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 
 async function main() {
-  const browser = await chromium.launch({
+  const engine = process.env.VOICE_BROWSER === 'webkit' ? webkit : chromium;
+  const browser = await engine.launch({
     executablePath: process.env.BROWSER_EXECUTABLE || undefined,
-    args: ['--enable-webgl', '--enable-unsafe-swiftshader'],
+    args: engine === chromium ? ['--enable-webgl', '--enable-unsafe-swiftshader'] : [],
   });
   try {
     const page = await browser.newPage();
@@ -40,6 +41,8 @@ async function main() {
       media.addEventListener('playing', () => window.starts++);
       return media.currentSrc;
     });
+    const firstClip = new URL(starts);
+    assert.equal(firstClip.search, firstClip.protocol === 'file:' ? '' : '?v=accent-2');
     await page.click('#rehear');
     await page.waitForFunction(() => window.starts > 0 && voiceElement()?.currentTime > .1);
     assert.equal(await page.evaluate(() => voiceElement().currentSrc), starts);

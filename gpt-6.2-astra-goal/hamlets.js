@@ -15,29 +15,66 @@ class Borderlands extends FrontierLandscape {
   house(x, z, j, forest) {
     const wallH = 3.32,
       zSpan = 4.8;
-    this.block(x, wallH / 2, z, 5, wallH, zSpan, forest ? 0x897454 : 0xc4b494);
+    const timber = 0x534432,
+      plaster = j % 2 ? 0xc4b494 : 0xb9a98d;
+    const roofing = forest || j % 3 === 1 ? 0x9b8760 : 0x4d5948;
+    this.block(x, wallH / 2, z, 5, wallH, zSpan, forest ? 0x897454 : plaster);
+    this.block(x, 0.23, z, 5.09, 0.46, zSpan + 0.1, 0x716e60);
     this.bound(x, z, 5, zSpan);
     for (const side of [-1, 1]) {
-      this.panel(
-        forest ? 'cabin-side' : 'inn-side',
-        x + side * 2.506,
-        1.68,
-        z,
-        4.8,
-        3.26,
-        (side * Math.PI) / 2,
-      );
-      this.panel(forest ? 'cabin' : 'inn', x, 1.68, z + side * 2.406, 5, 3.26, side > 0 ? 0 : Math.PI);
-      this.block(x + side * 1.38, 4.1, z, 3.54, 0.19, 5.64, 0x4d5948, 0, -side * 0.603);
-      this.block(x + side * 2.81, 3.13, z, 0.13, 0.19, 5.77, 0x534432);
-      for (const front of [-1, 1])
-        this.block(x + side * 1.39, 4.08, z + front * 2.82, 3.56, 0.15, 0.13, 0x594431, 0, -side * 0.603);
+      const front = z + side * 2.43,
+        skin = z + side * 2.49;
+      this.block(x, 3.18, front, 5.12, 0.21, 0.17, timber);
+      this.block(x, 2.43, front, 5.1, 0.13, 0.15, timber);
+      for (const u of [-2.38, 0, 2.38]) this.block(x + u, 1.75, front, 0.14, 2.88, 0.13, timber);
+      for (const u of [-1.76, 1.71])
+        this.block(x + u, 2.8, front, 0.12, 0.91, 0.13, timber, 0, u > 0 ? -0.63 : 0.63);
+      this.block(x + side * 2.49, 1.82, z, 0.16, 2.91, 0.18, timber);
+      this.block(x + side * 2.49, 2.43, z, 0.14, 0.13, 4.85, timber);
+      this.block(x + side * 2.49, 3.18, z, 0.19, 0.2, 4.99, timber);
+      for (const u of [-1.55, 1.55]) {
+        const xx = x + side * 2.53,
+          zz = z + u;
+        this.block(xx, 1.76, zz, 0.12, 1.18, 0.91, timber);
+        this.block(xx + side * 0.059, 1.79, zz, 0.05, 0.94, 0.67, 0x364842);
+        this.block(xx + side * 0.084, 1.76, zz, 0.055, 0.07, 0.7, 0x87704d);
+        this.block(xx + side * 0.084, 1.77, zz, 0.055, 0.96, 0.055, 0x87704d);
+        this.block(xx + side * 0.07, 1.13, zz, 0.25, 0.1, 1.02, 0x795f42);
+      }
+      const door = x + (j % 2 ? -0.99 : 0.96),
+        win = x - (j % 2 ? -1.24 : 1.24);
+      this.block(door, 1.13, skin, 1.08, 2.26, 0.15, timber);
+      this.block(door, 1.07, skin + side * 0.09, 0.85, 2.04, 0.075, forest ? 0x795f42 : 0x6f5239);
+      for (const h of [0.54, 1.71])
+        this.block(door - 0.19, h, skin + side * 0.134, 0.42, 0.055, 0.034, 0x464a43);
+      this.block(door + 0.29, 1.04, skin + side * 0.157, 0.07, 0.13, 0.055, 0xa18c5e);
+      this.block(door, 0.075, skin + side * 0.24, 1.18, 0.15, 0.44, 0x716e60);
+      this.block(win, 1.67, skin, 1.03, 1.2, 0.14, timber);
+      this.block(win, 1.7, skin + side * 0.073, 0.81, 0.94, 0.067, 0x364842);
+      for (const delta of [-0.2, 0.2])
+        this.block(win + delta, 1.7, skin + side * 0.117, 0.044, 1.0, 0.047, 0x87704d);
+      this.block(win, 1.65, skin + side * 0.117, 0.87, 0.05, 0.048, 0x87704d);
+      this.block(win, 1.05, skin + side * 0.11, 1.17, 0.12, 0.23, 0x795f42);
+      if (j % 2 === 0)
+        for (const u of [-0.69, 0.69]) {
+          this.block(win + u, 1.7, skin, 0.29, 1.05, 0.08, 0x6f7565);
+          for (const h of [1.37, 2.0])
+            this.block(win + u, h, skin + side * 0.051, 0.26, 0.045, 0.03, 0x534432);
+        }
+      this.block(x + side * 1.38, 4.1, z, 3.54, 0.3, 5.65, roofing, 0, -side * 0.603);
+      this.block(x + side * 2.81, 3.13, z, 0.13, 0.19, 5.77, timber);
+      for (const e of [-1, 1])
+        this.block(x + side * 1.39, 4.08, z + e * 2.82, 3.56, 0.15, 0.13, timber, 0, -side * 0.603);
     }
     const gable = geometry([-2.5, 0, 0, 2.5, 0, 0, 0, 1.76, 0], [0, 0, 1, 0, 0.5, 1], [0, 1, 2]);
-    const material = this.mat(0x897454);
+    const material = this.mat(forest ? 0x897454 : plaster);
     for (const end of [-1, 1]) {
       const face = new THREE.Mesh(gable, material);
-      face.position.set(x, 3.27, z + end * 2.4);
+      face.position.set(x, 3.27 + (this.buildHeight || 0), z + end * 2.4);
+      const gableZ = z + end * 2.43;
+      this.block(x, 3.98, gableZ, 0.13, 1.57, 0.16, timber);
+      for (const dx of [-1, 1])
+        this.block(x + dx * 0.75, 3.75, gableZ, 0.105, 1.47, 0.15, timber, 0, dx * 0.76);
       face.rotation.y = end < 0 ? Math.PI : 0;
       face.castShadow = true;
       this.scene.add(face);
@@ -77,6 +114,58 @@ class Borderlands extends FrontierLandscape {
   castle(x, z, dark) {
     super.castle(x, z, dark);
     const stone = dark ? 0x585956 : 0x969384;
+    // Voussoirs, corbels and arrow loops give the gatehouse a readable scale from the road.
+    for (let i = 0; i < 15; i++) {
+      const a = (Math.PI * (i + 0.5)) / 15,
+        r = 3.12;
+      this.block(
+        x + r * Math.cos(a),
+        2.25 + r * Math.sin(a),
+        z - 4.17,
+        0.67,
+        0.52,
+        0.52,
+        stone,
+        0,
+        a - Math.PI / 2,
+      );
+    }
+    for (const side of [-1, 1]) {
+      for (const [dz, r, height] of [
+        [-5, 1.85, 6],
+        [-15, 2.55, 8],
+      ]) {
+        const towerX = x + side * 12,
+          towerZ = z + dz;
+        this.put(this.log, stone, towerX, 1.0, towerZ, r * 1.046, 0.23, r * 1.046);
+        this.put(this.log, stone, towerX, height - 1.17, towerZ, r * 1.07, 0.26, r * 1.07);
+        for (let j = 0; j < 10; j++) {
+          const a = (j * Math.PI) / 5,
+            dx = Math.sin(a),
+            dz = Math.cos(a);
+          this.block(
+            towerX + dx * r * 0.99,
+            height - 0.72,
+            towerZ + dz * r * 0.99,
+            0.33,
+            0.5,
+            0.36,
+            stone,
+            a,
+          );
+          if (j % 2 === 0) {
+            this.block(towerX + dx * r, 3.31, towerZ + dz * r, 0.18, 1.02, 0.1, 0x454944, a);
+            this.block(towerX + dx * r, 3.03, towerZ + dz * r, 0.42, 0.12, 0.1, 0x454944, a);
+          }
+        }
+      }
+      for (let j = 0; j < 3; j++) {
+        const cz = z - 7.2 - 2.9 * j;
+        this.block(x + side * 12.32, 1.83, cz, 0.69, 3.66, 0.72, stone);
+        this.block(x + side * 12.4, 0.44, cz, 0.84, 0.88, 0.9, stone);
+        this.block(x + side * 12.37, 3.69, cz, 0.77, 0.18, 0.84, stone);
+      }
+    }
     // A second curtain and a roofed hall rise in tiers behind the outer gate.
     this.block(x, 5.2, z - 22.6, 14.2, 10.4, 5.2, stone);
     this.block(x, 10.5, z - 22.6, 14.7, 0.66, 5.7, stone);
@@ -254,10 +343,14 @@ class Borderlands extends FrontierLandscape {
     this.part(g, this.box, 0x594431, 0, 0.12, 0, 0.64, 0.1, 0.38, 0.12);
     this.part(g, this.log, 0xb9764d, 0.03, 0.23, 0.1, 0.13, 0.05, 0.13);
     g = add(places.rider, (s) => !s.story.aid && ['trail', 'choice'].includes(s.story.phase));
-    const rider = this.person('spy');
+    const rider = this.person('merchant', 'scribe', true);
     g.add(rider);
-    rider.rotation.set(-1, 0.4, -0.31);
-    rider.position.y = 0.2;
+    poseCharacter(rider, 'sit', 1);
+    rider.rotation.y = 0.4;
+    // The witness sits on an overturned cargo chest beside the road.
+    this.part(rider, this.box, 0x897454, 0, 0.214, -0.32, 0.66, 0.428, 0.48);
+    for (const x of [-0.245, 0.245])
+      this.part(rider, this.box, 0x594431, x, 0.218, -0.32, 0.048, 0.436, 0.496);
     g = add(places.cache, (s) => s.story.branch === 'iron');
     for (const dx of [-0.48, 0.48]) this.part(g, this.box, 0x897454, dx, 0.45, 0, 0.88, 0.9, 1.1);
     this.part(g, this.box, 0xa28a5d, 0.28, 0.96, 0, 0.3, 0.09, 0.12);
@@ -342,24 +435,26 @@ class Borderlands extends FrontierLandscape {
     this.weatherTick = 0;
   }
   updateAtmosphere(s, t) {
+    cameraFoliageClearance.value =
+      s.delivery && !s.delivery.seated ? 7.3 : prefs.camera === 'third' ? 3.35 : 0.55;
     const alpha =
       (1 - rimBlend(s.x, s.z)) *
       Math.min(1, Math.max(0, (s.x - 6) / 24)) *
       Math.min(1, Math.max(0, (s.z - 6) / 24));
     this.storm = alpha;
-    this.scene.fog.density = 0.012 + alpha * 0.004;
+    this.scene.fog.density = 0.0102 + alpha * 0.0036;
     const colors = (this.weatherColors ||= [
-      0xc7d3c5, 0xb5c9bd, 0xabb0c4, 0xffda9d, 0xd8d7ec, 0xd9e8ff, 0xb9c5dc,
+      0xcac9bc, 0xb9c2b6, 0xa8adba, 0xffe3b8, 0xd8dbe8, 0xd5e2f1, 0xbfcadb,
     ].map((c) => new THREE.Color(c)));
     const forest =
       THREE.MathUtils.smoothstep(-s.x, 0, 38) *
       THREE.MathUtils.smoothstep(s.z, 0, 37) *
       (1 - rimBlend(s.x, s.z));
     this.scene.fog.color.copy(colors[0]).lerp(colors[1], forest).lerp(colors[2], alpha);
-    this.sun.intensity = 2.25 - alpha * 1.37 - forest * 0.14;
+    this.sun.intensity = 2.05 - alpha * 1.16 - forest * 0.12;
     this.sun.color.copy(colors[3]).lerp(colors[4], alpha);
     this.skylight.color.copy(colors[5]).lerp(colors[6], alpha);
-    this.skylight.intensity = 1.28 + alpha * 0.22;
+    this.skylight.intensity = 1.37 + alpha * 0.16;
     this.skyMesh.material.color.setRGB(1 - alpha * 0.39, 0.97 - alpha * 0.29, 0.89 - alpha * 0.13);
     this.rain.visible = alpha > 0.16;
     this.rain.position.set(s.x, ground(s.x, s.z) + 4 - ((t * 7) % 4), s.z);

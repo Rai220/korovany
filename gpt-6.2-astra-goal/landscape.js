@@ -4,8 +4,8 @@
 const textures = new Map();
 function texture(name, source = materialImages) {
   if (textures.has(name)) return textures.get(name);
-  const tex = new THREE.TextureLoader().load(source[name]);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  const tex = new THREE.TextureLoader().load(trailImages[name] || source[name]);
+  tex.colorSpace = name.endsWith('-normal') ? THREE.NoColorSpace : THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.anisotropy = 4;
   textures.set(name, tex);
@@ -21,39 +21,67 @@ function creekDepth(x, z) {
 function walkingSurface(x, z) {
   return ground(x, z) - creekDepth(x, z);
 }
+// Project in metres so stone and timber retain their dimensions on stretched building instances.
 function projectedMaterial(name, tint, scale, metalness = 0) {
+  const bump = trailImages[name + '-normal'];
   const mat = new THREE.MeshStandardMaterial({
     color: tint,
     map: texture(name),
-    roughness: metalness ? 0.4 : 0.94,
+    roughness: metalness ? 0.46 : 0.94,
     metalness,
+    envMapIntensity: 0.51,
+    normalMap: bump ? texture(name + '-normal') : null,
   });
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader =
-      'varying vec3 vPlace;\nvarying vec3 vAxis;\n' +
+      'varying vec3 vPlace; varying vec3 vAxis;\n' +
       shader.vertexShader.replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
-    vec4 localSurface=vec4(transformed,1.);
-    vec3 localNormal=normal;
-    #ifdef USE_INSTANCING
-      localSurface=instanceMatrix*localSurface;
-      localNormal=mat3(instanceMatrix)*normal;
-    #endif
-    vPlace=(modelMatrix*localSurface).xyz;vAxis=normalize(mat3(modelMatrix)*localNormal);`,
+      vec4 localSurface = vec4(transformed, 1.);
+      vec3 localNormal = normal;
+      #ifdef USE_INSTANCING
+        localSurface = instanceMatrix * localSurface;
+        localNormal = mat3(instanceMatrix) * normal;
+      #endif
+      vPlace = (modelMatrix * localSurface).xyz;
+      vAxis = normalize(mat3(modelMatrix) * localNormal);`,
       );
     shader.fragmentShader =
-      'varying vec3 vPlace;varying vec3 vAxis;\n' +
+      'varying vec3 vPlace; varying vec3 vAxis;\n' +
       shader.fragmentShader.replace(
         '#include <map_fragment>',
-        `vec3 axis=abs(normalize(vAxis));vec2 planar=axis.y>.7?vPlace.xz:(axis.x>axis.z?vPlace.zy:vPlace.xy);
-    vec4 surface=texture2D(map,planar*${scale.toFixed(3)});diffuseColor*=surface;`,
+        `vec3 axis = abs(normalize(vAxis));
+      vec2 vertical = axis.x > axis.z ? vPlace.zy : vPlace.xy;
+      vec2 surfaceUV = (axis.y > .66 ? vPlace.xz : vertical) * ${scale.toFixed(4)};
+      vec4 surface = texture2D(map,surfaceUV);
+      float patina = .96 + .045 * sin(dot(vPlace,vec3(.41,.29,.23)));
+      diffuseColor.rgb *= surface.rgb * patina;`,
+      );
+    if (bump)
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        `vec3 embossed = texture2D(normalMap,surfaceUV).xyz * 2. - 1.;
+      embossed.xy *= .70;
+      normal = normalize(getTangentFrame(-vViewPosition,normal,surfaceUV) * embossed);`,
       );
   };
-  mat.customProgramCacheKey = () => name + scale;
+  mat.customProgramCacheKey = () => name + scale + !!bump;
   return mat;
 }
 const windClock = { value: 0 };
+const cameraFoliageClearance = { value: 0.55 };
+function fadeNearbyCrown(shader) {
+  shader.uniforms.cameraFoliageClearance = cameraFoliageClearance;
+  shader.fragmentShader =
+    'uniform float cameraFoliageClearance;\n' +
+    shader.fragmentShader.replace(
+      '#include <alphatest_fragment>',
+      `#include <alphatest_fragment>
+    float leafVisibility=smoothstep(cameraFoliageClearance,cameraFoliageClearance+1.25,length(vViewPosition));
+    if(leafVisibility<1. && leafVisibility<=fract(dot(gl_FragCoord.xy,vec2(.75487767,.56984029))))discard;`,
+    );
+}
 function foliageMaterial(name) {
   const mat = new THREE.MeshLambertMaterial({
     map: texture(name),
@@ -63,6 +91,7 @@ function foliageMaterial(name) {
   });
   const amplitude = name === 'bough' || name === 'pine' ? '.0023' : '.046';
   mat.onBeforeCompile = (s) => {
+    if (name === 'birch-spray') fadeNearbyCrown(s);
     s.uniforms.windClock = windClock;
     s.vertexShader =
       'uniform float windClock;\n' +
@@ -89,19 +118,26 @@ class FrontierLandscape extends RealmGeometry {
   prepareMaterials() {
     this.materialFamilies = new Map();
     const family = (hues, mat) => hues.forEach((h) => this.materialFamilies.set(h, mat));
-    family([0x969384, 0x716e60, 0x66685c, 0x585956, 0x777766], projectedMaterial('stone', 0xd3d2c1, 0.26));
-    family([0x4d5948, 0x654e3b, 0x43494a, 0x545e61], projectedMaterial('slate', 0xc5c5b2, 0.3));
+    family([0x969384, 0x716e60, 0x66685c, 0x585956, 0x777766], projectedMaterial('stone', 0xf1eee4, 0.63));
+    family([0x4d5948, 0x654e3b, 0x43494a, 0x545e61], projectedMaterial('slate', 0xe7eae6, 0.58));
     family(
       [0x897454, 0x967856, 0x826445, 0x795f42, 0x87704d, 0x785537, 0x6f5239],
-      projectedMaterial('wood', 0xe7d8bc, 0.35),
+      projectedMaterial('wood', 0xf2e7d4, 0.68),
     );
     family(
       [0x534432, 0x594431, 0x665644, 0x5a4434, 0x553d26, 0x4a4b3d, 0x4a4236],
-      projectedMaterial('wood', 0xa39c89, 0.55),
+      projectedMaterial('wood', 0xbeb3a1, 0.68),
     );
-    family([0x534936], projectedMaterial('bark', 0xcac1a4, 0.6));
+    family([0x534936], projectedMaterial('bark', 0xd2cec0, 0.64));
     family([0x746e63, 0x868577], projectedMaterial('scree', 0xb5b8a5, 1.36));
     family([0xd5c9aa, 0xd0bda0], projectedMaterial('linen', 0xd1c29d, 0.7));
+    family([0xc4b494, 0xb9a98d], projectedMaterial('lime', 0xf3ebdc, 0.81));
+    family([0x9b8760], projectedMaterial('thatch', 0xe7dfc9, 0.47));
+    for (const [tint, key] of [
+      [0x84917c, 'fieldstone'],
+      [0x786446, 'stump'],
+    ])
+      family([tint], new THREE.MeshStandardMaterial({ map: texture(key), roughness: 0.97 }));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.02;
     this.lightSites = [];
@@ -116,7 +152,7 @@ class FrontierLandscape extends RealmGeometry {
     const geo = new THREE.SphereGeometry(325, 64, 28);
     const mat = new THREE.MeshBasicMaterial({
       map: texture('sky'),
-      color: 0xfff4db,
+      color: 0xfffcf3,
       side: THREE.BackSide,
       fog: false,
       toneMapped: false,
@@ -124,7 +160,8 @@ class FrontierLandscape extends RealmGeometry {
     });
     // Compress the lower hemisphere so ridgelines sit above the playable horizon.
     const uv = geo.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setY(i, Math.min(1, Math.max(0, 0.52 + (uv.getY(i) - 0.5) * 1.65)));
+    for (let i = 0; i < uv.count; i++)
+      uv.setY(i, Math.min(1, Math.max(0, 0.476 + (uv.getY(i) - 0.5) * 0.94)));
     this.skyMesh = new THREE.Mesh(geo, mat);
     this.skyMesh.rotation.y = 1.18;
     this.scene.add(this.skyMesh);
@@ -148,17 +185,24 @@ class FrontierLandscape extends RealmGeometry {
           (abs < 28.8 ? abs * 0.3 : 8.64 + ((abs - 28.8) * (WORLD_LIMIT - 8.64)) / (WORLD_LIMIT - 28.8));
       p.setZ(i, z);
       p.setY(i, walkingSurface(x, z));
-      const tint = new THREE.Color([0xf2e6a9, 0xf6d4a8, 0xbade91, 0xd4bec4][zoneAt(x, z)]);
-      tint.lerp(new THREE.Color(0xdfebad), rimBlend(x, z));
+      const tint = new THREE.Color([0xf4f1df, 0xf8ece0, 0xdadfcd, 0xe3dfea][zoneAt(x, z)]);
+      tint.lerp(new THREE.Color(0xeae8da), rimBlend(x, z));
       tint.multiplyScalar(0.96 + 0.08 * Math.sin(((x * 14 + z * 9) * Math.PI) / WORLD_LIMIT));
       colors.push(tint.r, tint.g, tint.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ map: texture('soil'), roughness: 1, vertexColors: true });
+    const mat = new THREE.MeshStandardMaterial({
+      map: texture('soil'),
+      normalMap: texture('land-normal'),
+      roughness: 0.97,
+      envMapIntensity: 0.43,
+      vertexColors: true,
+    });
     mat.onBeforeCompile = (shader) => {
+      shader.uniforms.landShadow = { value: this.landShadow };
       shader.uniforms.trackMap = { value: texture('road') };
-      for (const name of ['meadow', 'scree', 'moss', 'cobbles'])
+      for (const name of ['meadow', 'scree', 'moss', 'cobbles', 'grit'])
         shader.uniforms[name] = { value: texture(name) };
       shader.vertexShader =
         'varying vec3 terrainPoint;\n' +
@@ -167,30 +211,56 @@ class FrontierLandscape extends RealmGeometry {
           '#include <begin_vertex>\nterrainPoint=position;',
         );
       shader.fragmentShader =
-        'uniform sampler2D trackMap,meadow,scree,moss,cobbles;varying vec3 terrainPoint;\n' +
+        'uniform sampler2D trackMap,meadow,scree,moss,cobbles,grit,landShadow;varying vec3 terrainPoint;\n' +
         shader.fragmentShader.replace(
           '#include <map_fragment>',
           `
-      vec2 pos=terrainPoint.xz,uv=pos*.26;
-      vec3 soil=texture2D(map,uv).rgb;soil=mix(soil,texture2D(map,mat2(.866,.5,-.5,.866)*uv*.61).rgb,.27);
-      float wav=sin(pos.x*.64+pos.y*.56)*.34+sin(pos.x*1.73-pos.y*1.3)*.15;
-      vec2 dist=abs(abs(pos)-50.);float road=1.-smoothstep(1.95,3.55,min(dist.x,dist.y)+wav);
-      vec3 dirt=texture2D(trackMap,pos*.25).rgb;
-      float ruts=smoothstep(.12,.27,abs(min(dist.x,dist.y)-.84+wav*.2));
-      float palace=smoothstep(33.,53.,pos.x)*(1.-smoothstep(-33.,-12.,pos.y));
-      float forest=(1.-smoothstep(-12.,3.,pos.x))*smoothstep(-5.,15.,pos.y);
-      float mountain=smoothstep(5.,32.,pos.x)*smoothstep(4.,29.,pos.y);
-      float growth=clamp(.58+.26*sin(pos.x*.27+pos.y*.2)+.16*sin(pos.x*.15-pos.y*.69),.15,.93);
+      vec2 pos=terrainPoint.xz;
+      float wav=sin(pos.x*.36+pos.y*.49)*.24+sin(pos.x*1.93-pos.y*.79)*.12;
+      vec2 dist=abs(abs(pos)-50.);
+      float crossroad=min(dist.x,dist.y);
+      float road=(1.-smoothstep(2.02,3.41,crossroad+wav))*(1.-smoothstep(76.,126.,length(vViewPosition)));
+      float wheel=abs(crossroad-.89+wav*.19);
+      float rut=1.-smoothstep(.105,.35,wheel);
+      float palace=smoothstep(30.,51.,pos.x)*(1.-smoothstep(-39.,-14.,pos.y));
+      float forest=(1.-smoothstep(-13.,4.,pos.x))*smoothstep(-6.,17.,pos.y);
+      float mountain=smoothstep(6.,30.,pos.x)*smoothstep(6.,29.,pos.y);
       float rim=smoothstep(95.,137.,max(abs(pos.x),abs(pos.y))); forest*=1.-rim;mountain*=1.-rim;palace*=1.-rim;
-      vec3 wild=mix(soil,texture2D(meadow,pos*.31).rgb,growth);
-      wild=mix(wild,mix(soil,texture2D(moss,pos*.36).rgb,growth),forest);
-      wild=mix(wild,texture2D(scree,pos*.225).rgb,mountain*.92);
+      float grassCover=.5+.26*sin(pos.x*.23+pos.y*.17)+.14*sin(pos.x*.41-pos.y*.3)+.09*sin(pos.y*.83);
+      vec2 guv=pos*.46, ruv=pos*.48, suv=pos*.42, cuv=pos*.54;
+      vec3 earth=texture2D(map,pos*.51).rgb;
+      vec3 grass=texture2D(meadow,guv).rgb;
+      vec3 duff=texture2D(moss,pos*.44).rgb;
+      vec3 cobble=texture2D(cobbles,cuv).rgb;
+      vec3 packedDirt=texture2D(trackMap,ruv).rgb;
+      vec3 gravel=texture2D(grit,pos*.285).rgb;
+      vec3 rock=texture2D(scree,suv).rgb;
+      vec3 wild=mix(earth,grass*(.89+.16*grassCover),.52+.45*grassCover);
+      wild=mix(wild,mix(earth,duff,.48+.34*grassCover),forest*.88);
+      wild=mix(wild,rock,mountain*(.48+.43*grassCover));
       float creek=sin(pos.x*.08726646)*2.8+sin(pos.x*.10908308)*.7;
-      float bank=(1.-smoothstep(1.76,3.05,abs(pos.y-creek)+.13*wav))*smoothstep(2.8,3.6,dist.x);
-      wild=mix(wild,texture2D(scree,pos*.61).rgb*vec3(.81,.92,.84),bank);
-      dirt=mix(dirt,texture2D(cobbles,pos*.24).rgb,palace*.94);
-      diffuseColor.rgb*=mix(wild*1.18,dirt*mix(.69,1.13,ruts),road);`,
+      float bank=(1.-smoothstep(1.6,3.18,abs(pos.y-creek)+wav*.17))*smoothstep(2.8,3.6,dist.x);
+      wild=mix(wild,rock*vec3(.79,.84,.80),bank);
+      float grassStrip=(1.-smoothstep(.09,.62,crossroad+.18*wav))*(.09+.13*grassCover);
+      vec3 roadColor=mix(packedDirt,gravel,.46+.32*grassCover-.22*rut);
+      roadColor=mix(roadColor*(1.-rut*.28),grass,grassStrip);
+      roadColor=mix(roadColor,cobble*(1.-.09*rut),palace*.96);
+      float macro=.965+.055*sin(dot(pos,vec2(.041,-.063)))+.043*sin(dot(pos,vec2(.115,.097)));
+      float exposure=texture2D(landShadow,pos/288.+.5).r;
+      diffuseColor.rgb*=mix(wild,roadColor,road)*macro*mix(.34,1.,exposure);`,
         );
+      // Four normal maps share one sampler. Relief uses the same masks as the visible materials.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_maps>',
+        `
+        vec3 meadowN=texture2D(normalMap,fract(guv)*.495+vec2(.0025,.5025)).xyz;
+        vec3 roadN=texture2D(normalMap,fract(ruv)*.495+.5025).xyz;
+        vec3 rockN=texture2D(normalMap,fract(suv)*.495+.0025).xyz;
+        vec3 cobbleN=texture2D(normalMap,fract(cuv)*.495+vec2(.5025,.0025)).xyz;
+        vec3 grain=mix(mix(meadowN,rockN,max(mountain,bank)),mix(roadN,cobbleN,palace),road)*2.-1.;
+        grain.xy*=.64*(1.-smoothstep(19.,48.,length(vViewPosition)));
+        normal=normalize(getTangentFrame(-vViewPosition,normal,pos)*grain);`,
+      );
     };
     const land = new THREE.Mesh(g, mat);
     land.receiveShadow = true;
@@ -392,8 +462,31 @@ class FrontierLandscape extends RealmGeometry {
         this.block(x + k * 3.72, 3.53, z + 8, 0.65, 0.12, 0.12, 0x534432);
         this.lantern(x + k * 3.45, z + 8, 3.05);
       }
-      for (let j = 0; j < 4; j++)
-        this.put(this.log, 0x897454, x - 9.5, 0.3 + j * 0.29, z + 5.9, 0.22, 2.8, 0.22, 0, 0, Math.PI / 2);
+      // Drying timber rests in a triangular pile, with the end grain visible at both ends.
+      const pileX = x - 9.5,
+        pileZ = z + 5.9;
+      for (let row = 0; row < 3; row++)
+        for (let column = 0; column < 4 - row; column++) {
+          const bx = pileX + (column - (3 - row) * 0.5) * 0.34,
+            h = 0.17 + row * 0.287;
+          const dz = (meadowHash(row, column, 11) - 0.5) * 0.22;
+          this.put(this.log, 0x534936, bx, h, pileZ + dz, 0.173, 2.63, 0.173, 0, 0, Math.PI / 2);
+          for (const side of [-1, 1])
+            this.put(
+              this.log,
+              0xb29b75,
+              bx,
+              h,
+              pileZ + dz + side * 1.32,
+              0.152,
+              0.019,
+              0.152,
+              0,
+              0,
+              Math.PI / 2,
+            );
+        }
+      this.bound(pileX, pileZ, 1.32, 2.63);
     }
     this.buildHeight = 0;
     for (const [cx, cz] of [CENTERS[0], CENTERS[2]])
@@ -422,8 +515,22 @@ class FrontierLandscape extends RealmGeometry {
       }
     }
     const [mx, mz] = [-73, -59];
-    this.put(this.log, 0x969384, mx, 3.4, mz, 3.1, 6.8, 3.1);
-    this.put(this.spire, 0x4d5948, mx, 7.7, mz, 3.4, 2.8, 3.4);
+    this.put(this.log, 0x969384, mx, 1.2, mz, 3.12, 2.4, 3.12);
+    const millBody = new THREE.CylinderGeometry(0.82, 1, 1, 16);
+    this.put(millBody, 0xc4b494, mx, 4.58, mz, 3.06, 4.36, 3.06);
+    for (let j = 0; j < 12; j++) {
+      const a = (j * Math.PI) / 6,
+        s = Math.sin(a),
+        c = Math.cos(a);
+      this.block(mx + s * 2.82, 4.58, mz + c * 2.82, 0.16, 4.38, 0.17, 0x534432, a, 0, -0.12);
+    }
+    for (const [h, r] of [
+      [2.49, 3.12],
+      [4.39, 2.88],
+      [6.53, 2.61],
+    ])
+      this.put(this.log, 0x594431, mx, h, mz, r, 0.16, r);
+    this.put(this.spire, 0x4d5948, mx, 7.69, mz, 2.92, 2.8, 2.92);
     this.bound(mx, mz, 5.2, 5.2);
     this.blades = new THREE.Group();
     this.blades.position.set(mx, 5.8, mz + 3.25);

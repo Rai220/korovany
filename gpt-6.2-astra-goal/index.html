@@ -4,22 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#171817" />
-    <title>Корованы: Дело о двух рогах — Gpt-6.2-Astra + Goal (gpt-6.2-astra)</title>
-    <link rel="preload" as="image" href="./assets/cover.webp" fetchpriority="high" />
-    <link rel="prefetch" as="image" href="./assets/atlas.webp" />
-    <link rel="icon" href="./assets/mark.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./style.css" />
-    <link rel="stylesheet" href="./edition.css" />
-    <link rel="stylesheet" href="./post.css" />
+    <title>Соляной тракт — Gpt-6.2-Astra + Goal (gpt-6.2-astra)</title>
+    <link rel="preload" as="image" href="./assets/cover.webp?v=salt2" fetchpriority="high" />
+    <link rel="prefetch" as="image" href="./assets/atlas.webp?v=salt2" />
+    <link rel="icon" href="./assets/mark.svg?v=salt2" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css?v=salt2" />
+    <link rel="stylesheet" href="./edition.css?v=salt2" />
+    <link rel="stylesheet" href="./post.css?v=salt2" />
+    <link rel="stylesheet" href="./salt.css?v=salt2" />
+    <script src="./boot.js?v=salt2"></script>
   </head>
   <body>
     <header class="bar">
       <div class="bar-inner">
-        <a class="brand" href="#campaign" aria-label="Корованы: Дело о двух рогах — Gpt-6.2-Astra + Goal"
+        <a class="brand" href="#campaign" aria-label="Соляной тракт — Gpt-6.2-Astra + Goal"
           ><span class="brand-mark" data-icon="brand"></span>
           <h1 class="brand-text">
-            <strong>Корованы</strong><small title="Модель gpt-6.2-astra">Gpt-6.2-Astra + Goal</small
-            ><span class="sr">Модель gpt-6.2-astra</span>
+            <strong>Соляной тракт</strong><small title="Издание Gpt-6.2-Astra + Goal">gpt-6.2-astra</small
+            ><span class="sr">Gpt-6.2-Astra + Goal</span>
           </h1></a
         >
         <nav aria-label="Главное меню">
@@ -28,8 +30,8 @@
           ><button id="help"><i data-icon="keys"></i>Управление</button>
         </nav>
         <div class="utilities">
-          <button id="audio" class="icon-button" aria-label="Включить звук" title="Включить звук"></button
-          ><button id="settings" class="icon-button" title="Настройки" aria-label="Настройки">⚙</button
+          <button id="audio" disabled class="icon-button" aria-label="Включить звук" title="Включить звук"></button
+          ><button id="settings" disabled class="icon-button" title="Настройки" aria-label="Настройки">⚙</button
           ><button id="full" class="icon-button" aria-label="Полный экран" title="Полный экран">
             <i data-icon="expand"></i>
           </button>
@@ -40,10 +42,11 @@
       <section id="campaign">
         <div class="title-scene">
           <div class="title-copy">
-            <span class="chapter-label">Молочная канцелярия Пограничья</span>
-            <h2>Дело о<br /><em>двух рогах</em></h2>
+            <span class="chapter-label">Хроники Пограничья</span>
+            <h2>Соляной<br /><em>тракт</em></h2>
             <p>
-              Бурёнку записали седьмой телегой и обложили налогом на колёса.<br />Она требует адвоката. Или клевер.
+              Семь телег вышли из леса. До мельницы дошли шесть.<br />По следу последнего обоза идут три
+              стороны.
             </p>
           </div>
         </div>
@@ -52,17 +55,23 @@
             <span class="chapter-label">Выберите свою сторону</span><span class="rule"></span>
           </div>
           <div id="factions" role="group" aria-label="Фракция героя"></div>
+          <p id="menu-error" role="alert" hidden></p>
           <div class="launch-line">
             <p id="hero-desc"></p>
             <div>
-              <button class="resume" id="resume">Продолжить</button
+              <button class="resume" id="resume" disabled>Продолжить</button
               ><button class="primary" id="begin" disabled>
                 <i data-icon="swords"></i><span id="start-label">Подготовка мира…</span
                 ><i data-icon="arrow"></i>
               </button>
             </div>
           </div>
-          <button class="post-race" id="post-race" type="button"><span><small>Молочная почта</small><strong>Почтовый перегон</strong><span>Доставьте шесть крынок через Соляной мост.</span></span><b>Взять вожжи <i data-icon="arrow"></i></b></button>
+          <button class="post-race" id="post-race" type="button" disabled>
+            <span
+              ><small>Дворцовая почта</small><strong>Почтовый перегон</strong
+              ><span>Проведите обоз с лекарством через пять застав.</span></span
+            ><b>Взять вожжи <i data-icon="arrow"></i></b>
+          </button>
         </div>
       </section>
       <section id="atlas">
@@ -76,13 +85,16 @@
       </section>
     </main>
     <footer id="footer">
-      <span><i class="tiny-diamond"></i> Корованы</span><span>Gpt-6.2-Astra + Goal</span>
+      <span><i class="tiny-diamond"></i> Соляной тракт</span><span>Gpt-6.2-Astra + Goal</span>
     </footer>
     <section id="play" hidden aria-label="Игровой мир">
       <div id="view"></div>
-      <div class="bearing" aria-hidden="true"><b id="compass-dir" class="sr">С</b><canvas id="trail-compass"></canvas></div>
+      <div class="bearing" aria-hidden="true">
+        <b id="compass-dir" class="sr">С</b><canvas id="trail-compass"></canvas>
+      </div>
       <div id="blind" hidden></div>
-      <div id="hurt"></div><div id="hit-arc"></div>
+      <div id="hurt"></div>
+      <div id="hit-arc"></div>
       <div class="cross"></div>
       <div id="chapter-toast" aria-live="polite"></div>
       <div id="subtitle" aria-live="polite"></div>
@@ -96,9 +108,19 @@
       </div>
       <button id="pause" class="hud-btn">Меню <kbd>Esc</kbd></button
       ><button id="map-key" class="hud-btn">Карта <kbd>M</kbd></button>
+      <button id="hero-view" class="hud-btn" title="Вид героя (T)">Камера <kbd>T</kbd></button>
       <button id="journal-key" class="hud-btn">Дневник <kbd>J</kbd></button>
-      <section id="post-hud" aria-label="Почтовый рейс"><div class="post-nav"><small id="post-stage"></small><strong id="post-target"></strong><span id="post-rule"></span></div><b id="post-bearing"></b></section>
-      <section id="post-dash" aria-label="Упряжка"><span><b id="post-speed">0</b><small>км/ч</small></span><span><b id="post-jars">6 / 6</b><small>крынки</small></span><span><b id="post-time">0:00.0</b><small>время</small></span></section>
+      <section id="post-hud" aria-label="Почтовый рейс">
+        <div class="post-nav">
+          <small id="post-stage"></small><strong id="post-target"></strong><span id="post-rule"></span>
+        </div>
+        <b id="post-bearing"></b>
+      </section>
+      <section id="post-dash" aria-label="Упряжка">
+        <span><b id="post-speed">0</b><small>км/ч</small></span
+        ><span><b id="post-jars">6 / 6</b><small>груз</small></span
+        ><span><b id="post-time">0:00.0</b><small>время</small></span>
+      </section>
       <button id="post-view" title="Сменить вид камеры (V)" aria-pressed="false">Камера <kbd>V</kbd></button>
       <button id="post-bell">Звонок <kbd>Пробел</kbd></button>
       <div id="event" role="status"></div>
@@ -111,7 +133,7 @@
       </div>
       <div class="hud hints">
         <span><kbd>ЛКМ</kbd> Удар</span><span><kbd>E</kbd> Действие</span><span><kbd>R</kbd> Блок</span
-        ><span><kbd>2</kbd> Лук</span><span><kbd>V</kbd> Позвать Бурёнку</span>
+        ><span><kbd>2</kbd> Лук</span><span><kbd>V</kbd> Позвать возницу</span>
       </div>
       <div id="touch-controls">
         <div id="stick" aria-label="Виртуальный джойстик"><i></i></div>
@@ -119,7 +141,8 @@
           <button data-key="Digit2">Оружие</button><button id="touch-block" type="button">Блок</button
           ><button data-key="KeyE">Действие</button><button data-key="Space">Прыжок</button
           ><button data-key="KeyH">Бинт</button><button data-key="KeyF">Удар</button
-          ><button data-key="KeyV" aria-label="Позвать Бурёнку">Му!</button><button data-key="KeyQ" id="touch-order">Приказ</button>
+          ><button data-key="KeyV" aria-label="Позвать возницу">Возница</button
+          ><button data-key="KeyQ" id="touch-order">Приказ</button>
         </div>
       </div>
     </section>
@@ -131,27 +154,36 @@
       <h2 id="dialog-title"></h2>
       <div id="dialog-body"></div>
     </dialog>
+    <div id="entry-loading" role="status" hidden>
+      <span>Соляной тракт</span><strong>Выходим на дорогу…</strong>
+    </div>
     <div id="message" role="status"></div>
-    <script src="./interface.js"></script>
-    <script src="./vendor/three.min.js"></script>
-    <script src="./assets/materials.js"></script>
-    <script src="./effects.js"></script>
-    <script src="./world.js"></script>
-    <script src="./landscape.js"></script>
-    <script src="./hamlets.js"></script>
-    <script src="./interiors.js"></script>
-    <script src="./county.js"></script>
-    <script src="./sculpt.js"></script>
-    <script src="./cast.js"></script>
-    <script src="./trails.js"></script>
-    <script src="./voice.js"></script>
-    <script src="./chronicle.js"></script>
-    <script src="./sound.js"></script>
-    <script src="./settings.js"></script>
-    <script src="./traffic.js"></script>
-    <script src="./dairy.js"></script>
-    <script src="./compass.js"></script>
-    <script src="./delivery.js"></script>
-    <script src="./game.js"></script>
+    <script src="./interface.js?v=salt2"></script>
+    <script src="./vendor/three.min.js?v=salt2"></script>
+    <script data-pack src="./assets/materials.js?v=salt2"></script>
+    <script src="./effects.js?v=salt2"></script>
+    <script src="./world.js?v=salt2"></script>
+    <script data-pack src="./assets/environment/trail-pack.js?v=salt2"></script>
+    <script src="./landscape.js?v=salt2"></script>
+    <script src="./hamlets.js?v=salt2"></script>
+    <script src="./interiors.js?v=salt2"></script>
+    <script src="./county.js?v=salt2"></script>
+    <script data-pack src="./assets/characters/cast-data.js?v=salt2"></script>
+    <script src="./characters.js?v=salt2"></script>
+    <script src="./sculpt.js?v=salt2"></script>
+    <script src="./cast.js?v=salt2"></script>
+    <script src="./trails.js?v=salt2"></script>
+    <script src="./voice.js?v=salt2"></script>
+    <script src="./cinematography.js?v=salt2"></script>
+    <script src="./chronicle.js?v=salt2"></script>
+    <script data-pack src="./assets/field/recordings.js?v=salt2"></script>
+    <script src="./field-sound.js?v=salt2"></script>
+    <script src="./sound.js?v=salt2"></script>
+    <script src="./settings.js?v=salt2"></script>
+    <script src="./traffic.js?v=salt2"></script>
+    <script src="./dairy.js?v=salt2"></script>
+    <script src="./compass.js?v=salt2"></script>
+    <script src="./delivery.js?v=salt2"></script>
+    <script src="./game.js?v=salt2"></script>
   </body>
 </html>

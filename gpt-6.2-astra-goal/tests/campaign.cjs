@@ -156,6 +156,7 @@ const { chromium } = require('playwright'),
     const starts = [];
     await install();
     await page.click('#begin');
+    await page.waitForFunction(() => active && Boolean(game), null, { polling: 50 });
     assert.equal(await ev(() => game.side), 0);
     await page.keyboard.down('w');
     const z = await ev(() => game.z);
@@ -194,7 +195,7 @@ const { chromium } = require('playwright'),
       await ev(() => {
         const c = game.actors.find((a) => a.tag === 'first');
         return (
-          world.actors.get(c.id).rotation.x < -1 &&
+          world.actors.get(c.id).userData.state === 'death' &&
           world.trees.some((t) => t.near) &&
           world.trees.some((t) => !t.near)
         );
@@ -205,6 +206,7 @@ const { chromium } = require('playwright'),
     await page.reload();
     await install();
     await page.click('#resume');
+    await page.waitForFunction(() => active && Boolean(game), null, { polling: 50 });
     assert.equal(await ev(() => game.coins), saved.coins);
     assert.equal(await ev(() => game.robbed), 1);
     console.log(
@@ -224,6 +226,7 @@ const { chromium } = require('playwright'),
     await leave();
     await page.click('.faction:nth-child(2)');
     await page.click('#begin');
+    await page.waitForFunction(() => active && Boolean(game), null, { polling: 50 });
     assert.ok(await ev(() => walkTo(() => goal().target)));
     await press('e');
     assert.equal(await ev(() => game.stage), 1);
@@ -247,6 +250,7 @@ const { chromium } = require('playwright'),
     await leave();
     await page.click('.faction:nth-child(3)');
     await page.click('#begin');
+    await page.waitForFunction(() => active && Boolean(game), null, { polling: 50 });
     await press('q');
     await page.click('#hold');
     const before = await ev(() => game.actors.filter((a) => a.team === 'friend').map((a) => [a.x, a.z]));
@@ -283,6 +287,7 @@ const { chromium } = require('playwright'),
       }, slot);
       await page.locator('.faction').nth(side).click();
       await page.click('#resume');
+      await page.waitForFunction(() => active && Boolean(game), null, { polling: 50 });
     }
     const visit = async () => {
       assert.ok(await ev(() => walkTo(() => goal().target, 2.4)), await ev(() => goal().text));

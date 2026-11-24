@@ -53,7 +53,7 @@ main {
   height: clamp(340px, 47vh, 630px);
   min-height: 335px;
   isolation: isolate;
-  background: #38463f url(./assets/cover.webp) center 13% / cover;
+  background: #38463f url(./assets/cover.webp?v=salt2) center 13% / cover;
 }
 .title-scene:after {
   content: '';
@@ -134,13 +134,13 @@ main {
     var(--face) right 33% / 45% auto no-repeat;
 }
 .faction:nth-child(1) {
-  --face: url(./assets/elf.webp);
+  --face: url(./assets/elf.webp?v=salt2);
 }
 .faction:nth-child(2) {
-  --face: url(./assets/guard.webp);
+  --face: url(./assets/guard.webp?v=salt2);
 }
 .faction:nth-child(3) {
-  --face: url(./assets/lord.webp);
+  --face: url(./assets/lord.webp?v=salt2);
 }
 .faction.on {
   background: #32372b;

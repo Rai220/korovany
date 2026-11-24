@@ -1,17 +1,9 @@
 'use strict';
 class Realm extends County {
-  person(kind, tag) {
-    const key = kind + (tag === 'healer' || tag === 'carter' ? tag : '');
-    this.peopleTemplates ||= new Map();
-    if (!this.peopleTemplates.has(key)) this.peopleTemplates.set(key, makeVillager(kind, tag));
-    const m = this.peopleTemplates.get(key).clone(true);
-    m.userData = {
-      legs: [0, 1].map((i) => m.getObjectByName('leg' + i)),
-      arms: [0, 1].map((i) => m.getObjectByName('arm' + i)),
-      knees: [0, 1].map((i) => m.getObjectByName('knee' + i)),
-    };
-    this.scene.add(m);
-    return m;
+  person(kind, tag, unarmed = false) {
+    const actor = appearance(kind, tag, unarmed);
+    this.scene.add(actor);
+    return actor;
   }
   makeShield() {
     if (!this.shieldGeo) {
@@ -88,39 +80,8 @@ class Realm extends County {
     sword.position.y = 0.13;
     this.weapon.add(sword);
     carved(this.weapon, (s) => {
-      const leatherBrown = 0x674838;
-      s.drum(0x66432e, 0, -0.015, 0, 0.039, 0.24, 0.042);
-      for (let i = 0; i < 9; i++) s.drum(0x967346, 0, -0.123 + i * 0.027, 0, 0.0405, 0.005, 0.043);
-      // Cupped palm and individually folded fingers close around the hilt.
-      s.oval(leatherBrown, 0.054, -0.035, 0.043, 0.075, 0.111, 0.049, -0.15, 0, -0.17);
-      for (let i = 0; i < 4; i++) {
-        const y = 0.058 - i * 0.047,
-          span = 0.056 - i * 0.003;
-        s.taper(0x805740, [0.058, y, 0.075], [-0.018, y - 0.004, 0.081], 0.026, 0.023);
-        s.oval(0x805740, -0.018, y - 0.004, 0.078, 0.026, 0.024, 0.028);
-        s.taper(leatherBrown, [-0.018, y - 0.004, 0.081], [-span, y - 0.012, 0.034], 0.024, 0.021);
-        s.oval(0x805740, -span, y - 0.013, 0.024, 0.021, 0.021, 0.026);
-        s.taper(0xb48660, [0.031, y + 0.014, 0.092], [0.007, y + 0.014, 0.094], 0.0026, 0.0026);
-      }
-      s.taper(0x805740, [0.085, -0.067, 0.067], [0.043, 0.008, 0.106], 0.034, 0.029);
-      s.taper(0x89644b, [0.043, 0.008, 0.106], [-0.017, 0.043, 0.104], 0.028, 0.02);
-      s.oval(leatherBrown, -0.021, 0.047, 0.102, 0.024, 0.02, 0.023);
-      s.taper(0x394f4b, [0.148, -0.324, 0.35], [0.061, -0.102, 0.084], 0.102, 0.066);
-      s.taper(0x6c4731, [0.131, -0.285, 0.296], [0.075, -0.139, 0.139], 0.1, 0.074);
-      for (let i = 0; i < 3; i++) {
-        const t = i * 0.38,
-          x = 0.077 + 0.047 * t,
-          y = -0.147 - 0.128 * t,
-          z = 0.145 + 0.141 * t;
-        s.taper(
-          i === 1 ? 0x49352a : 0x967346,
-          [x, y, z],
-          [x + 0.004, y - 0.013, z + 0.013],
-          0.079 + 0.016 * t,
-          0.08 + 0.016 * t,
-        );
-        s.oval(0xd4ab6d, x - 0.032, y + 0.035, z + 0.074, 0.01, 0.01, 0.008);
-      }
+      s.drum(0x66432e, 0, -0.015, 0, 0.026, 0.24, 0.028);
+      for (let i = 0; i < 9; i++) s.drum(0x967346, 0, -0.123 + i * 0.027, 0, 0.027, 0.004, 0.029);
       for (const sign of [-1, 1]) {
         const rail = [
           [0, 0.122, 0],
@@ -135,10 +96,11 @@ class Realm extends County {
         s.taper(0xd4ab6d, [sign * 0.014, 0.136, 0.018], [sign * 0.08, 0.131, 0.021], 0.003, 0.003);
       }
       s.oval(0xb89455, 0, 0.129, 0.003, 0.043, 0.047, 0.031);
-      s.oval(0x306b66, 0, 0.132, 0.032, 0.019, 0.024, 0.009);
+      s.oval(0x754339, 0, 0.132, 0.032, 0.019, 0.024, 0.009);
       s.oval(0xb89455, 0, -0.16, 0, 0.045, 0.045, 0.035);
-      s.oval(0x306b66, 0, -0.16, 0.029, 0.017, 0.02, 0.008);
+      s.oval(0x754339, 0, -0.16, 0.029, 0.017, 0.02, 0.008);
     });
+    this.weapon.add(swordHand());
     this.camera.add(this.weapon);
     this.shield = this.makeShield();
     this.camera.add(this.shield);
@@ -156,9 +118,10 @@ class Realm extends County {
           s.taper(0xad7542, path[i - 1], path[i], 0.033 - i * 0.003, 0.031 - i * 0.0038);
         s.taper(0xebd3a1, path[4], [0, 0, 0.3], 0.005, 0.005);
       }
-      s.oval(0x62432d, 0, -0.009, 0, 0.069, 0.113, 0.074);
-      s.taper(0x316957, [-0.22, -0.29, 0.21], [0, -0.034, 0.025], 0.1, 0.069);
     });
+    const bowGrip = swordHand();
+    bowGrip.scale.set(-0.86, 0.86, 0.86);
+    this.bow.add(bowGrip);
     this.camera.add(this.bow);
     this.arrow3d = new THREE.Group();
     this.part(this.arrow3d, this.log, 0x897454, 0, 0, 0, 0.012, 0.88, 0.012).rotation.x = Math.PI / 2;
@@ -273,35 +236,33 @@ class Realm extends County {
     }
     carved(g, (s) => {
       for (const side of [-1, 1]) {
-        s.box(0x167a77, side * 1.065, 1.59, 0, 0.1, 0.51, 3.26);
-        for (let j = 0; j < 10; j++) {
-          s.oval(copper, side * 1.122, 1.78, -1.41 + j * 0.318, 0.017, 0.031, 0.031);
-          s.taper(
-            j % 2 ? 0x319b91 : 0xd68746,
-            [side * 1.106, 1.45, -1.42 + j * 0.318],
-            [side * 1.13, 1.19, -1.42 + j * 0.318],
-            0.134,
-            0.006,
-          );
+        // Iron straps fasten each sideboard. Waxed rope holds down the wagon cover.
+        for (const z of [-1.42, 0, 1.42]) {
+          s.box(0x56564d, side * 1.094, 1.53, z, 0.032, 0.79, 0.107);
+          for (const y of [1.22, 1.76]) s.oval(0x969184, side * 1.116, y, z, 0.012, 0.021, 0.021);
         }
-        // Gilt cheese wheel with indented-looking spots on both sides of the dray.
-        s.oval(0xf2ac3a, side * 1.132, 1.61, 0, 0.088, 0.28, 0.37);
-        for (const [y, z] of [
-          [1.66, 0.17],
-          [1.55, -0.12],
-          [1.73, -0.08],
-        ])
-          s.oval(0xa66524, side * 1.208, y, z, 0.012, 0.039, 0.05);
+        for (const z of [-1.34, -0.43, 0.43, 1.34]) {
+          s.taper(0x8e7b58, [side * 1.122, 1.88, z - 0.12], [side * 1.095, 1.49, z], 0.011, 0.011);
+          s.taper(0x8e7b58, [side * 1.095, 1.49, z], [side * 1.122, 1.88, z + 0.12], 0.011, 0.011);
+        }
         s.taper(leather, [side * 0.72, 1.25, 1.43], [side * 0.73, 1.27, 2.48], 0.037, 0.038);
       }
       for (const side of [-1, 1]) {
         s.drum(0xbac0b2, side * 0.53, 1.82, 0.97, 0.193, 0.46, 0.193);
         s.taper(0xbbc7ba, [side * 0.53, 2.03, 0.97], [side * 0.53, 2.14, 0.97], 0.193, 0.11);
         s.drum(0x936540, side * 0.53, 2.17, 0.97, 0.124, 0.068, 0.124);
-        s.oval(0xeac180, side * 0.65, 1.78, -1.1, 0.32, 0.3, 0.39);
+        s.oval(0xa89b7c, side * 0.65, 1.7, -1.1, 0.32, 0.3, 0.39);
       }
-      s.box(0x267e79, 0, 2.86, 0, 0.21, 0.095, 3.27);
+      s.box(0x66553f, 0, 2.86, 0, 0.075, 0.05, 3.27);
     });
+    const stamp = saltStamp(),
+      plaque = new THREE.PlaneGeometry(0.87, 0.37);
+    for (const side of [-1, 1]) {
+      const mark = new THREE.Mesh(plaque, stamp);
+      mark.rotation.y = side * Math.PI * 0.5;
+      mark.position.set(side * 1.128, 1.55, -0.64);
+      g.add(mark);
+    }
     this.travelPhase = 0;
   }
   animateTeam(w, t) {
@@ -379,15 +340,6 @@ class Realm extends County {
     this.bow.scale.setScalar(0.91);
     this.bow.position.set(-grip * 0.93, -0.18 + bob * 0.28, -0.86);
     this.bow.rotation.set(0.06 - arc * 0.12, 0.41, -0.19);
-    for (const a of s.actors) {
-      const m = this.actors.get(a.id);
-      if (!m?.visible) continue;
-      m.userData.knees.forEach(
-        (k, i) =>
-          (k.rotation.x =
-            a.hp > 0 && a.walk ? 0.48 * Math.max(0, Math.sin(t * 8 + a.id + i * Math.PI)) : 0.06),
-      );
-    }
     this.arrow3d.visible = !!s.arrow;
     if (s.arrow) {
       const a = s.arrow;

@@ -1,162 +1,72 @@
 'use strict';
 
 const dairies = [
-  { x: -126, z: -53, title: 'Маслобойня', stamp: 'кусок масла', color: 0xeeb652 },
-  { x: 54, z: -124, title: 'Палата удоев', stamp: 'мерная кружка', color: 0x4383aa },
-  { x: -54, z: 123, title: 'Клеверный стан', stamp: 'лист клевера', color: 0x339377 },
-  { x: 124, z: 54, title: 'Сырный редут', stamp: 'сырная голова', color: 0xa65d7c },
+  { x: -126, z: -53, title: 'Западная переправа', stamp: 'ладья', color: 0xeeb652 },
+  { x: 54, z: -124, title: 'Северная застава', stamp: 'башня', color: 0x4383aa },
+  { x: -54, z: 123, title: 'Лесной дозор', stamp: 'ветвь', color: 0x339377 },
+  { x: 124, z: 54, title: 'Горный редут', stamp: 'ворон', color: 0xa65d7c },
 ];
 
-// Uneven overlapping whorls enclose an actual volume, even in the lowest tree LOD.
-function pineCrown(rings, sides, broad) {
-  const pos = [],
-    col = [],
-    idx = [];
-  function ring(y, rad, level, tier, brightness) {
-    const first = pos.length / 3;
-    for (let j = 0; j < sides; j++) {
-      const a = (j * Math.PI * 2) / sides + level * 0.91;
-      const bump = 1 + 0.11 * Math.sin(j * 5.2 + level * 3.1);
-      const uneven = tier === 1 ? 0.026 * Math.cos(j * 2.8 + level) : 0;
-      pos.push(Math.sin(a) * rad * bump, y + uneven, Math.cos(a) * rad * bump);
-      const color = new THREE.Color(broad ? 0x9eaf55 : 0x62895e);
-      color.multiplyScalar(brightness * (0.91 + 0.12 * Math.sin(j * 1.9 + level)));
-      col.push(color.r, color.g, color.b);
+// The conifer canopy is partitioned into spatial cells from a scanned tree. At close range
+// separate branch clusters move against one another. Distant trees use three full portraits.
+function trailGeometry(name, lod) {
+  const source = trailModels[name][lod];
+  const decode = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0)).buffer;
+  const positions = Float32Array.from(new Int16Array(decode(source.pos)), (v) => v / 16000);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array(decode(source.idx)), 1));
+  if (source.uv) {
+    const uv = Float32Array.from(new Uint16Array(decode(source.uv)), (v) => v / 65535);
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const normals = new Float32Array(positions.length);
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i],
+        y = 0.52 + positions[i + 1] * 0.4,
+        z = positions[i + 2];
+      const length = Math.hypot(x, y, z);
+      normals.set([x / length, y / length, z / length], i);
     }
-    return first;
-  }
-  function link(low, high) {
-    for (let j = 0; j < sides; j++) {
-      const k = (j + 1) % sides;
-      idx.push(low + j, low + k, high + j, low + k, high + k, high + j);
-    }
-  }
-  for (let i = 0; i < rings; i++) {
-    const u = i / rings,
-      base = 0.19 + 0.68 * u,
-      width = (broad ? 0.32 : 0.235) * (1 - u * 0.81);
-    const a = ring(base + 0.025, width * 0.18, i, 0, 0.49 + i * 0.045);
-    const b = ring(base, width, i, 1, 0.67 + i * 0.065);
-    const c = ring(base + (1 - base) * 0.49, width * 0.59, i, 2, 0.98 + i * 0.06);
-    const d = ring(i === rings - 1 ? 1 : base + (1 - base) * 0.81, 0.004, i, 3, 1.17);
-    link(a, b);
-    link(b, c);
-    link(c, d);
-  }
-  // Each bough is a closed, drooping tuft. The tips break the silhouette in every direction.
-  if (sides > 6)
-    for (let level = 0; level < 7; level++) {
-      const t = level / 7,
-        count = 13 - level,
-        r = 0.25 - 0.16 * t;
-      for (let j = 0; j < count; j++) {
-        const angle = (j * Math.PI * 2) / count + level * 2.38,
-          dx = Math.sin(angle),
-          dz = Math.cos(angle),
-          h = 0.235 + t * 0.7;
-        const len = r * (0.86 + 0.18 * Math.cos(level * 7 + j * 4)),
-          w = len * 0.31,
-          first = pos.length / 3;
-        for (const [rad, side, dy, shade] of [
-          [0.16, 0, 0.08, 1.05],
-          [0.62, w, 0.006, 0.93],
-          [1.03, 0, -0.047, 0.83],
-          [0.62, -w, 0.004, 0.91],
-          [0.55, 0, 0.046, 1.1],
-          [0.55, 0, -0.028, 0.65],
-        ]) {
-          pos.push(dx * rad * len + dz * side, h + dy, dz * rad * len - dx * side);
-          const c = new THREE.Color(j % 4 ? 0x648f63 : 0x749663).multiplyScalar(shade * (0.89 + 0.18 * t));
-          col.push(c.r, c.g, c.b);
-        }
-        for (const tri of [
-          [0, 1, 4],
-          [1, 2, 4],
-          [2, 3, 4],
-          [3, 0, 4],
-          [1, 0, 5],
-          [2, 1, 5],
-          [3, 2, 5],
-          [0, 3, 5],
-        ])
-          idx.push(...tri.map((k) => first + k));
-      }
-    }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
+    geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    if (lod === 'body') geo.computeVertexNormals();
+  } else geo.computeVertexNormals();
+  return geo;
 }
-
-function foliagePaint() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  let seed = 7854;
-  const random = () => {
-    seed = (1664525 * seed + 1013904223) >>> 0;
-    return seed / 4294967296;
+function trailFoliage(name, sway, threshold) {
+  const mat = new THREE.MeshLambertMaterial({
+    map: texture(name),
+    side: THREE.DoubleSide,
+    alphaTest: threshold,
+    emissiveMap: texture(name),
+    emissive: 0x8c9a81,
+    emissiveIntensity: 0.36,
+  });
+  mat.onBeforeCompile = (s) => {
+    s.uniforms.windClock = windClock;
+    s.vertexShader =
+      'uniform float windClock;\n' +
+      s.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+      float gust=sin(windClock*.89+instanceMatrix[3].x*.13+instanceMatrix[3].z*.16);
+      transformed.x += ${sway} * gust * transformed.y * transformed.y;
+      #endif`,
+      );
   };
-  ctx.fillStyle = '#797e66';
-  ctx.fillRect(0, 0, 256, 256);
-  for (let l = 0; l < 2800; l++) {
-    const x = random() * 256,
-      y = random() * 256,
-      r = 1 + random() * 6,
-      a = random() * 6.28;
-    const v = Math.round(89 + random() * 141);
-    ctx.fillStyle = 'rgb(' + v + ',' + (v + 4) + ',' + Math.round(v * 0.86) + ')';
-    for (const dx of x < 10 ? [0, 256] : x > 246 ? [0, -256] : [0])
-      for (const dy of y < 10 ? [0, 256] : y > 246 ? [0, -256] : [0]) {
-        ctx.beginPath();
-        ctx.ellipse(x + dx, y + dy, r, r * 0.48, a, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 4;
-  return tex;
-}
-function pineSprays(far = false) {
-  const p = [],
-    uv = [],
-    ix = [];
-  for (let l = 0; l < (far ? 7 : 11); l++) {
-    const v = l / (far ? 7 : 11),
-      n = Math.round((far ? 7 : 13) - (far ? 4 : 7) * v),
-      r = 0.255 * (1 - 0.86 * v);
-    for (let j = 0; j < n; j++) {
-      const a = (j * 2 * Math.PI) / n + l * 1.32,
-        dx = Math.sin(a),
-        dz = Math.cos(a);
-      const h = 0.25 + 0.75 * v + 0.019 * Math.sin(j * 9 + l * 6),
-        length = r * (0.93 + 0.13 * Math.sin(j * 4 + l));
-      const id = p.length / 3,
-        w = length * 0.49;
-      for (const [scale, side, dy] of [
-        [0.1, 0, 0.068],
-        [0.59, 1, 0.003],
-        [1.12, 0, -0.049],
-        [0.59, -1, 0.002],
-        [0.59, 0, 0.031],
-        [0.65, 0, -0.041],
-      ]) {
-        p.push(dx * length * scale + dz * w * side, h + dy, dz * length * scale - dx * w * side);
-      }
-      uv.push(0, 0.5, 0.54, 1, 1, 0.5, 0.54, 0, 0.54, 0.52, 0.58, 0.5);
-      for (const [i, k, m] of [
-        [0, 1, 4],
-        [1, 2, 4],
-        [2, 3, 4],
-        [3, 0, 4],
-      ])
-        ix.push(id + i, id + k, id + m);
-    }
-  }
-  return geometry(p, uv, ix);
+  // Thin leaves transmit skylight, including when the paper-thin back face points toward the camera.
+  const wind = mat.onBeforeCompile;
+  const fill = name.startsWith('fir') ? '.59' : '1.32';
+  mat.onBeforeCompile = (shader) => {
+    wind(shader);
+    if (name.startsWith('fir')) fadeNearbyCrown(shader);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'outgoingLight=max(outgoingLight,diffuseColor.rgb*' + fill + ');\n#include <opaque_fragment>',
+    );
+  };
+  mat.customProgramCacheKey = () => name + sway;
+  return mat;
 }
 // A silver birch has an irregular multi-leader crown. The same layout drives its wood and leaf fans.
 function birchCrown(fine) {
@@ -340,8 +250,11 @@ class County extends InteriorRealm {
             0,
             sign * 0.31,
           );
-      for (let k = 0; k < 4; k++)
-        this.put(this.log, 0xe7ab43, bx - 0.8 + k * 0.43, 1.2 + (k % 2) * 0.11, bz, 0.25, 0.28, 0.25);
+      for (let k = 0; k < 3; k++) {
+        const cx = bx - 0.82 + k * 0.68;
+        this.block(cx, 1.26, bz, 0.58, 0.36, 0.47, 0x897454);
+        for (const h of [-0.18, 0.18]) this.block(cx + h, 1.28, bz, 0.037, 0.38, 0.48, 0x514f48);
+      }
       this.bound(bx, bz, 2.55, 1.7);
       const sign = document.createElement('canvas');
       sign.width = 512;
@@ -353,9 +266,23 @@ class County extends InteriorRealm {
       q.lineWidth = 5;
       q.strokeRect(5, 5, 502, 90);
       q.fillStyle = '#ffe4a6';
-      q.font = 'bold 41px Georgia';
-      q.textAlign = 'center';
-      q.fillText(site.title.toUpperCase(), 256, 65, 480);
+      const emblems = {
+        ладья:
+          'M -26,7 Q 0,20 27,4 L 18,16 L -14,17 Z M -1,4 L -1,-23 L 2,-23 L 2,4 Z M 5,-21 Q 22,-13 20,0 L 5,-1 Z',
+        башня:
+          'M -17,18 L -14,-8 L -18,-10 L -18,-20 L -11,-20 L -11,-16 L -4,-16 L -4,-21 L 4,-21 L 4,-16 L 11,-16 L 11,-20 L 18,-20 L 18,-10 L 13,-8 L 16,18 L 4,18 L 4,8 Q 0,0 -4,8 L -4,18 Z',
+        ветвь:
+          'M -18,19 Q -1,6 14,-22 L 18,-24 Q 6,5 -16,23 Z M -9,10 Q -27,6 -21,-8 Q -8,-7 -9,10 M 0,0 Q -14,-6 -10,-18 Q 0,-18 0,0 M 1,1 Q 13,-9 22,-5 Q 17,7 1,1 M 8,-11 Q 21,-23 27,-17 Q 22,-9 8,-11',
+        ворон:
+          'M -27,9 Q -17,5 -11,-3 L -19,-13 L -4,-12 Q 5,-14 11,-11 Q 17,-14 19,-10 L 27,-6 L 19,-5 Q 17,2 8,6 L 6,16 L 11,19 L 6,19 L 2,17 L 2,10 L -3,13 L -4,19 L -11,20 L -7,15 L -6,7 L -19,13 Z',
+      };
+      q.save();
+      q.translate(43, 49);
+      q.fill(new Path2D(emblems[site.stamp]));
+      q.restore();
+      q.font = 'bold 38px Georgia';
+      q.textAlign = 'left';
+      q.fillText(site.title.toUpperCase(), 83, 63, 408);
       const tex = new THREE.CanvasTexture(sign);
       tex.colorSpace = THREE.SRGBColorSpace;
       const face = new THREE.MeshBasicMaterial({ map: tex });
@@ -393,10 +320,12 @@ class County extends InteriorRealm {
         dz ? 0.12 : 5.3,
       );
       this.buildHeight = 0;
-      // The brass wheel on a blue post is recognizable from both ends of the road.
+      // The bronze studs frame the coloured route marker.
       this.block(x, y + 1.5, z, 0.17, 3, 0.17, 0x514533);
-      this.put(this.log, color, x, y + 2.8, z, 0.52, 0.23, 0.52, 0, 0, Math.PI / 2);
-      this.put(this.head, 0xffc653, x, y + 2.82, z + 0.15, 0.31, 0.32, 0.08);
+      this.block(x, y + 2.7, z, 0.61, 0.75, 0.12, color);
+      for (const dx of [-0.21, 0.21])
+        for (const dy of [-0.27, 0.27])
+          this.put(this.head, 0xb79d69, x + dx, y + 2.7 + dy, z + 0.07, 0.024, 0.024, 0.015);
     }
     for (let i = 0; i < 350; i++) {
       const x = this.rnd() * PERIOD - WORLD_LIMIT,
@@ -410,59 +339,146 @@ class County extends InteriorRealm {
       this.trees.push({ x, z, y: ground(x, z), a: this.rnd() * 6.28, h: 5 + this.rnd() * 10 });
       this.bound(x, z, 0.63, 0.63);
     }
+    // Small groves fill the woodland beyond the settlement, leaving entrances and the archery deck clear.
+    for (let i = 0; i < 126; i++) {
+      const x = -101 + meadowHash(i, 71, 15) * 82,
+        z = 19 + meadowHash(i, 73, 24) * 86;
+      if (
+        Math.hypot(x + 50, z - 50) < 22 ||
+        Math.min(Math.abs(x + 50), Math.abs(z - 50)) < 4.3 ||
+        !this.free(x, z, 0.63) ||
+        Math.cos(x * 0.19 + z * 0.07) + Math.sin(z * 0.1) < -0.21
+      )
+        continue;
+      this.trees.push({
+        x,
+        z,
+        y: ground(x, z),
+        a: meadowHash(i, 1, 68) * 6.28,
+        h: 6 + meadowHash(i, 2, 22) * 12,
+      });
+      this.bound(x, z, 0.42, 0.42);
+    }
+    // Stands along the outer ridge break the crest into believable tree lines. Keep the trade lane open.
+    for (let i = 0; i < 165; i++) {
+      const x = 20 + meadowHash(i, 4, 73) * 78,
+        z = 81 + meadowHash(i, 6, 93) * 53;
+      const lane = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
+      if (lane < 4.3 || !this.free(x, z, 0.59) || Math.sin(x * 0.12 + z * 0.17) < -0.45) continue;
+      this.trees.push({
+        x,
+        z,
+        y: ground(x, z),
+        a: meadowHash(i, 1, 43) * 6.28,
+        h: 7.5 + meadowHash(i, 2, 3) * 9,
+      });
+      this.bound(x, z, 0.48, 0.48);
+    }
+    const stone = trailGeometry('fieldstone', 'body'),
+      stump = trailGeometry('stump', 'body');
+    const debris = [
+      [-45, -5, 1.2],
+      [-42, -3.8, 0.63],
+      [-59, 4.7, 1.1],
+      [-34, 1.1, 0.83],
+      [-40, -7.7, 1.4],
+      [28, 3.8, 1.2],
+      [59, 1.4, 1.65],
+      [76, 2.8, 0.98],
+      [-57, 67, 0.83],
+      [-38, 69, 0.68],
+      [43, -35, 0.84],
+      [71, 37, 1.09],
+      [80, 67, 1.32],
+      [26, 70, 0.91],
+    ];
+    for (const [x, z, k] of debris) {
+      if (!this.free(x, z, 0.85 * k)) continue;
+      this.put(stone, 0x84917c, x, walkingSurface(x, z) + 0.11 * k, z, k, k, k, x * 0.19);
+      this.bound(x, z, 1.4 * k, 1.13 * k);
+    }
+    for (const [x, z, k] of [
+      [-55, 68, 0.83],
+      [-66, 72, 0.7],
+      [-34, 66, 0.77],
+      [-58, 43, 0.67],
+      [-46, -29, 0.84],
+      [-28, 8, 0.74],
+    ]) {
+      if (!this.free(x, z, 0.64 * k)) continue;
+      this.put(stump, 0x786446, x, ground(x, z) + 0.15 * k, z, k, k, k, z * 0.21);
+      this.bound(x, z, 0.92 * k, 0.84 * k);
+    }
+  }
+  shadeGround() {
+    // Bake one periodic occlusion map so small-scale contact remains legible even in the light graphics preset.
+    const c = document.createElement('canvas');
+    c.width = c.height = 768;
+    const q = c.getContext('2d'),
+      unit = c.width / PERIOD;
+    q.fillStyle = '#ffffff';
+    q.fillRect(0, 0, c.width, c.height);
+    function shade(x, z, rx, rz, alpha) {
+      q.save();
+      q.translate((x + WORLD_LIMIT) * unit, (z + WORLD_LIMIT) * unit);
+      q.scale(rx * unit, rz * unit);
+      const grad = q.createRadialGradient(0, 0, 0, 0, 0, 1);
+      grad.addColorStop(0, 'rgba(10,10,10,' + alpha + ')');
+      grad.addColorStop(0.49, 'rgba(10,10,10,' + alpha * 0.7 + ')');
+      grad.addColorStop(1, 'rgba(10,10,10,0)');
+      q.fillStyle = grad;
+      q.fillRect(-1, -1, 2, 2);
+      q.restore();
+    }
+    for (const [x1, x2, z1, z2] of this.obstacles) {
+      const w = x2 - x1,
+        d = z2 - z1;
+      shade(
+        (x1 + x2) / 2,
+        (z1 + z2) / 2,
+        Math.max(0.65, w * 0.69 + 0.35),
+        Math.max(0.65, d * 0.69 + 0.35),
+        0.74,
+      );
+    }
+    for (const v of this.trees) shade(v.x + 0.28, v.z + 0.26, v.h * 0.16 + 0.5, v.h * 0.14 + 0.4, 0.32);
+    this.landShadow = new THREE.CanvasTexture(c);
+    this.landShadow.flipY = false;
+    this.landShadow.wrapS = this.landShadow.wrapT = THREE.RepeatWrapping;
   }
   treeMeshes() {
-    const wood = this.mat(0x534936),
-      leaf = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-    const flecks = foliagePaint();
-    leaf.onBeforeCompile = (shader) => {
-      shader.uniforms.flecks = { value: flecks };
-      shader.vertexShader =
-        'varying vec3 crownPoint;\n' +
-        shader.vertexShader.replace(
-          '#include <begin_vertex>',
-          '#include <begin_vertex>\n crownPoint=position;',
-        );
-      shader.fragmentShader =
-        'uniform sampler2D flecks;varying vec3 crownPoint;\n' +
-        shader.fragmentShader.replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-        vec2 uv=vec2(crownPoint.x+.57*crownPoint.z,crownPoint.y-.38*crownPoint.z);
-        float fleck=texture2D(flecks,uv*8.1).r;
-        float broad=texture2D(flecks,uv*.94).r;
-        diffuseColor.rgb*=(.56+.76*fleck)*(.76+.39*broad);`,
-        );
-    };
-    const n = this.trees.length,
-      nearBirch = birchCrown(true),
+    this.shadeGround();
+    const n = this.trees.length;
+    const nearBirch = birchCrown(true),
       farBirch = birchCrown(false);
     const birchLeaves = foliageMaterial('birch-spray');
     birchLeaves.vertexColors = true;
-    birchLeaves.color.setHex(0xe9edda);
+    birchLeaves.color.setHex(0xdfe5d3);
     birchLeaves.alphaTest = 0.29;
     const branches = new THREE.MeshLambertMaterial({ vertexColors: true });
     const batch = (geo, mat) => new THREE.InstancedMesh(geo, mat, n);
+    const wood = this.mat(0x534936);
+    const fir = trailFoliage('fir_tree_01', '.0028', 0.21);
+    const young = trailFoliage('fir_sapling', '.0045', 0.24);
     this.treeGroups = [
-      batch(new THREE.CylinderGeometry(0.32, 1, 1, 8), wood),
-      batch(pineCrown(7, 6, false), leaf),
-      batch(pineCrown(4, 6, false), leaf),
+      batch(trailGeometry('fir_tree_01', 'wood'), wood),
+      batch(trailGeometry('fir_tree_01', 'near'), fir),
+      batch(trailGeometry('fir_tree_01', 'far'), fir),
       batch(nearBirch.crown, birchLeaves),
       batch(farBirch.crown, birchLeaves),
-      batch(pineSprays(), foliageMaterial('bough')),
+      batch(trailGeometry('fir_sapling', 'near'), young),
       batch(nearBirch.wood, branches),
       batch(farBirch.wood, branches),
       batch(new THREE.CylinderGeometry(0.22, 0.74, 1, 9), this.birchBark()),
-      batch(pineSprays(true), foliageMaterial('bough')),
+      batch(trailGeometry('fir_sapling', 'far'), young),
+      batch(trailGeometry('fir_sapling', 'wood'), wood),
     ];
-    const tuft = meadowClump();
-    this.meadowGroups = ['pasture', 'daisies', 'bracken'].map((name) => {
-      const mat = foliageMaterial(name);
-      mat.alphaTest = 0.3;
-      mat.color.setHex(0xe0e1bf);
-      mat.emissiveMap = texture(name);
-      mat.emissive.setHex(0x6f8060);
-      mat.emissiveIntensity = 0.7;
+    const groundcover = [
+      [trailGeometry('grass_medium_01', 'far'), trailFoliage('grass_medium_01', '.04', 0.22)],
+      [meadowClump(), foliageMaterial('daisies')],
+      [trailGeometry('fern_02', 'near'), trailFoliage('fern_02', '.022', 0.31)],
+    ];
+    this.meadowGroups = groundcover.map(([tuft, mat]) => {
       const mesh = new THREE.InstancedMesh(tuft, mat, 5200);
       mesh.frustumCulled = false;
       mesh.receiveShadow = true;
@@ -531,11 +547,11 @@ class County extends InteriorRealm {
   meadow(px, pz) {
     const groups = this.meadowGroups,
       counts = [0, 0, 0],
-      cells = 160,
+      cells = 190,
       step = PERIOD / cells;
     const cx = Math.floor(px / step),
       cz = Math.floor(pz / step),
-      rad = prefs.quality === 'light' ? 12 : 18;
+      rad = prefs.quality === 'light' ? 14 : 22;
     if (this.meadowCell?.[0] === cx && this.meadowCell?.[1] === cz && this.meadowCell?.[2] === rad) return;
     this.meadowCell = [cx, cz, rad];
     for (let dz = -rad; dz <= rad; dz++)
@@ -544,7 +560,7 @@ class County extends InteriorRealm {
           gz = cz + dz,
           ix = ((gx % cells) + cells) % cells,
           iz = ((gz % cells) + cells) % cells;
-        for (let j = 0; j < 3; j++) {
+        for (let j = 0; j < 5; j++) {
           const x = (gx + meadowHash(ix, iz, j * 4 + 1)) * step,
             z = (gz + meadowHash(ix, iz, j * 4 + 2)) * step;
           const canonicalX = wrapped(x),
@@ -563,17 +579,17 @@ class County extends InteriorRealm {
             0.75 * Math.sin(canonicalZ * 0.33 - canonicalX * 0.12);
           const woods = zoneAt(x, z) === 2,
             scree = zoneAt(x, z) === 3;
-          if ((scree && rx > 0.3) || rx > (woods ? 0.71 : 0.87)) continue;
-          const kind = woods && patch > 0.07 ? 2 : patch > 0.66 && rx > 0.28 ? 1 : 0;
+          if ((scree && rx > 0.3) || rx > (woods ? 0.79 : 0.93)) continue;
+          const kind = woods && patch > 0.3 && rx < 0.31 ? 2 : patch > 1.02 && rx > 0.54 ? 1 : 0;
           const fade = Math.min(1, (rad * step - d) / 4);
           const h =
-            (kind === 2 ? 0.63 : kind === 1 ? 0.52 : 0.48) *
+            (kind === 2 ? 0.51 : kind === 1 ? 0.42 : 0.39) *
             (0.55 + 0.92 * meadowHash(ix, iz, j + 19)) *
             Math.min(1, Math.max(0.11, fade));
           if (counts[kind] >= groups[kind].instanceMatrix.count) continue;
           groups[kind].setMatrixAt(
             counts[kind]++,
-            this.matrix(x, ground(x, z) - 0.06, z, h * (kind === 2 ? 1.7 : 1.21), h, h, rx * 6.28),
+            this.matrix(x, ground(x, z) - 0.06, z, h * (kind === 2 ? 1.08 : 1.3), h, h * 1.14, rx * 6.28),
           );
         }
       }
@@ -597,23 +613,33 @@ class County extends InteriorRealm {
         h = v.h,
         d = Math.hypot(x - px, z - pz);
       v.near = d < 44;
-      if (d > 145) continue;
+      if (d > 176) continue;
       const broad = i % 5 === 1 || (zoneAt(v.x, v.z) === 2 && i % 5 === 2);
-      const id = 1 + (broad ? 2 : 0) + (v.near ? 0 : 1);
-      const trunk = broad ? 8 : 0;
-      this.treeGroups[trunk].setMatrixAt(
-        counts[trunk]++,
-        this.matrix(x, v.y + h * 0.36, z, 0.023 * h, h * 0.72, 0.023 * h),
-      );
-      const width = broad ? h * (0.84 + 0.2 * Math.sin(i)) : h * (0.41 + 0.11 * Math.sin(i * 4.2));
-      this.treeGroups[id].setMatrixAt(counts[id]++, this.matrix(x, v.y, z, width, h, width, v.a));
       if (broad) {
-        const branch = v.near ? 6 : 7;
-        this.treeGroups[branch].setMatrixAt(counts[branch]++, this.matrix(x, v.y, z, width, h, width, v.a));
+        const leaves = v.near ? 3 : 4,
+          limbs = v.near ? 6 : 7;
+        this.treeGroups[8].setMatrixAt(
+          counts[8]++,
+          this.matrix(x, v.y + h * 0.36, z, 0.023 * h, h * 0.72, 0.023 * h),
+        );
+        const w = h * (0.84 + 0.2 * Math.sin(i));
+        const pose = this.matrix(x, v.y, z, w, h, w, v.a);
+        this.treeGroups[leaves].setMatrixAt(counts[leaves]++, pose);
+        this.treeGroups[limbs].setMatrixAt(counts[limbs]++, pose);
       } else {
-        const wide = h * (0.86 + 0.2 * Math.sin(i * 3.3));
-        const needles = d < (prefs.quality === 'light' ? 30 : 52) ? 5 : 9;
-        this.treeGroups[needles].setMatrixAt(counts[needles]++, this.matrix(x, v.y, z, wide, h, wide, v.a));
+        const young = i % 5 === 0 || i % 7 === 3;
+        const near = d < (prefs.quality === 'light' ? 25 : 39);
+        const crown = young ? (near ? 5 : 9) : near ? 1 : 2;
+        const height = young
+          ? h * (0.43 + 0.18 * meadowHash(i, 8, 11))
+          : h * (0.86 + 0.15 * meadowHash(i, 3, 7));
+        const width = height * (0.93 + 0.22 * meadowHash(i, 4, 8));
+        const pose = this.matrix(x, v.y, z, width, height, width, v.a);
+        this.treeGroups[crown].setMatrixAt(counts[crown]++, pose);
+        if (near) {
+          const trunk = young ? 10 : 0;
+          this.treeGroups[trunk].setMatrixAt(counts[trunk]++, pose);
+        }
       }
     }
     this.treeGroups.forEach((m, i) => {

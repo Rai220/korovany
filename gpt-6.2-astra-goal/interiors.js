@@ -95,7 +95,7 @@ function insideInteract() {
       'Книга помола',
       0,
       'Старая помета',
-      '«Намол — сорок. Взыскано — восемьдесят. Седьмое колесо скрипит, будто на нём везут саму казну». Между листами застряла квитанция. Под рисунком волчьей печати Эльда обвела сколотый левый зубец.',
+      'В книге сорок мешков. В квитанции восемьдесят. Под сургучом остался отпечаток волчьей головы. У волка сколот левый клык.',
       [
         [
           'Переписать оттиск',
@@ -389,9 +389,14 @@ class InteriorRealm extends Borderlands {
       sc.add(this.camera);
       this.renderer.shadowMap.needsUpdate = true;
     }
+    if (this.camera.fov !== 68) {
+      this.camera.fov = 68;
+      this.camera.updateProjectionMatrix();
+    }
+    $('play').classList.remove('bow-focus');
     this.camera.position.set(
       s.roomX,
-      (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.83) + s.air + bob,
+      (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.71) + s.air + bob,
       s.roomZ,
     );
     this.camera.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
