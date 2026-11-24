@@ -3,7 +3,7 @@ const { readFile } = require('node:fs/promises');
 const { createServer } = require('node:http');
 const { extname, resolve, sep } = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 
 const edition = resolve(__dirname, '..');
 const types = {
@@ -24,8 +24,29 @@ async function serve() {
       const file = resolve(edition, name.slice(prefix.length) || 'index.html');
       if (!file.startsWith(edition + sep)) throw Error();
       const data = await readFile(file);
-      res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream' });
-      res.end(data);
+      const headers = {
+        'Content-Type': types[extname(file)] || 'application/octet-stream',
+        'Accept-Ranges': 'bytes',
+      };
+      const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+      if (range) {
+        const start = Number(range[1]);
+        const end = Math.min(range[2] ? Number(range[2]) : data.length - 1, data.length - 1);
+        if (end < start) {
+          res.writeHead(416, { 'Content-Range': 'bytes */' + data.length }).end();
+          return;
+        }
+        const slice = data.subarray(start, end + 1);
+        res.writeHead(206, {
+          ...headers,
+          'Content-Range': 'bytes ' + start + '-' + end + '/' + data.length,
+          'Content-Length': slice.length,
+        });
+        res.end(slice);
+      } else {
+        res.writeHead(200, { ...headers, 'Content-Length': data.length });
+        res.end(data);
+      }
     } catch {
       res.writeHead(404).end();
     }
@@ -166,9 +187,10 @@ async function main() {
   const host = process.env.GAME_URL ? null : await serve();
   let browser;
   try {
-    browser = await chromium.launch({
+    const engine = process.env.SCORE_BROWSER === 'webkit' ? webkit : chromium;
+    browser = await engine.launch({
       executablePath: process.env.BROWSER_EXECUTABLE || undefined,
-      args: ['--enable-webgl', '--enable-unsafe-swiftshader'],
+      args: engine === chromium ? ['--enable-webgl', '--enable-unsafe-swiftshader'] : [],
     });
     await run(browser, process.env.GAME_URL || host.url);
     await run(browser, pathToFileURL(resolve(edition, 'index.html')).href);

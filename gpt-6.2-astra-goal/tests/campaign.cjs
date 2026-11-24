@@ -11,17 +11,45 @@ const { chromium } = require('playwright'),
     const errors = [],
       external = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    page.on('request', (r) => {
-      if (
-        !r.url().startsWith(new URL('.', url).href) &&
-        !r.url().startsWith('data:') &&
-        !r.url().startsWith('blob:')
-      )
-        external.push(r.url());
-    });
     const url =
       process.env.GAME_URL ||
       require('node:url').pathToFileURL(require('node:path').resolve(__dirname, '../index.html')).href;
+    const base = new URL('.', url),
+      local = base.protocol === 'file:';
+    const session = await page.context().newCDPSession(page);
+    await session.send('Network.enable');
+    session.on('Network.requestWillBeSent', ({ request, initiator }) => {
+      const address = new URL(request.url);
+      if (['data:', 'blob:'].includes(address.protocol) || address.href.startsWith(base.href)) return;
+      // Attribute same-host requests to the game using the script stack. Managed browsers
+      // may load their own same-origin services alongside the document on a public host.
+      let stack = initiator.stack,
+        fromGame = false;
+      while (stack) {
+        fromGame ||= stack.callFrames.some((frame) => frame.url.startsWith(base.href));
+        stack = stack.parent;
+      }
+      if (
+        local ||
+        address.origin !== base.origin ||
+        fromGame ||
+        (initiator.url?.startsWith(base.href) && initiator.url.endsWith('.css'))
+      ) {
+        external.push(address.origin + address.pathname);
+      }
+    });
+    const html = await require('node:fs/promises').readFile(
+      require('node:path').resolve(__dirname, '../index.html'),
+      'utf8',
+    );
+    const sources = await page.evaluate((text) => {
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      return [...doc.querySelectorAll('[src],link[href]')].map(
+        (el) => el.getAttribute('src') || el.getAttribute('href'),
+      );
+    }, html);
+    assert.ok(sources.length > 10);
+    for (const source of sources) assert.ok(new URL(source, url).href.startsWith(base.href), source);
     await page.goto(url);
     await page.click('[data-page="atlas"]');
     await page.click('.region:nth-child(4)');
