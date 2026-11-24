@@ -6,35 +6,72 @@ class Realm extends County {
     return actor;
   }
   makeShield() {
-    if (!this.shieldGeo) {
-      const pos = [
-          -0.29, 0.36, 0, 0, 0.43, 0.085, 0.29, 0.36, 0, 0.25, -0.11, 0, 0, -0.43, 0.04, -0.25, -0.11, 0, 0,
-          0.02, 0.15,
-        ],
-        uv = [0, 0.9, 0.5, 1, 1, 0.9, 0.92, 0.35, 0.5, 0, 0.08, 0.35, 0.5, 0.55],
-        ix = [];
-      for (let i = 0; i < 6; i++) ix.push(i, (i + 1) % 6, 6);
-      this.shieldGeo = geometry(pos, uv, ix);
-    }
-    const g = new THREE.Group();
-    const m = new THREE.Mesh(
-      this.shieldGeo,
-      (this.shieldMaterial ||= new THREE.MeshStandardMaterial({
-        map: texture('wood'),
-        color: 0x80624b,
-        side: THREE.DoubleSide,
-        roughness: 0.75,
-      })),
-    );
-    g.add(m);
-    const rim = new THREE.LineSegments(
-      new THREE.EdgesGeometry(this.shieldGeo, 40),
-      new THREE.LineBasicMaterial({ color: 0xcead6d }),
-    );
-    g.add(rim);
-    this.part(g, this.head, 0xb29157, 0, 0.035, 0.155, 0.11, 0.11, 0.038);
-    this.part(g, this.box, 0x8f7653, 0, 0.03, 0.086, 0.054, 0.64, 0.036);
-    return g;
+    const shield = new THREE.Group(),
+      board = new THREE.Group();
+    // The handle lies at the origin. The wood and steel project away from the knuckles.
+    shield.add(board);
+    board.position.set(0, 0.045, -0.066);
+    const outline = [
+      [-0.211, 0.232],
+      [-0.105, 0.264],
+      [0, 0.244],
+      [0.105, 0.264],
+      [0.211, 0.232],
+      [0.205, 0.066],
+      [0.174, -0.085],
+      [0.097, -0.209],
+      [0, -0.299],
+      [-0.097, -0.209],
+      [-0.174, -0.085],
+      [-0.205, 0.066],
+    ];
+    const depth = (x) => -0.046 * (1 - (x / 0.22) ** 2);
+    const points = [],
+      uv = [],
+      tri = [];
+    outline.forEach(([x, y], i) => {
+      points.push(x, y, depth(x));
+      uv.push(0.5 + x / 0.46, 0.5 + y / 0.6);
+      tri.push(i, (i + 1) % outline.length, outline.length);
+    });
+    points.push(0, 0, -0.064);
+    uv.push(0.5, 0.5);
+    const wood = new THREE.Mesh(geometry(points, uv, tri), this.mat(0x897454));
+    board.add(wood);
+    wood.material = wood.material.clone();
+    wood.material.side = THREE.DoubleSide;
+    const front = wood.clone();
+    front.material = castSurface('arms', roleCostume('guard', 'hero'));
+    front.position.z = -0.019;
+    board.add(front);
+    carved(board, (s) => {
+      for (let i = 0; i < outline.length; i++) {
+        const [x, y] = outline[i],
+          [nx, ny] = outline[(i + 1) % outline.length];
+        s.taper(0x7994a2, [x, y, depth(x) - 0.009], [nx, ny, depth(nx) - 0.009], 0.012, 0.012);
+      }
+      for (const x of [-0.128, 0.128]) {
+        const z = depth(x) + 0.004;
+        s.taper(0x594431, [x, -0.109, z], [x, 0.198, z], 0.011, 0.011);
+        for (const y of [-0.08, 0.159]) s.oval(0xb7cccd, x, y, z + 0.012, 0.009, 0.009, 0.005);
+      }
+      // Leather enarme and iron staples sit on the inner side of the board.
+      s.taper(0x47392f, [0, -0.144, 0.05], [0, 0.096, 0.05], 0.019, 0.019);
+      for (const y of [-0.144, 0.096]) {
+        s.taper(0x464454, [0, y, -0.047], [0, y, 0.055], 0.011, 0.011);
+        s.oval(0x849095, 0, y, -0.035, 0.024, 0.022, 0.01);
+      }
+      const strap = [
+        [-0.12, -0.06, -0.014],
+        [-0.109, -0.065, 0.048],
+        [-0.083, -0.043, 0.088],
+        [-0.061, -0.005, 0.08],
+        [-0.056, 0.046, 0.012],
+        [-0.056, 0.055, -0.028],
+      ];
+      for (let i = 1; i < strap.length; i++) s.taper(0x67503e, strap[i - 1], strap[i], 0.014, 0.014);
+    });
+    return shield;
   }
   makeWeapon() {
     const pos = [],
@@ -100,7 +137,12 @@ class Realm extends County {
       s.oval(0xb89455, 0, -0.16, 0, 0.045, 0.045, 0.035);
       s.oval(0x754339, 0, -0.16, 0.029, 0.017, 0.02, 0.008);
     });
-    this.weapon.add(swordHand());
+    this.rightArm = new ViewArm();
+    this.leftArm = new ViewArm();
+    this.camera.add(this.rightArm.group, this.leftArm.group);
+    this.guardLift = { value: 0, speed: 0 };
+    this.guardKick = { value: 0, speed: 0 };
+    this.cutPose = new Float32Array(6);
     this.camera.add(this.weapon);
     this.shield = this.makeShield();
     this.camera.add(this.shield);
@@ -119,9 +161,6 @@ class Realm extends County {
         s.taper(0xebd3a1, path[4], [0, 0, 0.3], 0.005, 0.005);
       }
     });
-    const bowGrip = swordHand();
-    bowGrip.scale.set(-0.86, 0.86, 0.86);
-    this.bow.add(bowGrip);
     this.camera.add(this.bow);
     this.arrow3d = new THREE.Group();
     this.part(this.arrow3d, this.log, 0x897454, 0, 0, 0, 0.012, 0.88, 0.012).rotation.x = Math.PI / 2;
@@ -281,7 +320,7 @@ class Realm extends County {
     this.wagon.rotation.x = -Math.atan2(height(0, 1) - height(0, -1), 2);
     this.wagon.rotation.z = Math.atan2(height(1, 0) - height(-1, 0), 2);
     this.team.forEach((animal, i) => {
-      const { body, legs, head, tail } = animal.userData;
+      const { body, legs, head, tail, ears } = animal.userData;
       const x = animal.position.x,
         z = animal.position.z;
       animal.position.y =
@@ -293,6 +332,11 @@ class Realm extends County {
       head.rotation.x =
         0.028 * Math.sin(t * 2 + i) + Math.cos(phase * Math.PI * 2) * 0.046 * e + (answering ? -0.15 : 0);
       head.rotation.y = answering ? 0.28 * Math.sin(t * 2.1) : 0.065 * Math.sin(t * 0.91 + i);
+      for (const ear of ears) {
+        const side = ear.userData.side;
+        ear.rotation.y = side * (i ? 0.095 : 0.052) * Math.sin(t * (i ? 1.08 : 0.7) + side * 1.9 + i);
+        ear.rotation.z = side * 0.034 * Math.cos(t * 0.92 + i + side);
+      }
       tail.rotation.z = 0.26 * Math.sin(t * 2.2 + i) + 0.1 * Math.sin(t * 5 + i);
       for (const { hip, knee, foot, front, side } of legs) {
         const p = (phase + (side < 0 ? 0.5 : 0) + (front ? 0.74 : 0)) % 1;
@@ -311,35 +355,93 @@ class Realm extends County {
       }
     });
   }
+  hideHands() {
+    for (const o of [this.weapon, this.bow, this.shield, this.rightArm.group, this.leftArm.group])
+      o.visible = false;
+  }
+  receiveGuardHit(parry) {
+    this.guardKick.speed = Math.min(8.4, this.guardKick.speed + (parry ? 5.8 : 7.5));
+  }
+  updateHands(s, t, attackAnim = 0, bob = 0) {
+    this.hideHands();
+    const dt = THREE.MathUtils.clamp(t - (this.handTime ?? t - 1 / 60), 0, 0.12);
+    this.handTime = t;
+    if (s.health <= 0 || s.delivery) return;
+    const bow = s.weapon === 'bow',
+      blocking = !bow && s.blockTime > 0;
+    stepViewSpring(this.guardLift, blocking ? 1 : 0, blocking ? 21 : 16, dt);
+    stepViewSpring(this.guardKick, 0, 18, dt);
+    const lift = this.guardLift.value,
+      kick = this.guardKick.value;
+    const aspect = this.camera.aspect,
+      fov = this.camera.fov,
+      hand = s.arm === 'lost' ? -1 : 1;
+    const width = Math.min(0.267, 0.45 * Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect * 0.75);
+    const threatened =
+      attackAnim > 0 ||
+      blocking ||
+      (s.dungeon
+        ? dungeonState().foes.some((a) => a.hp > 0 && a.alert > 0)
+        : (s.actors || []).some((a) => a.hp > 0 && a.team === 'hostile' && distance(s, a) < 12));
+    this.loweredBlade = THREE.MathUtils.damp(
+      this.loweredBlade ?? (threatened ? 0 : 1),
+      threatened ? 0 : 1,
+      10,
+      dt,
+    );
+    if (bow) {
+      const release = Math.sin(attackAnim * Math.PI);
+      this.bow.visible = true;
+      this.bow.scale.setScalar(0.76);
+      this.bow.position.set(-width * 0.71, -0.112 + bob * 0.21, -0.527 + release * 0.025);
+      this.bow.rotation.set(0.025 - release * 0.075, 0.24, -0.12);
+      this.leftArm.place(this.bow, -1);
+      return;
+    }
+    const cut = this.cutPose,
+      peace = this.loweredBlade;
+    cutChannels(s.heavy ? fieldCuts.heavy : fieldCuts.light, 1 - attackAnim, cut);
+    this.weapon.visible = true;
+    this.weapon.scale.setScalar(0.78);
+    this.weapon.position.set(
+      hand * (width + cut[0] - 0.033 * lift),
+      -0.213 + cut[1] - 0.09 * peace + bob * 0.23 - 0.04 * lift,
+      -0.477 + cut[2] + 0.024 * peace,
+    );
+    const edge = -this.weapon.position.z * Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect * 0.77;
+    this.weapon.position.x = THREE.MathUtils.clamp(this.weapon.position.x, -edge, edge);
+    this.weapon.rotation.set(
+      -0.58 + cut[3] - 0.42 * peace - 0.18 * lift,
+      hand * (0.01 + cut[4]),
+      hand * (-0.16 + cut[5] - 0.16 * lift),
+    );
+    this.rightArm.place(this.weapon, hand, Math.min(1, attackAnim * 3));
+    if (lift > 0.003 || blocking) {
+      const shieldHand = -1;
+      if (s.arm === 'lost') {
+        this.weapon.visible = false;
+        this.rightArm.group.visible = false;
+      }
+      this.shield.visible = true;
+      this.shield.position.set(
+        shieldHand * (width * 1.12 - lift * 0.108),
+        -0.54 + lift * 0.435 + kick * 0.055 + bob * 0.16,
+        -0.313 - lift * 0.175 + kick * 0.29,
+      );
+      this.shield.rotation.set(
+        0.46 - lift * 0.39 + kick * 0.56,
+        shieldHand * (0.88 - lift * 0.52 + kick * 0.18),
+        shieldHand * (0.48 - lift * 0.37 + kick * 0.38),
+      );
+      this.leftArm.place(this.shield, shieldHand, lift);
+    }
+  }
   animateDetails(s, t, attackAnim, bob) {
     this.animateWeather(s, t);
     this.updateAtmosphere(s, t);
     this.animateTeam(s.wagon, t);
     harnessFoley(s, this.travelPhase);
-    this.weapon.visible = s.weapon !== 'bow' && s.health > 0;
-    const arc = Math.sin(attackAnim * Math.PI),
-      sign = s.arm === 'lost' ? -1 : 1;
-    const halfWidth = 0.78 * Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.aspect;
-    const grip = Math.min(0.48, halfWidth * 0.67);
-    const blocking = s.blockTime > 0;
-    this.weapon.scale.setScalar(0.81);
-    this.weapon.position.set(
-      sign * (grip - arc * 0.34 - (blocking ? 0.13 : 0)),
-      -0.39 + arc * 0.13 + bob * 0.3,
-      -0.75 - arc * 0.13,
-    );
-    this.weapon.rotation.set(
-      -0.29 - arc * 0.76,
-      0.16 * sign,
-      sign * (0.28 + arc * (s.heavy ? 1.14 : 0.85) + (blocking ? 0.38 : 0)),
-    );
-    this.shield.visible = blocking;
-    this.shield.position.set(-0.2, -0.16, -0.59);
-    this.shield.rotation.set(0.15, 0.23, 0.08);
-    this.bow.visible = s.weapon === 'bow';
-    this.bow.scale.setScalar(0.91);
-    this.bow.position.set(-grip * 0.93, -0.18 + bob * 0.28, -0.86);
-    this.bow.rotation.set(0.06 - arc * 0.12, 0.41, -0.19);
+    this.updateHands(s, t, attackAnim, bob);
     this.arrow3d.visible = !!s.arrow;
     if (s.arrow) {
       const a = s.arrow;

@@ -333,6 +333,8 @@ class County extends InteriorRealm {
       if (
         Math.max(Math.abs(x), Math.abs(z)) < 100 ||
         Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50)) < 4 ||
+        !highTrackClear(x, z, 2) ||
+        !this.treeSite(x, z) ||
         dairies.some((d) => Math.hypot(x - d.x, z - d.z) < 6)
       )
         continue;
@@ -364,7 +366,14 @@ class County extends InteriorRealm {
       const x = 20 + meadowHash(i, 4, 73) * 78,
         z = 81 + meadowHash(i, 6, 93) * 53;
       const lane = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
-      if (lane < 4.3 || !this.free(x, z, 0.59) || Math.sin(x * 0.12 + z * 0.17) < -0.45) continue;
+      if (
+        lane < 4.3 ||
+        !this.treeSite(x, z) ||
+        !highTrackClear(x, z, 2.4) ||
+        !this.free(x, z, 0.59) ||
+        Math.sin(x * 0.12 + z * 0.17) < -0.45
+      )
+        continue;
       this.trees.push({
         x,
         z,
@@ -442,6 +451,87 @@ class County extends InteriorRealm {
       );
     }
     for (const v of this.trees) shade(v.x + 0.28, v.z + 0.26, v.h * 0.16 + 0.5, v.h * 0.14 + 0.4, 0.32);
+    // Use the spare channels of the baked contact map for worn paths. At runtime every footway
+    // shares one texture lookup with terrain occlusion, even in a crowded courtyard.
+    const paths = document.createElement('canvas');
+    paths.width = paths.height = c.width;
+    const pen = paths.getContext('2d');
+    pen.setTransform(unit, 0, 0, unit, c.width / 2, c.height / 2);
+    pen.lineCap = pen.lineJoin = 'round';
+    const paint = (points, width, paved = false) => {
+      pen.strokeStyle = paved ? '#00ffff' : '#00ff00';
+      pen.lineWidth = width;
+      pen.beginPath();
+      points.forEach(([x, z], i) => (i ? pen.lineTo(x, z) : pen.moveTo(x, z)));
+      pen.stroke();
+    };
+    for (const track of highTracks) paint(track, 1.66);
+    for (const center of [-50, 50]) {
+      const paved = center < 0;
+      paint(
+        [
+          [68, center],
+          [68, center - 3.7],
+          [68, center - 7.7],
+          [68, center - 13.8],
+        ],
+        3.8,
+        paved,
+      );
+      if (paved)
+        paint(
+          [
+            [68, center - 9.1],
+            [65.4, center - 10.2],
+            [62, center - 12.1],
+            [61.7, center - 13.9],
+          ],
+          1.55,
+          true,
+        );
+    }
+    paint(
+      [
+        [-63, -50],
+        [-67, -50.7],
+        [-71, -52.1],
+        [-73, -54],
+        [-73, -55.9],
+      ],
+      1.8,
+    );
+    for (const center of [-50, 50]) {
+      for (const [dx, dz, door] of [
+        [-12, -9, 0.96],
+        [9, -11, -0.99],
+        [15, 7, 0.96],
+        [-13, 11, -0.99],
+      ]) {
+        const x = -50 + dx + door,
+          z = center + dz;
+        for (const side of [-1, 1]) {
+          const away = z + side * 4.5,
+            half = (x - 50) / 2;
+          paint(
+            [
+              [x, z + side * 2.65],
+              [x, away],
+              [x + 0.52 * Math.sign(-50 - x), away + side * 0.35],
+              [half, away + side * 0.57],
+              [-50, away],
+            ],
+            1.12,
+          );
+        }
+      }
+    }
+    const shadePixels = q.getImageData(0, 0, c.width, c.height);
+    const pathPixels = pen.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 0; i < pathPixels.length; i += 4) {
+      shadePixels.data[i + 1] = pathPixels[i + 3];
+      shadePixels.data[i + 2] = (pathPixels[i + 2] * pathPixels[i + 3]) / 255;
+    }
+    q.putImageData(shadePixels, 0, 0);
     this.landShadow = new THREE.CanvasTexture(c);
     this.landShadow.flipY = false;
     this.landShadow.wrapS = this.landShadow.wrapT = THREE.RepeatWrapping;
@@ -580,6 +670,20 @@ class County extends InteriorRealm {
           const woods = zoneAt(x, z) === 2,
             scree = zoneAt(x, z) === 3;
           if ((scree && rx > 0.3) || rx > (woods ? 0.79 : 0.93)) continue;
+          const incline = this.terrainIncline(x, z);
+          if (incline > 0.6 || (incline > 0.39 && rx > 0.1)) continue;
+          if (scree) {
+            // A whole clump must fit on the shelf; the centre can sit immediately above a rock face.
+            if (
+              !highTrackClear(canonicalX, canonicalZ, 1.12) ||
+              ground(x, z) > 15.5 ||
+              this.terrainIncline(x - 0.52, z) > 0.72 ||
+              this.terrainIncline(x + 0.52, z) > 0.72 ||
+              this.terrainIncline(x, z - 0.52) > 0.72 ||
+              this.terrainIncline(x, z + 0.52) > 0.72
+            )
+              continue;
+          }
           const kind = woods && patch > 0.3 && rx < 0.31 ? 2 : patch > 1.02 && rx > 0.54 ? 1 : 0;
           const fade = Math.min(1, (rad * step - d) / 4);
           const h =

@@ -33,17 +33,6 @@ function frameHeroCamera(realm, s, t, attackAnim) {
   $('play').classList.toggle('bow-focus', focused);
   if (!shoulder) {
     if (realm.fieldHero) realm.fieldHero.visible = false;
-    if (realm.weapon.visible && !s.delivery) {
-      const threatened =
-        attackAnim > 0 ||
-        s.blockTime > 0 ||
-        s.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(s, a) < 12);
-      const target = threatened ? 0 : 1;
-      realm.loweredBlade =
-        (realm.loweredBlade ?? target) + (target - (realm.loweredBlade ?? target)) * (1 - Math.exp(-9 * dt));
-      realm.weapon.position.y -= realm.loweredBlade * 0.19;
-      realm.weapon.rotation.x -= realm.loweredBlade * 0.55;
-    }
     return;
   }
   if (realm.fieldHero?.userData.playerSide !== s.side) {
@@ -81,7 +70,7 @@ function frameHeroCamera(realm, s, t, attackAnim) {
   if (hero.userData.facing == null || dt === 0) hero.userData.facing = facing;
   hero.userData.facing += angles(facing - hero.userData.facing) * (1 - Math.exp(-17 * dt));
   hero.rotation.set(0, hero.userData.facing, 0);
-  poseCharacter(hero, attackAnim > 0.01 && s.heavy ? 'heavy' : state, t);
+  poseGuardedHero(hero, attackAnim > 0.01 && s.heavy ? 'heavy' : state, t, realm.guardKick.value);
   const fx = -Math.sin(s.yaw),
     fz = -Math.cos(s.yaw),
     rx = Math.cos(s.yaw),
@@ -109,7 +98,7 @@ function frameHeroCamera(realm, s, t, attackAnim) {
   hero.visible = fraction > 0.2;
   c.lookAt(s.x + fx * 7.5 * cp + rx * side, eye + sp * 7.5, s.z + fz * 7.5 * cp + rz * side);
   realm.skyMesh.position.copy(c.position);
-  for (const object of [realm.weapon, realm.shield, realm.bow]) object.visible = false;
+  realm.hideHands();
 }
 
 const dialogueCast = {

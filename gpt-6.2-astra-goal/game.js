@@ -120,7 +120,7 @@ function newGame() {
       w.x + side * 2.65 * Math.cos(w.angle),
       w.z - side * 2.65 * Math.sin(w.angle),
       'escort',
-    );
+    ).escortSide = side;
   }
   if (choice === 0) {
     spawnAt('guard', 'hostile', x - 3, z - 10, 'first');
@@ -155,8 +155,18 @@ function start(load, post = false) {
     return;
   }
   world.clearPeople();
-  if (saved) game = saved;
-  else newGame();
+  if (saved) {
+    game = saved;
+    for (const record of Object.values(game.undercrofts || {})) {
+      for (const m of record.foes) {
+        m.fellAt = null;
+        m.struckAt = null;
+        m.hitAt = null;
+        m.planTime = 0;
+        m.path = null;
+      }
+    }
+  } else newGame();
   if (post) initializeDelivery();
   else repairSpacing();
   world.teamLast = null;
@@ -199,6 +209,7 @@ function valid(s) {
     ['origin', 'miller', 'trail', 'choice', 'escort', 'intercept', 'requisition', 'return', 'done'].includes(
       s.story.phase,
     ) &&
+    validDungeonSave(s) &&
     (!s.inside || (houses[s.inside] && Number.isFinite(s.roomX) && Number.isFinite(s.roomZ))) &&
     ['sword', 'bow'].includes(s.weapon) &&
     Number.isFinite(s.stamina) &&
@@ -366,6 +377,7 @@ function death() {
   };
 }
 function goal() {
+  if (game.dungeon) return dungeonGoal();
   if (game.delivery) return { text: 'Почтовый перегон', target: postRoad[game.delivery.gate] || null };
   const current = storyGoal();
   if (current) return current;
@@ -405,20 +417,32 @@ function targetBearing(t) {
   const a = angles(Math.atan2(-wrapped(t.x - game.x), -wrapped(t.z - game.z)) - game.yaw);
   return Math.abs(a) < 0.23 ? '↑' : Math.abs(a) > 2.5 ? '↓' : a > 0 ? '←' : '→';
 }
+function navigationGoal() {
+  if (game.markHall && !game.inside && houses[game.markHall]) {
+    return { text: 'Найдите вход · ' + houses[game.markHall].name, target: houses[game.markHall].door };
+  }
+  return goal();
+}
 function drawHud() {
   if (game.delivery) return deliveryHud();
   const g = game,
     idx = zoneAt(g.x, g.z),
-    obj = goal();
+    obj = navigationGoal();
   $('compass-dir').textContent = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'][
     ((Math.round(-g.yaw / (Math.PI / 4)) % 8) + 8) % 8
   ];
-  trailCompass(g, obj.target);
+  if (g.dungeon) trailCompass({ yaw: g.yaw, ...dungeonPlayer() }, obj.target);
+  else trailCompass(g, obj.target);
   $('side-label').textContent = sides[g.side].name;
-  $('area').textContent = g.inside ? houses[g.inside].name : lands[idx].name;
+  $('area').textContent = g.dungeon
+    ? underways[g.dungeon].name
+    : g.inside
+      ? houses[g.inside].name
+      : lands[idx].name;
   $('quest').textContent = obj.text;
-  $('direction').textContent =
-    !g.inside && obj.target
+  $('direction').textContent = g.dungeon
+    ? 'M · План разведанных ходов'
+    : !g.inside && obj.target
       ? targetBearing(obj.target) + '  До цели ' + Math.round(distance(g, obj.target)) + ' м'
       : '';
   $('hp').textContent = Math.ceil(g.health) + ' / 100';
@@ -440,7 +464,7 @@ function drawHud() {
   $('blind').hidden = g.eye !== 'lost';
   const item = interactable();
   $('interact').textContent = item ? 'E  ·  ' + item.label : '';
-  const foe = g.inside ? null : aimedEnemy(10, 0.25);
+  const foe = g.dungeon ? dungeonTarget(13, 0.42) : g.inside ? null : aimedEnemy(10, 0.25);
   $('foe').hidden = !foe;
   $('foe').classList.toggle('readied', !!foe && foe.windup > 0);
   if (foe) {
@@ -453,15 +477,20 @@ function drawHud() {
       commander: 'Капитан Арда',
       regent: 'Регент Вельт',
     };
-    $('foe-name').textContent = (names[foe.kind] || 'Противник') + (foe.windup > 0 ? ' · Замах' : '');
-    $('foe-hp').value = foe.hp;
+    $('foe-name').textContent =
+      (bestiary[foe.kind]?.name || names[foe.kind] || 'Противник') + (foe.windup > 0 ? ' · Замах' : '');
     $('foe-hp').max = foe.maxHp || (['commander', 'escort'].includes(foe.kind) ? 75 : 58);
+    $('foe-hp').value = foe.hp;
   }
   return obj.target;
 }
 function mapDialog() {
+  if (game.dungeon) {
+    dungeonMap();
+    return;
+  }
   const g = game;
-  const goalPoint = goal().target;
+  const goalPoint = navigationGoal().target;
   const pin = (className, p) =>
     p
       ? '<i class="' +
@@ -490,6 +519,8 @@ function mapDialog() {
     dairies
       .map((d, i) => pin((g.story.dairyStamps || []).includes(i) ? 'dairy-dot stamped' : 'dairy-dot', d))
       .join('') +
+    pin('hall-marker', houses.palace.door) +
+    pin('hall-marker', houses.fort.door) +
     pin('wagon-dot', g.wagon) +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? pin('witness-dot', places.rider) : '') +
     (g.story.herbs === 'seek' ? pin('herb-dot', herbBed) : '') +
@@ -498,10 +529,22 @@ function mapDialog() {
     '</div><p class="map-legend"><span>● Герой</span><span>◇ Цель</span><span>■ Караван</span>' +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? '<span>✧ Свидетель</span>' : '') +
     (g.story.herbs === 'seek' ? '<span>✚ Травы</span>' : '') +
-    '</p><p id="map-note">' +
+    '<span>♜ Крепость</span></p><div class="hall-routes"><button data-hall="palace">Затопленный склеп · Дворец</button><button data-hall="fort">Чёрная жила · Старый форт</button></div><p id="map-note">' +
     goal().text +
     '</p>';
   modal('Пограничье', 'Карта мира', body);
+  for (const el of document.querySelectorAll('[data-hall]')) {
+    const id = el.dataset.hall;
+    el.setAttribute('aria-pressed', String(id === g.markHall));
+    el.title = id === g.markHall ? 'Снять метку с компаса' : 'Показать вход на компасе';
+    el.onclick = () => {
+      g.markHall = g.markHall === id ? null : id;
+      closeModal();
+      drawHud();
+      notify(g.markHall ? 'Вход отмечен на компасе' : 'Показана цель кампании');
+      capture();
+    };
+  }
   document.querySelectorAll('[data-travel]').forEach(
     (el) =>
       (el.onclick = () => {
@@ -576,6 +619,7 @@ function raidOrder() {
     };
 }
 function interactable() {
+  if (game.dungeon) return dungeonAction();
   if (game.inside) {
     const a = roomAction();
     return a ? { label: a.label } : null;
@@ -609,8 +653,7 @@ function interactable() {
       label: g.air > 3 ? 'Спуститься с настила' : 'Подняться на лесной дозор',
       ladder: true,
     });
-  for (const [id, h] of Object.entries(houses))
-    options.push({ a: h.door, label: 'Войти · ' + h.name, house: id });
+  options.push(...buildingEntrances(g));
   dairies.forEach((site, i) =>
     options.push({ a: site, label: 'Поставить печать · ' + site.title, dairy: i }),
   );
@@ -629,6 +672,10 @@ function interactable() {
     )[0];
 }
 function interact() {
+  if (game.dungeon) {
+    dungeonInteract();
+    return;
+  }
   if (game.inside) {
     insideInteract();
     return;
@@ -661,7 +708,8 @@ function interact() {
     return;
   }
   if (it.house) {
-    enterRoom(it.house);
+    if (g.markHall === it.house) g.markHall = null;
+    enterRoom(it.house, it.entrance);
     return;
   }
   if (it.story) {
@@ -837,20 +885,24 @@ function wound() {
 }
 function hitPlayer(d, attacker) {
   if (game.evade > 0) return;
+  const player = game.dungeon ? dungeonPlayer() : game;
   if (
     attacker &&
     game.blockTime > 0 &&
-    Math.abs(angles(Math.atan2(game.x - attacker.x, game.z - attacker.z) - game.yaw)) < 1.28 &&
+    Math.abs(angles(Math.atan2(wrapped(player.x - attacker.x), wrapped(player.z - attacker.z)) - game.yaw)) <
+      1.28 &&
     game.stamina >= 7
   ) {
     const parry = game.parryWindow > 0;
+    world.receiveGuardHit(parry);
     game.stamina -= parry ? 3 : 7;
     attacker.cd = parry ? 2.7 : 1.5;
-    fieldImpact(
-      game.x - Math.sin(game.yaw) * 0.85,
-      walkingSurface(game.x, game.z) + 1.45,
-      game.z - Math.cos(game.yaw) * 0.85,
-    );
+    if (!game.dungeon)
+      fieldImpact(
+        game.x - Math.sin(game.yaw) * 0.85,
+        walkingSurface(game.x, game.z) + 1.45,
+        game.z - Math.cos(game.yaw) * 0.85,
+      );
     fieldStrike('ring', 0.75);
     scoreCue('parry');
     notify(parry ? 'Парирование · противник открыт' : 'Удар принят на щит', 0.8);
@@ -865,7 +917,7 @@ function hitPlayer(d, attacker) {
   g.hits++;
   flash = 0.42;
   if (attacker) {
-    const a = angles(Math.atan2(-wrapped(attacker.x - g.x), -wrapped(attacker.z - g.z)) - g.yaw);
+    const a = angles(Math.atan2(-wrapped(attacker.x - player.x), -wrapped(attacker.z - player.z)) - g.yaw);
     $('hit-arc').style.transform = 'rotate(' + -a + 'rad)';
     $('hit-arc').animate([{ opacity: 0.97 }, { opacity: 0 }], { duration: 590 });
   }
@@ -879,6 +931,14 @@ function hitPlayer(d, attacker) {
 function hurtActor(a, amount, byPlayer) {
   if (a.hp <= 0) return;
   a.hp = Math.max(0, a.hp - amount);
+  if (game.dungeon) {
+    a.alert = 12;
+    a.hitAt = gameTime;
+    if (a.hp <= 0) {
+      a.fellAt = gameTime;
+      monsterCall(a.kind, true);
+    }
+  }
   if (byPlayer) {
     $('hitmark').animate(
       [
@@ -887,12 +947,13 @@ function hurtActor(a, amount, byPlayer) {
       ],
       { duration: 280 },
     );
-    fieldImpact(
-      a.x,
-      walkingSurface(a.x, a.z) + 1.14,
-      a.z,
-      ['guard', 'regent', 'lord', 'escort'].includes(a.kind) ? 'steel' : 'dust',
-    );
+    if (!game.dungeon)
+      fieldImpact(
+        a.x,
+        walkingSurface(a.x, a.z) + 1.14,
+        a.z,
+        ['guard', 'regent', 'lord', 'escort'].includes(a.kind) ? 'steel' : 'dust',
+      );
     scoreCue('impact');
   }
   if (a.hp === 0) {
@@ -935,7 +996,7 @@ function aimedEnemy(range, cone) {
   return target;
 }
 function attack(heavy = false) {
-  if (game?.inside || game?.delivery) return;
+  if ((game?.inside && !game.dungeon) || game?.delivery) return;
   if (!active || $('dialog').open || game.health <= 0 || swing > 0) return;
   const g = game;
   if (g.blockTime > 0) {
@@ -962,10 +1023,14 @@ function attack(heavy = false) {
     swing = 1;
     scoreCue('bow');
     const cp = Math.cos(g.pitch);
+    const p = g.dungeon ? dungeonPlayer() : g;
     g.arrow = {
-      x: g.x,
-      y: walkingSurface(g.x, g.z) + (g.leg === 'lost' ? 0.78 : g.leg === 'chair' ? 1.32 : 1.71) + g.air,
-      z: g.z,
+      x: p.x,
+      y:
+        (g.dungeon ? 0 : walkingSurface(g.x, g.z)) +
+        (g.leg === 'lost' ? 0.78 : g.leg === 'chair' ? 1.32 : 1.71) +
+        g.air,
+      z: p.z,
       dx: -Math.sin(g.yaw) * cp * 55,
       dy: Math.sin(g.pitch) * 55 + 1.6,
       dz: -Math.cos(g.yaw) * cp * 55,
@@ -977,7 +1042,7 @@ function attack(heavy = false) {
   g.heavy = heavy;
   swing = 1;
   fieldStrike('swish', 0.76, heavy);
-  const target = aimedEnemy(heavy ? 3.18 : 3.02, 0.82);
+  const target = (g.dungeon ? dungeonTarget : aimedEnemy)(heavy ? 3.18 : 3.02, 0.82);
   if (target) {
     if (target.team === 'escort')
       g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).forEach((a) => (a.team = 'hostile'));
@@ -1128,7 +1193,11 @@ function wagonTick(dt) {
     w.cool = Math.max(0, w.cool - dt);
     if (!w.cool) {
       const alive = g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).length;
-      for (let i = alive; i < 2; i++) spawnAt('escort', 'escort', w.x + (i ? 1 : -1) * 2.6, w.z, 'escort');
+      for (let i = alive; i < 2; i++) {
+        const side = g.actors.some((a) => a.tag === 'escort' && a.hp > 0 && a.escortSide === -1) ? 1 : -1;
+        const position = escortSlot(w, side);
+        spawnAt('escort', 'escort', position.x, position.z, 'escort').escortSide = side;
+      }
     }
   }
 }
@@ -1155,12 +1224,7 @@ function stepActors(dt) {
       continue;
     }
     if (a.team === 'escort') {
-      const side = a.id % 2 ? 1 : -1,
-        t = point(
-          g.wagon.x + Math.cos(g.wagon.angle) * 2.6 * side,
-          g.wagon.z - Math.sin(g.wagon.angle) * 2.6 * side,
-        );
-      if (distance(a, t) > 0.8) advance(a, t, 3, dt);
+      followWagon(a, dt);
       continue;
     }
     if (!['friend', 'hostile'].includes(a.team)) continue;
@@ -1250,8 +1314,18 @@ function campaignTick(dt) {
     }
   }
 }
+function tickGuard(dt) {
+  const g = game;
+  const block = keys.has('KeyR') && g.weapon === 'sword' && g.stamina > 5;
+  if (block && !g.blockTime) g.parryWindow = 0.3;
+  g.blockTime = block ? g.blockTime + dt : 0;
+  g.parryWindow = Math.max(0, g.parryWindow - dt);
+  g.evade = Math.max(0, g.evade - dt);
+  return block;
+}
 function step(dt) {
   if (game.delivery) return deliveryTick(dt);
+  if (game.dungeon) return dungeonTick(dt);
   if (game.inside) return roomTick(dt);
   if (!realmVoice.active && gameTime > Math.max(7, subtitleUntil + 2)) {
     if (game.weapon === 'bow' && !game.story.aimTip) {
@@ -1266,11 +1340,7 @@ function step(dt) {
     }
   }
   const g = game;
-  const block = keys.has('KeyR') && g.weapon === 'sword' && g.stamina > 5;
-  if (block && !g.blockTime) g.parryWindow = 0.3;
-  g.blockTime = block ? g.blockTime + dt : 0;
-  g.parryWindow = Math.max(0, g.parryWindow - dt);
-  g.evade = Math.max(0, g.evade - dt);
+  const block = tickGuard(dt);
   if (g.evade > 0) move(g, Math.sin(g.yaw) * dt * 11, Math.cos(g.yaw) * dt * 11);
   arrowTick(dt);
   if (keys.has('ArrowLeft')) g.yaw += dt * 1.85;
@@ -1349,7 +1419,7 @@ function loop(now) {
     noticeTime -= dt;
     if (noticeTime <= 0) $('event').textContent = '';
   }
-  if ((lodTime -= dt) <= 0) {
+  if (!game.inside && (lodTime -= dt) <= 0) {
     world.lod(game.x, game.z);
     lodTime = 0.32;
   }
@@ -1357,7 +1427,7 @@ function loop(now) {
     drawHud();
     hudTime = 0.12;
   }
-  world.display(game, gameTime, swing, prefs.motion ? bob : 0, goal().target);
+  world.display(game, gameTime, swing, prefs.motion ? bob : 0, navigationGoal().target);
   frame = requestAnimationFrame(loop);
 }
 function selectEntry(load, post = false) {

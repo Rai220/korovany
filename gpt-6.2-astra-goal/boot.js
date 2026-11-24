@@ -26,7 +26,7 @@ const editionBoot = (() => {
     if (script.hasAttribute('data-pack') && !failed) {
       packs++;
       const label = el('start-label');
-      if (label) label.textContent = 'Подготовка мира · ' + packs + ' / 4';
+      if (label) label.textContent = 'Подготовка мира · ' + packs + ' / 5';
     }
   }
   document.addEventListener('load', onResource, true);

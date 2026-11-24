@@ -118,7 +118,7 @@ function castSurface(name, style) {
       side: THREE.DoubleSide,
     });
   } else if (name === 'arms') {
-    const art = texture('standard-sun');
+    const art = texture(style.palette === 'moss' ? 'standard-pine' : 'standard-sun');
     mat = new THREE.MeshStandardMaterial({ map: art, side: THREE.DoubleSide, roughness: 0.77 });
   } else {
     const colors = {
@@ -406,10 +406,17 @@ function castArmor(style, add) {
       );
   }
   if (style.blade) {
+    // Bounds measured in each authored bind pose from the closed fingers of the armed stance.
+    const origin = female ? [-0.72543, 1.39867, -0.05267] : [-0.81923, 1.43287, -0.0625],
+      width = female ? [-0.08918, 0.99583, -0.01905] : [-0.09243, 0.99568, -0.00832],
+      reach = female ? [-0.26743, -0.00551, 0.96356] : [-0.24307, -0.01446, 0.9699],
+      face = female ? [0.95944, 0.09102, 0.2668] : [0.9656, 0.09167, 0.24336];
+    const held = (u, v, d) => [
+      origin[0] + width[0] * u + face[0] * v + reach[0] * d,
+      origin[1] + drop + width[1] * u + face[1] * v + reach[1] * d,
+      origin[2] + width[2] * u + face[2] * v + reach[2] * d,
+    ];
     const b = 'hand_r',
-      x = female ? -0.691 : -0.758,
-      y = 1.436,
-      z = -0.057,
       points = [],
       uv = [],
       ind = [];
@@ -427,7 +434,7 @@ function castArmor(style, add) {
         [w, 0, 1],
         [0, -h, 0.5],
       ]) {
-        points.push([x + off, y + v, z + d]);
+        points.push(held(off, v, d));
         uv.push(u, d);
       }
     }
@@ -438,9 +445,9 @@ function castArmor(style, add) {
         ind.push(a, a + 5, q, a + 5, q + 5, q);
       }
     plate('blade', b, points, ind, uv);
-    line('leather', b, [x, y, z - 0.115], [x, y, z + 0.103], 0.0175);
-    line('brass', b, [x - 0.093, y, z + 0.11], [x + 0.093, y, z + 0.11], 0.012);
-    line('brass', b, [x, y, z - 0.139], [x, y, z - 0.113], 0.019, 0.025);
+    line('leather', b, held(0, 0, -0.095), held(0, 0, 0.097), 0.0175);
+    line('brass', b, held(-0.093, 0, 0.103), held(0.093, 0, 0.103), 0.012);
+    line('brass', b, held(0, 0, -0.121), held(0, 0, -0.094), 0.019, 0.025);
   }
   if (style.shield) {
     const b = 'lowerarm_l',
@@ -601,6 +608,10 @@ function costumeGeometry(style) {
 }
 function appearance(kind, tag = '', unarmed = false) {
   const style = roleCostume(kind, tag);
+  if (tag === 'hero' && !unarmed && !style.shield) {
+    style.shield = true;
+    style.id += '/shield';
+  }
   if (unarmed) {
     style.blade = false;
     style.shield = false;
@@ -673,8 +684,9 @@ function poseCharacter(actor, state, t, rate = 1) {
     next.reset().setLoop(isLoop ? THREE.LoopRepeat : THREE.LoopOnce, isLoop ? Infinity : 1);
     next.clampWhenFinished = !isLoop;
     if (u.action && u.previousTime !== undefined && t - u.previousTime < 0.3 && state !== 'drive') {
-      u.action.fadeOut(state === 'stagger' ? 0.065 : 0.13);
-      next.fadeIn(state === 'stagger' ? 0.065 : 0.13);
+      const blend = state === 'stagger' ? 0.065 : state === 'block' || u.state === 'block' ? 0.19 : 0.13;
+      u.action.fadeOut(blend);
+      next.fadeIn(blend);
     } else {
       mixer.stopAllAction();
     }
@@ -717,69 +729,7 @@ function animateCastActor(m, a, t, fellBeforeLoad) {
     rate = 1.35;
   } else if (a.walk) {
     state = a.team === 'hostile' || a.team === 'friend' ? 'run' : 'walk';
-    rate = 1.08;
+    rate = a.team === 'escort' && Number.isFinite(a.gaitSpeed) ? clamp(a.gaitSpeed / 1.45, 0.58, 1.7) : 1.08;
   }
   poseCharacter(m, state, t, rate);
-}
-// A first-person arm is the Ranger's original hand and bracer, baked in its sword-grip animation.
-function swordHand() {
-  if (swordHand.prototypeMesh) return swordHand.prototypeMesh.clone();
-  const g = new THREE.Group(),
-    style = roleCostume('guard', 'hero');
-  for (const d of borderCast.swordGlove) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(
-        Float32Array.from(castValues(d.p, Int16Array), (v) => v * 0.0001),
-        3,
-      ),
-    );
-    geo.setAttribute(
-      'normal',
-      new THREE.Float32BufferAttribute(
-        Float32Array.from(castValues(d.n, Int8Array), (v) => v / 127),
-        3,
-      ),
-    );
-    geo.setAttribute(
-      'uv',
-      new THREE.Float32BufferAttribute(
-        Float32Array.from(castValues(d.uv, Int16Array), (v) => v / 16384),
-        2,
-      ),
-    );
-    geo.setIndex(new THREE.BufferAttribute(castValues(d.ix, Uint16Array), 1));
-    let mat = castSurface(d.m, style);
-    if (d.m.includes('Regular')) {
-      const src = mat;
-      mat = new THREE.MeshStandardMaterial({
-        color: 0x775339,
-        normalMap: src.normalMap,
-        normalScale: new THREE.Vector2(0.54, -0.54),
-        roughness: 0.82,
-        metalness: 0.035,
-      });
-      mat.onBeforeCompile = (shader) => {
-        shader.uniforms.grain = { value: texture('craft-finish') };
-        shader.vertexShader =
-          'varying vec3 handPoint;\n' +
-          shader.vertexShader.replace(
-            '#include <begin_vertex>',
-            '#include <begin_vertex>\n handPoint=position;',
-          );
-        shader.fragmentShader =
-          'uniform sampler2D grain; varying vec3 handPoint;\n' +
-          shader.fragmentShader.replace(
-            '#include <color_fragment>',
-            '#include <color_fragment>\n diffuseColor.rgb*=.55+1.23*sqrt(texture2D(grain,vec2(.004,.504)+.49*fract(vec2(handPoint.x+handPoint.z*.76,handPoint.y)*8.)).r);',
-          );
-      };
-    }
-    const hand = new THREE.Mesh(geo, mat);
-    hand.castShadow = true;
-    g.add(hand);
-  }
-  swordHand.prototypeMesh = g;
-  return g;
 }

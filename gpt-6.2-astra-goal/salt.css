@@ -259,3 +259,54 @@
 .post-race:disabled {
   cursor: progress;
 }
+
+.under-map {
+  display: block;
+  margin: 10px auto;
+  max-height: 51vh;
+  width: 100%;
+  background: radial-gradient(ellipse at 45% 35%, #37403c, #172222);
+  border: 1px solid #6f7162;
+}
+.loot-result {
+  color: #ddc58e;
+  border-top: 1px solid #695d44;
+  padding-top: 12px;
+}
+
+.worldmap .hall-marker {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  transform: translate(-50%, -95%);
+  font: 20px Georgia;
+  color: #f3ddb2;
+  text-shadow: 0 1px 3px #191612;
+}
+.worldmap .hall-marker:before {
+  content: '♜';
+}
+.hall-routes {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.hall-routes button {
+  padding: 7px 11px;
+  background: #303c34;
+  border: 1px solid #7d775c99;
+  color: #e0d4b4;
+}
+.hall-routes button[aria-pressed='true'] {
+  border-color: #d4b680;
+  background: #494633;
+}
+
+@media (max-width: 650px) {
+  #foe {
+    top: 61px;
+    left: auto;
+    right: 12px;
+    transform: none;
+  }
+}

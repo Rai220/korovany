@@ -158,6 +158,23 @@ class FrontierLandscape extends RealmGeometry {
       toneMapped: false,
       depthWrite: false,
     });
+    this.horizonHaze = { value: 0 };
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.horizonColor = { value: this.scene.fog.color };
+      shader.uniforms.horizonHaze = this.horizonHaze;
+      shader.vertexShader =
+        'varying float skyAltitude;\n' +
+        shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nskyAltitude=normalize(position).y;',
+        );
+      shader.fragmentShader =
+        'varying float skyAltitude;uniform vec3 horizonColor;uniform float horizonHaze;\n' +
+        shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          '#include <map_fragment>\nfloat airColumn=1.-smoothstep(-.035,.265,skyAltitude); diffuseColor.rgb=mix(diffuseColor.rgb,horizonColor,airColumn*horizonHaze);',
+        );
+    };
     // Compress the lower hemisphere so ridgelines sit above the playable horizon.
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++)
@@ -192,6 +209,7 @@ class FrontierLandscape extends RealmGeometry {
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
+    this.landGrid = { positions: p, xSteps: 164, zSteps: 180 };
     const mat = new THREE.MeshStandardMaterial({
       map: texture('soil'),
       normalMap: texture('land-normal'),
@@ -235,18 +253,27 @@ class FrontierLandscape extends RealmGeometry {
       vec3 packedDirt=texture2D(trackMap,ruv).rgb;
       vec3 gravel=texture2D(grit,pos*.285).rgb;
       vec3 rock=texture2D(scree,suv).rgb;
+      vec3 landAxis=abs(normalize(cross(dFdx(terrainPoint),dFdy(terrainPoint))));
+      float cliff=(1.-smoothstep(.59,.94,landAxis.y))*smoothstep(2.,9.,terrainPoint.y);
+      vec2 faceUV=(landAxis.x>landAxis.z ? terrainPoint.zy : terrainPoint.xy)*vec2(.36,.66);
+      vec3 bedrock=texture2D(scree,faceUV).rgb;
+      float bedding=sin(terrainPoint.y*2.26+pos.x*.18-pos.y*.11+1.2*sin(pos.x*.21)+.8*sin(pos.y*.14));
       vec3 wild=mix(earth,grass*(.89+.16*grassCover),.52+.45*grassCover);
       wild=mix(wild,mix(earth,duff,.48+.34*grassCover),forest*.88);
       wild=mix(wild,rock,mountain*(.48+.43*grassCover));
       float creek=sin(pos.x*.08726646)*2.8+sin(pos.x*.10908308)*.7;
       float bank=(1.-smoothstep(1.6,3.18,abs(pos.y-creek)+wav*.17))*smoothstep(2.8,3.6,dist.x);
       wild=mix(wild,rock*vec3(.79,.84,.80),bank);
+      wild=mix(wild,bedrock*mix(vec3(.84,.87,.89),vec3(1.11,1.08,1.01),.5+.5*bedding),cliff*.93);
+      vec3 survey=texture2D(landShadow,pos/288.+.5).rgb;
+      vec3 worn=mix(mix(gravel,packedDirt,.48),cobble,survey.b);
+      wild=mix(wild,worn, .86*smoothstep(.03,.87,survey.g+wav*.21));
       float grassStrip=(1.-smoothstep(.09,.62,crossroad+.18*wav))*(.09+.13*grassCover);
       vec3 roadColor=mix(packedDirt,gravel,.46+.32*grassCover-.22*rut);
       roadColor=mix(roadColor*(1.-rut*.28),grass,grassStrip);
       roadColor=mix(roadColor,cobble*(1.-.09*rut),palace*.96);
       float macro=.965+.055*sin(dot(pos,vec2(.041,-.063)))+.043*sin(dot(pos,vec2(.115,.097)));
-      float exposure=texture2D(landShadow,pos/288.+.5).r;
+      float exposure=survey.r;
       diffuseColor.rgb*=mix(wild,roadColor,road)*macro*mix(.34,1.,exposure);`,
         );
       // Four normal maps share one sampler. Relief uses the same masks as the visible materials.
@@ -499,9 +526,12 @@ class FrontierLandscape extends RealmGeometry {
         const x = cx + dx,
           z = cz + dz;
         this.block(x, 0.23, z, 5.35, 0.46, 4.78, 0x969384);
-        for (let j = 0; j < 3; j++)
-          this.block(x - 0.53, 0.08 + j * 0.095, z + 3.0 - j * 0.22, 1.45, 0.2, 0.39, 0x969384);
-        this.lantern(x + 0.45, z + 2.6, 2.15);
+        const doorX = x + (dx === 9 || dx === -13 ? -0.99 : 0.96);
+        for (const side of [-1, 1]) {
+          this.block(doorX, 0.042, z + side * 2.96, 1.32, 0.1, 0.48, 0x969384);
+          this.block(doorX, 0.099, z + side * 2.69, 1.22, 0.17, 0.38, 0x716e60);
+          this.lantern(doorX + 0.71, z + side * 2.57, 2.12);
+        }
       }
     // Sluice bridges mark the crossing between north and south.
     for (const x of [-50, 50]) {
@@ -555,14 +585,74 @@ class FrontierLandscape extends RealmGeometry {
       this.lantern(x, z, 1 + y);
     }
     this.landmarks();
-    for (let j = 0; j < 24; j++) {
-      const x = 34 + this.rnd() * 65,
-        z = 65 + this.rnd() * 39,
-        s = 1 + this.rnd() * 4;
-      if (this.free(x, z, 1.5) && Math.abs(x - 50) > 5) {
-        this.put(this.stone, 0x66685c, x, ground(x, z) + s * 0.3, z, s, s * 0.96, s * 1.2, this.rnd() * 6);
-        this.bound(x, z, s * 1.1, s * 1.2);
-      }
+    // Broken shale follows the strike of the lower ridges.
+    for (let i = 0; i < 43; i++) {
+      const x = 62 + 63 * meadowHash(i, 61, 5);
+      const z = 84 + 0.21 * (x - 70) + 4.4 * Math.sin(x * 0.103) + 4.2 * (meadowHash(i, 8, 51) - 0.5);
+      const scale = 0.44 + 0.91 * meadowHash(i, 16, 20);
+      if (highTrackClear(x, z, 2.6) && this.free(x, z, 1.2))
+        this.fieldStone(x, z, scale, 1.29 + 0.64 * meadowHash(i, 35, 9));
+    }
+  }
+  terrainIncline(x, z) {
+    // Match the two triangles of the rendered tile, including its denser rows along the river.
+    if (!this.landGrid) return 0;
+    const { positions, xSteps, zSteps } = this.landGrid;
+    const rowWidth = xSteps + 1;
+    const canonicalZ = wrapped(z),
+      az = Math.abs(canonicalZ);
+    const gridZ =
+      Math.sign(canonicalZ) *
+      (az < 8.64 ? az / 0.3 : 28.8 + ((az - 8.64) * (WORLD_LIMIT - 28.8)) / (WORLD_LIMIT - 8.64));
+    const u = ((wrapped(x) + WORLD_LIMIT) * xSteps) / PERIOD,
+      v = ((gridZ + WORLD_LIMIT) * zSteps) / PERIOD;
+    const i = Math.min(xSteps - 1, Math.max(0, Math.floor(u)));
+    const j = Math.min(zSteps - 1, Math.max(0, Math.floor(v)));
+    const top = j * rowWidth + i,
+      lower = top + rowWidth;
+    const first = u - i + (v - j) <= 1;
+    const a = first ? top : lower + 1,
+      b = first ? top + 1 : lower,
+      c = first ? lower : top + 1;
+    const sx = ((positions.getY(b) - positions.getY(a)) * xSteps) / PERIOD;
+    const sz = (positions.getY(c) - positions.getY(a)) / (positions.getZ(lower) - positions.getZ(top));
+    return Math.hypot(sx, sz);
+  }
+  treeSite(x, z) {
+    if (x > 52 && x < 84 && ((z > -78 && z < -51) || (z > 22 && z < 49))) return false;
+    if (this.terrainIncline(x, z) > 0.76) return false;
+    if (x < 2 || z < 5) return true;
+    const height = ground(x, z);
+    return (
+      height < 20.5 + 1.25 * Math.sin(x * 0.37 + z * 0.13) &&
+      this.terrainIncline(x - 0.75, z) < 1 &&
+      this.terrainIncline(x + 0.75, z) < 1 &&
+      this.terrainIncline(x, z - 0.75) < 1 &&
+      this.terrainIncline(x, z + 0.75) < 1
+    );
+  }
+  fieldStone(x, z, scale, yaw) {
+    // The scan is embedded at its natural base. Random orientation breaks up the exposed bedding.
+    this.fieldStoneGeo ||= trailGeometry('fieldstone', 'body');
+    const wide = scale * (0.8 + 0.16 * Math.sin(yaw * 2.3));
+    const deep = scale * (0.62 + 0.18 * Math.cos(yaw * 1.7));
+    const high = scale * (0.45 + 0.17 * Math.sin(yaw));
+    this.put(
+      this.fieldStoneGeo,
+      0x84917c,
+      x,
+      walkingSurface(x, z) + 0.06 * scale,
+      z,
+      wide,
+      high,
+      deep,
+      yaw,
+      0.1,
+    );
+    if (scale > 0.68) {
+      const sx = Math.abs(Math.sin(yaw)),
+        cz = Math.abs(Math.cos(yaw));
+      this.bound(x, z, 1.61 * (cz * wide + sx * deep), 1.61 * (sx * wide + cz * deep));
     }
   }
   barrel(x, z, r) {

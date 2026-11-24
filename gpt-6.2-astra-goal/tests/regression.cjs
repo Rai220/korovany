@@ -64,6 +64,45 @@ async function main() {
     assert.ok(hitch.waited && hitch.resumed && hitch.min > 0.36);
     assert.ok(hitch.flex.every((amplitude) => amplitude > 0.48));
 
+    const escort = await page.evaluate(() => {
+      game.actors = [];
+      Object.assign(game, { x: 8, z: -43 });
+      const w = game.wagon;
+      Object.assign(w, { x: -21, z: -50, angle: Math.PI / 2, node: 1 });
+      for (const side of [-1, 1]) {
+        const p = escortSlot(w, side);
+        actor('escort', 'escort', p.x, p.z, 'escort');
+      }
+      let minimum = 10,
+        maximum = 0,
+        flips = 0;
+      for (let i = 0; i < 320; i++) {
+        const old = game.actors.map((a) => ({ x: a.x, z: a.z, walk: a.walk }));
+        wagonTick(1 / 60);
+        stepActors(1 / 60);
+        if (i < 90) continue;
+        game.actors.forEach((a, j) => {
+          const speed = distance(a, old[j]) * 60;
+          minimum = Math.min(minimum, speed);
+          maximum = Math.max(maximum, speed);
+          if (a.walk !== old[j].walk) flips++;
+        });
+      }
+      for (let i = 0; i < 170; i++) stepActors(1 / 60);
+      return {
+        minimum,
+        maximum,
+        flips,
+        stand: game.actors.every((a) => !a.walk),
+        sides: game.actors.map((a) => a.escortSide),
+      };
+    });
+    assert.ok(
+      escort.minimum > 1.3 && escort.maximum < 1.42 && escort.flips === 0 && escort.stand,
+      JSON.stringify(escort),
+    );
+    assert.equal(new Set(escort.sides).size, 2);
+
     await page.evaluate(() => {
       game.stage = 1;
       game.wagon.cool = 0;
@@ -102,7 +141,7 @@ async function main() {
     assert.equal(merchantWithSquad, 'shop');
     assert.deepEqual(errors, []);
     console.log(
-      'PASS — WebGL, road seam, solid bodies, wagon yielding, eight legs, convoy signals and save/load.',
+      'PASS — WebGL, road seam, solid bodies, wagon yielding, steady escort gait on both flanks, eight legs, convoy signals and save/load.',
     );
   } finally {
     await browser.close();

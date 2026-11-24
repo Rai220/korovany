@@ -82,6 +82,43 @@ class Borderlands extends FrontierLandscape {
     for (let j = 0; j < 5; j++) this.block(x, 4.91, z - 2.23 + j * 1.09, 0.22, 0.13, 1.12, 0x594431);
     this.block(x + 1.45, 4.28, z - 1.2, 0.67, 2.43, 0.71, 0x716e60);
     this.block(x + 1.45, 5.53, z - 1.2, 0.81, 0.22, 0.84, 0x969384);
+    if (forest) {
+      // Hand-hewn ridge ends and an oak shingle vent give the foresters' roofs a lighter profile.
+      for (const side of [-1, 1]) {
+        for (const pitch of [-1, 1])
+          this.block(x + pitch * 0.23, 5.17, z + side * 2.91, 0.1, 0.98, 0.15, timber, 0, pitch * -0.48);
+        this.block(x, 5.02, z + side * 2.83, 0.18, 0.15, 0.63, timber);
+      }
+      if (j === 0 || j === 3) {
+        const tx = x - 0.27,
+          tz = z + 0.9;
+        for (const a of [-1, 1])
+          for (const b of [-1, 1]) this.block(tx + a * 0.46, 5.33, tz + b * 0.52, 0.1, 1.17, 0.13, timber);
+        for (const a of [-1, 1])
+          this.block(tx + a * 0.34, 6.03, tz, 0.93, 0.16, 1.67, 0x4d5948, 0, -a * 0.56);
+        this.block(tx, 5.15, tz, 1.12, 0.13, 1.24, timber);
+      }
+    } else if (j === 1) {
+      // The toll house keeps a bell over its ridge. The frame is open against the sky.
+      const tz = z + 0.45;
+      for (const dx of [-0.74, 0.74])
+        for (const dz of [-0.65, 0.65]) this.block(x + dx, 5.7, tz + dz, 0.17, 2.24, 0.17, timber);
+      this.block(x, 6.58, tz, 1.72, 0.16, 1.53, timber);
+      this.block(x, 6.36, tz, 0.11, 0.44, 0.09, 0x514f48);
+      this.bellCup ||= new THREE.CylinderGeometry(0.48, 1, 1, 10);
+      this.put(this.bellCup, 0x87704d, x, 5.98, tz, 0.35, 0.49, 0.35);
+      this.put(this.head, 0x514f48, x, 5.65, tz, 0.075, 0.095, 0.075);
+      for (const a of [-1, 1]) this.block(x + a * 0.53, 6.95, tz, 1.48, 0.19, 2.02, 0x4d5948, 0, -a * 0.61);
+      this.block(x, 7.48, tz, 0.085, 1.1, 0.085, 0x514f48);
+      this.block(x + 0.23, 7.94, tz, 0.58, 0.16, 0.055, 0x87704d);
+    } else if (j === 2) {
+      // An external bread oven and a vented flue mark the bakery on the mill road.
+      this.block(x + 2.69, 0.67, z - 0.08, 1.05, 1.34, 1.55, 0x716e60);
+      this.block(x + 2.76, 1.42, z - 0.08, 0.91, 0.17, 1.44, 0x969384);
+      this.block(x + 2.65, 2.54, z - 0.22, 0.54, 2.42, 0.58, 0x716e60);
+      this.block(x + 2.65, 3.8, z - 0.22, 0.71, 0.19, 0.7, 0x969384);
+      this.bound(x + 2.76, z - 0.08, 1, 1.52);
+    }
     if (j % 2 === 0) this.fence(x - 3.22, z - 0.5, 3.7, Math.PI / 2);
     this.smokeVents ||= [];
     this.smokeVents.push([x + 1.45, 5.7, z - 1.2]);
@@ -173,12 +210,21 @@ class Borderlands extends FrontierLandscape {
       this.block(x, 11.9, z - 22.6 + side * 1.52, 15.2, 0.34, 4.73, 0x43494a, 0, 0, side * 0.7);
       const tx = x + side * 6.8,
         tz = z - 23.8,
-        th = dark ? 13 : 16;
+        th = dark ? (side < 0 ? 13.4 : 10.1) : 14.6;
       this.put(this.log, stone, tx, th / 2, tz, 1.7, th, 1.7);
       this.put(this.log, stone, tx, th - 0.18, tz, 2.02, 0.85, 2.02);
-      this.put(this.spire, 0x43494a, tx, th + 2.45, tz, 2.32, 5.3, 2.32);
-      this.block(tx, th + 5.65, tz, 0.065, 1.9, 0.065, 0x665644);
-      this.banner(tx + 0.64, th + 6.05, tz, 1.28, 0.72, dark);
+      if (dark) {
+        // Broken wall-heads and a projecting timber hoarding identify the older upland keep.
+        for (let j = 0; j < 9; j++) {
+          if ((j + (side > 0 ? 2 : 0)) % 4 === 1) continue;
+          const a = (j * Math.PI * 2) / 9;
+          this.block(tx + 1.67 * Math.sin(a), th + 0.34, tz + 1.67 * Math.cos(a), 0.57, 0.68, 0.47, stone, a);
+        }
+      } else {
+        this.put(this.spire, 0x43494a, tx, th + 2.45, tz, 2.32, 5.3, 2.32);
+        this.block(tx, th + 5.65, tz, 0.065, 1.9, 0.065, 0x665644);
+        this.banner(tx + 0.64, th + 6.05, tz, 1.28, 0.72, false);
+      }
       for (let j = 0; j < 3; j++) this.panel('window', tx, 3.6 + j * 3.2, tz + 1.68, 0.83, 1.8);
       for (let i = 0; i < 5; i++) {
         const off = side * (4.8 + i * 1.4);
@@ -189,6 +235,14 @@ class Borderlands extends FrontierLandscape {
     }
     for (let j = 0; j < 6; j++) this.panel('window', x - 5.75 + j * 2.28, 7.73, z - 19.93, 1.13, 2.2);
     this.panel('gate', x, 2.61, z - 14.46, 4.0, 5.21);
+    if (dark) this.fortKeep(x, z, stone);
+    else {
+      this.palaceLantern(x, z, stone);
+      this.panel('gate', x - 6.3, 1.4, z - 14.43, 1.55, 2.8);
+      for (const side of [-1, 1]) this.block(x - 6.3 + side * 0.89, 1.38, z - 14.4, 0.18, 2.76, 0.2, stone);
+      this.block(x - 6.3, 2.87, z - 14.4, 1.98, 0.22, 0.28, stone);
+      this.lantern(x - 5.1, z - 14.35, 2.01);
+    }
     for (let i = 0; i < 8; i++) this.block(x - 3.45 + i * 0.98, 5.65, z - 5.06, 0.12, 1.16, 0.14, 0x594431);
     for (const side of [-1, 1])
       for (let j = 0; j < 4; j++) {
@@ -206,6 +260,59 @@ class Borderlands extends FrontierLandscape {
     const y = this.buildHeight || 0;
     this.smokeVents ||= [];
     this.smokeVents.push([x + 2, 13 + y, z - 21]);
+  }
+  palaceLantern(x, z, stone) {
+    const cz = z - 23;
+    // A raised crossing and four open arches crown the imperial hall.
+    this.block(x, 13.5, cz, 4.3, 2.9, 4.0, stone);
+    this.block(x, 14.88, cz, 4.71, 0.37, 4.35, stone);
+    for (const dx of [-1.74, 1.74])
+      for (const dz of [-1.56, 1.56]) {
+        this.block(x + dx, 16.47, cz + dz, 0.56, 3.2, 0.53, stone);
+        this.block(x + dx, 17.91, cz + dz, 0.8, 0.37, 0.76, stone);
+      }
+    this.block(x, 18.21, cz, 4.63, 0.62, 4.28, stone);
+    // The roof actually tapers to the lantern and carries a small gilded finial.
+    this.courtRoof ||= new THREE.ConeGeometry(1, 1, 8);
+    this.put(this.courtRoof, 0x545e61, x, 21.31, cz, 3.17, 6.0, 2.97, 0.3927);
+    this.put(this.head, 0xb79d69, x, 24.43, cz, 0.19, 0.28, 0.19);
+    this.block(x, 25.08, cz, 0.07, 1.32, 0.07, 0x514f48);
+    this.banner(x + 0.76, 25.51, cz, 1.49, 0.64, false);
+    for (const side of [-1, 1]) {
+      const dx = x + side * 4.64;
+      for (let i = 0; i < 4; i++) {
+        const broad = 2.4 - 0.51 * i;
+        this.block(dx, 11.24 + i * 0.58, cz + 2.61, broad, 0.64, 0.48, stone);
+      }
+      this.block(dx, 13.54, cz + 2.6, 0.18, 0.84, 0.21, 0x514f48);
+    }
+  }
+  fortKeep(x, z, stone) {
+    const tx = x + 1.3,
+      tz = z - 23.2;
+    this.block(tx, 13.75, tz, 5.35, 4.83, 4.54, stone);
+    this.block(tx, 16.21, tz, 5.74, 0.48, 4.94, stone);
+    for (const side of [-1, 1]) {
+      for (let j = 0; j < 4; j++) {
+        const dz = tz - 1.78 + j * 1.19;
+        if (!(side > 0 && j === 2)) this.block(tx + side * 2.63, 16.83, dz, 0.53, 0.87, 0.62, stone);
+      }
+      for (let j = 0; j < 5; j++) {
+        if (side < 0 && j < 2) continue;
+        this.block(tx - 2.14 + j * 1.07, 16.79, tz + side * 2.19, 0.58, 0.79, 0.5, stone);
+      }
+      this.block(tx + side * 1.41, 14.12, tz + 2.29, 0.28, 1.13, 0.08, 0x454944);
+    }
+    this.block(tx + 1.66, 17.84, tz - 1.47, 0.15, 3.6, 0.15, 0x534432);
+    this.banner(tx + 2.45, 19.18, tz - 1.47, 1.53, 0.85, true);
+    const ox = x - 5.0,
+      oz = z - 19.17;
+    this.block(ox, 10.45, oz, 3.03, 0.25, 1.72, 0x594431);
+    for (const side of [-1, 1]) {
+      this.block(ox + side * 1.19, 10, oz + 0.05, 0.18, 1.65, 0.24, 0x594431, 0, 0, -0.57);
+      this.block(ox + side * 1.23, 11.0, oz + 0.74, 0.13, 0.99, 0.13, 0x594431);
+    }
+    this.block(ox, 11.43, oz + 0.74, 2.83, 0.13, 0.14, 0x897454);
   }
   banner(x, y, z, w, h, dark) {
     const mat = new THREE.MeshStandardMaterial({
@@ -240,12 +347,12 @@ class Borderlands extends FrontierLandscape {
     for (const [x, z, name, angle] of [
       [-46, 55, 'СОЛЯНОЙ МОСТ', 0.1],
       [-45, -54, 'МЕЛЬНИЦА', -0.3],
-      [53, -46, 'ДВОРЕЦ', 0.22],
-      [54, 54, 'СТАРЫЙ ФОРТ', -0.2],
+      [53, -46, 'ДВОРЕЦ  →', 0.12],
+      [54, 54, 'СТАРЫЙ ФОРТ  →', 0.04],
     ]) {
       const y = ground(x, z);
       this.block(x, y + 1.18, z, 0.18, 2.36, 0.16, 0x594431);
-      this.block(x, y + 2.0, z + 0.04, 1.98, 0.39, 0.12, 0x897454, angle);
+      this.block(x, y + 2.0, z + 0.04, 2.24, 0.39, 0.12, 0x897454, angle);
       const c = document.createElement('canvas');
       c.width = 512;
       c.height = 96;
@@ -253,11 +360,11 @@ class Borderlands extends FrontierLandscape {
       ctx.fillStyle = '#dbc58d';
       ctx.font = 'bold 38px Georgia';
       ctx.textAlign = 'center';
-      ctx.fillText(name, 256, 58);
+      ctx.fillText(name, 256, 60, 474);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.86, 0.35),
+        new THREE.PlaneGeometry(2.14, 0.36),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
       );
       m.position.set(x, y + 2.01, z + 0.17);
@@ -442,7 +549,9 @@ class Borderlands extends FrontierLandscape {
       Math.min(1, Math.max(0, (s.x - 6) / 24)) *
       Math.min(1, Math.max(0, (s.z - 6) / 24));
     this.storm = alpha;
-    this.scene.fog.density = 0.0102 + alpha * 0.0036;
+    const overlook = alpha * terrainFade(4, 17, ground(s.x, s.z));
+    this.horizonHaze.value = 0.46 + alpha * 0.43 + overlook * 0.1;
+    this.scene.fog.density = 0.0102 + alpha * 0.0036 - overlook * 0.0053;
     const colors = (this.weatherColors ||= [
       0xcac9bc, 0xb9c2b6, 0xa8adba, 0xffe3b8, 0xd8dbe8, 0xd5e2f1, 0xbfcadb,
     ].map((c) => new THREE.Color(c)));

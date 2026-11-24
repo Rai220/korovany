@@ -248,6 +248,142 @@ function saltStamp() {
   tex.anisotropy = 4;
   return new THREE.MeshStandardMaterial({ map: tex, color: 0xc5b295, roughness: 0.97 });
 }
+// Auricles are closed, cupped sheets. Each side pivots at the poll or at the side of the ox's skull.
+function draughtEar(head, cow, side) {
+  const ear = joint(
+    head,
+    cow ? 'ox-ear' : 'horse-ear',
+    side * (cow ? 0.181 : 0.103),
+    cow ? 0.141 : 0.25,
+    -0.024,
+  );
+  const pos = [],
+    colors = [],
+    ix = [],
+    rows = 13,
+    cols = 11;
+  const rim = new THREE.Color(cow ? 0xa77455 : 0x8e5b46),
+    inner = new THREE.Color(cow ? 0xa9705c : 0x73503f);
+  const root = new THREE.Color(cow ? 0x977655 : 0x66483b),
+    shade = new THREE.Color();
+  for (let face = 0; face < 2; face++)
+    for (let r = 0; r <= rows; r++) {
+      const t = r / rows,
+        envelope = Math.pow(Math.sin(Math.PI * t), 0.79);
+      const width = (1 - t) * (cow ? 0.047 : 0.036) + envelope * (cow ? 0.061 : 0.039) + 0.0015;
+      for (let c = 0; c <= cols; c++) {
+        const u = (c / cols) * 2 - 1,
+          lips = Math.abs(u),
+          cross = width * u;
+        const x = cow ? 0.288 * t : 0.067 * t + cross;
+        const y = cow ? 0.045 * Math.sin(Math.PI * t) + 0.028 * t + cross : 0.249 * t - cross * 0.24;
+        const curl = (cow ? 0.016 : 0.022) * envelope;
+        const z =
+          (cow ? -0.061 : -0.044) * t +
+          (face
+            ? -0.014 - 0.019 * (1 - lips * lips) * envelope
+            : 0.009 +
+              curl * (2.2 * Math.pow(lips, 1.45) - 0.59) +
+              0.008 * Math.exp(-((u + 0.41) ** 2) / 0.036) * envelope);
+        pos.push(side * x, y, z);
+        shade.copy(face ? root : inner).lerp(rim, face ? 0.48 * t : Math.min(1, 0.14 + 0.91 * lips ** 2));
+        shade.multiplyScalar(1 - 0.19 * (1 - lips) * envelope);
+        colors.push(shade.r, shade.g, shade.b);
+        if (!r || !c) continue;
+        const j = pos.length / 3 - 1,
+          p = j - cols - 1;
+        ix.push(p - 1, p, j, p - 1, j, j - 1);
+      }
+    }
+  const layer = (rows + 1) * (cols + 1);
+  for (let r = 0; r < rows; r++)
+    for (const c of [0, cols]) {
+      const a = r * (cols + 1) + c,
+        b = a + cols + 1;
+      ix.push(a, b, a + layer, b, b + layer, a + layer);
+    }
+  for (const r of [0, rows])
+    for (let c = 0; c < cols; c++) {
+      const a = r * (cols + 1) + c;
+      ix.push(a, a + 1, a + layer, a + 1, a + 1 + layer, a + layer);
+    }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(ix);
+  geo.computeVertexNormals();
+  if (!draughtEar.material)
+    draughtEar.material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.89,
+      side: THREE.DoubleSide,
+    });
+  const mesh = new THREE.Mesh(geo, draughtEar.material);
+  mesh.castShadow = mesh.receiveShadow = true;
+  ear.add(mesh);
+  ear.userData.side = side;
+  return ear;
+}
+function draughtHorn(head, side) {
+  const P = THREE.Vector3;
+  const curve = new THREE.CatmullRomCurve3([
+    new P(side * 0.167, 0.215, -0.005),
+    new P(side * 0.235, 0.254, -0.015),
+    new P(side * 0.329, 0.286, -0.041),
+    new P(side * 0.404, 0.345, -0.081),
+    new P(side * 0.433, 0.429, -0.127),
+  ]);
+  const pos = [],
+    colors = [],
+    ix = [],
+    length = 29,
+    segments = 14;
+  const pale = new THREE.Color(0xc5a477),
+    root = new THREE.Color(0x735940),
+    tip = new THREE.Color(0x453a31),
+    col = new THREE.Color();
+  for (let i = 0; i <= length; i++) {
+    const t = i / length,
+      center = curve.getPointAt(t),
+      axis = curve.getTangentAt(t).normalize();
+    const lateral = new P().crossVectors(axis, new P(0, 0, 1)).normalize(),
+      depth = new P().crossVectors(axis, lateral);
+    const radius = 0.068 * (1 - t) ** 0.82 * (1 + 0.055 * Math.sin(t * 118) * Math.exp(-t * 3)) + 0.001;
+    col
+      .copy(root)
+      .lerp(pale, THREE.MathUtils.smoothstep(t, 0, 0.32))
+      .lerp(tip, THREE.MathUtils.smoothstep(t, 0.64, 1));
+    col.multiplyScalar(1 - 0.1 * (0.5 + 0.5 * Math.sin(t * 118)) * Math.exp(-t * 2.9));
+    for (let j = 0; j < segments; j++) {
+      const angle = (j * 2 * Math.PI) / segments;
+      const v = center
+        .clone()
+        .addScaledVector(lateral, radius * Math.cos(angle))
+        .addScaledVector(depth, radius * 0.85 * Math.sin(angle));
+      pos.push(v.x, v.y, v.z);
+      colors.push(col.r, col.g, col.b);
+      if (i) {
+        const a = (i - 1) * segments + j,
+          b = (i - 1) * segments + ((j + 1) % segments);
+        ix.push(a, b, b + segments, a, b + segments, a + segments);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  g.setIndex(ix);
+  g.computeVertexNormals();
+  const skin = (draughtHorn.material ||= new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.72,
+    side: THREE.DoubleSide,
+  }));
+  const horn = new THREE.Mesh(g, skin);
+  horn.name = 'ox-horn';
+  horn.castShadow = true;
+  head.add(horn);
+}
 function makeBeast(cow) {
   const rig = new THREE.Group(),
     body = joint(rig, 'body'),
@@ -279,13 +415,7 @@ function makeBeast(cow) {
   body.add(barrel);
   carved(body, (s) => {
     s.oval(hide, 0, 1.39, 0.57, 0.342, 0.442, 0.413, -0.15);
-    s.oval(cow ? 0xf2bda7 : hide, 0, 1.04, -0.42, 0.25, 0.22, 0.33);
-    if (cow)
-      for (const x of [-0.12, 0.12])
-        for (const z of [-0.52, -0.33]) s.oval(0xda9583, x, 0.87, z, 0.034, 0.09, 0.038);
-    s.taper(hide, [0, 1.36, 0.49], [0, cow ? 1.73 : 2.017, 0.86], cow ? 0.304 : 0.313, cow ? 0.214 : 0.181);
-    if (!cow)
-      for (let i = 0; i < 6; i++) s.oval(mane, 0, 1.71 + i * 0.079, 0.46 + i * 0.055, 0.15, 0.16, 0.19);
+    if (cow) s.oval(hide, 0, 1.44, 0.78, 0.175, 0.27, 0.196, -0.28);
     // Broad woven breast collar and drawn traces along each flank.
     // Two sewn leather pads distribute the yoke's load across the neck.
     for (const side of [-1, 1]) {
@@ -320,14 +450,57 @@ function makeBeast(cow) {
       s.oval(0x53412b, 0, 1.177, 1.01, 0.035, 0.022, 0.036);
     }
   });
+  const neck = cow
+    ? [
+        [1.29, 0.301, 0.305, 0.48],
+        [1.42, 0.318, 0.3, 0.58],
+        [1.54, 0.276, 0.277, 0.67],
+        [1.66, 0.226, 0.208, 0.765],
+        [1.79, 0.201, 0.162, 0.823],
+        [1.86, 0.151, 0.117, 0.857],
+      ]
+    : [
+        [1.32, 0.329, 0.35, 0.45],
+        [1.48, 0.313, 0.355, 0.5],
+        [1.67, 0.269, 0.34, 0.577],
+        [1.85, 0.223, 0.294, 0.661],
+        [2.02, 0.165, 0.23, 0.769],
+        [2.17, 0.132, 0.173, 0.832],
+        [2.23, 0.084, 0.107, 0.851],
+      ];
+  tailored(
+    body,
+    'neck',
+    interpolateSections(neck, 0.035),
+    paintedSurface(cow ? 'hide-cow' : 'hide-horse', 0, 0.88),
+    32,
+  );
+  if (!cow) {
+    const crest = [
+      [1.65, 0.041, 0.075, 0.3],
+      [1.76, 0.053, 0.084, 0.343],
+      [1.9, 0.052, 0.081, 0.399],
+      [2.04, 0.05, 0.072, 0.52],
+      [2.145, 0.041, 0.059, 0.664],
+      [2.23, 0.03, 0.048, 0.773],
+      [2.266, 0.01, 0.025, 0.835],
+    ];
+    tailored(
+      body,
+      'mane',
+      interpolateSections(crest, 0.031),
+      new THREE.MeshStandardMaterial({ color: 0x51362e, roughness: 0.93 }),
+      16,
+    );
+  }
   const head = joint(body, 'head', 0, cow ? 1.71 : 2.02, 0.87);
   const muzzle = cow
     ? [
-        [-0.293, 0.07, 0.078, 0.44],
-        [-0.26, 0.153, 0.117, 0.48],
-        [-0.2, 0.232, 0.137, 0.48],
-        [-0.145, 0.241, 0.14, 0.475],
-        [-0.08, 0.19, 0.168, 0.407],
+        [-0.293, 0.09, 0.076, 0.405],
+        [-0.26, 0.168, 0.115, 0.432],
+        [-0.2, 0.235, 0.137, 0.434],
+        [-0.145, 0.239, 0.14, 0.428],
+        [-0.08, 0.212, 0.169, 0.378],
         [0.01, 0.194, 0.203, 0.28],
         [0.09, 0.237, 0.227, 0.163],
         [0.157, 0.246, 0.216, 0.099],
@@ -356,37 +529,8 @@ function makeBeast(cow) {
     48,
   );
 
+  if (cow) for (const side of [-1, 1]) draughtHorn(head, side);
   carved(head, (s) => {
-    for (const side of [-1, 1]) {
-      s.oval(
-        hide,
-        side * 0.294,
-        0.125,
-        -0.002,
-        cow ? 0.2 : 0.076,
-        cow ? 0.087 : 0.21,
-        0.084,
-        0,
-        0,
-        side * (cow ? 0.21 : -0.24),
-      );
-      s.oval(
-        cow ? 0xc58570 : 0xd49a6a,
-        side * 0.302,
-        0.137,
-        0.058,
-        cow ? 0.138 : 0.043,
-        cow ? 0.047 : 0.14,
-        0.026,
-        0,
-        0,
-        side * (cow ? 0.21 : -0.24),
-      );
-      if (cow) {
-        s.taper(0xddb873, [side * 0.192, 0.21, -0.01], [side * 0.342, 0.336, -0.06], 0.089, 0.056);
-        s.taper(ivory, [side * 0.342, 0.336, -0.06], [side * 0.393, 0.482, -0.078], 0.058, 0.009);
-      }
-    }
     if (!cow) {
       s.oval(mane, 0, 0.243, 0.047, 0.108, 0.069, 0.126, -0.33);
       for (const sign of [-1, 1]) {
@@ -403,6 +547,7 @@ function makeBeast(cow) {
       }
     }
   });
+  const ears = [draughtEar(head, cow, -1), draughtEar(head, cow, 1)];
   const tail = joint(body, 'tail', 0, 1.55, -0.84);
   carved(tail, (s) => {
     s.taper(cow ? ivory : mane, [0, 0, 0], [0.06, -0.4, -0.18], cow ? 0.036 : 0.12, cow ? 0.03 : 0.084);
@@ -439,7 +584,7 @@ function makeBeast(cow) {
       });
       legs.push({ hip, knee, foot, side, front });
     }
-  rig.userData = { body, head, legs, tail };
+  rig.userData = { body, head, legs, tail, ears };
   return rig;
 }
 

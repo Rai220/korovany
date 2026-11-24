@@ -15,26 +15,199 @@ const rimBlend = (x, z) => {
   return t * t * (3 - 2 * t);
 };
 const zoneAt = (x, z) => (wrapped(x) >= 0 ? 1 : 0) + (wrapped(z) >= 0 ? 2 : 0);
-const ground = (x, z) => {
+function terrainFade(from, to, value) {
+  const u = Math.max(0, Math.min(1, (value - from) / (to - from)));
+  return u * u * (3 - 2 * u);
+}
+// Heights surveyed along the watershed. Low knots form foot passes through the same mesh people walk on.
+const northDivide = [
+  [2, 0],
+  [12, 9],
+  [19, 22],
+  [24, 15],
+  [31, 30],
+  [36, 20],
+  [43, 5],
+  [48, 0],
+  [53, 0],
+  [61, 13],
+  [69, 24],
+  [73, 19],
+  [79, 32],
+  [83, 22],
+  [90, 3],
+  [94, 1.4],
+  [100, 9],
+  [109, 26],
+  [116, 17],
+  [122, 11],
+  [135, 0],
+];
+const eastDivide = [
+  [6, 0],
+  [15, 9],
+  [23, 20],
+  [27, 13],
+  [32, 23],
+  [38, 11],
+  [45, 1],
+  [48, 0],
+  [52, 0],
+  [59, 8],
+  [65, 19],
+  [72, 29],
+  [78, 12],
+  [84, 2],
+  [88, 1],
+  [95, 14],
+  [102, 23],
+  [108, 12],
+  [114, 16],
+  [126, 2],
+  [133, 0],
+];
+const fortSpur = [
+  [49, 0],
+  [59, 5],
+  [66, 11],
+  [71, 7],
+  [79, 16],
+  [82, 11],
+  [88, 21],
+  [95, 13],
+  [101, 18],
+  [106, 9],
+  [117, 0],
+];
+function crestHeight(knots, t) {
+  if (t <= knots[0][0] || t >= knots[knots.length - 1][0]) return 0;
+  let left = 0,
+    right = knots.length - 1;
+  while (right - left > 1) {
+    const mid = (left + right) >> 1;
+    if (t < knots[mid][0]) right = mid;
+    else left = mid;
+  }
+  const [a, h] = knots[left],
+    [b, k] = knots[right];
+  return h + (k - h) * ((t - a) / (b - a));
+}
+function ridgeFlank(distance, lee, windward) {
+  const t = Math.max(0, 1 - Math.abs(distance) / (distance < 0 ? lee : windward));
+  return t * t * (1.82 - 0.82 * t);
+}
+const highTracks = [
+  [
+    [55, 62],
+    [71, 68],
+    [87, 75],
+    [94, 86],
+    [93, 100],
+    [96, 112],
+    [102, 126],
+  ],
+  [
+    [71, 68],
+    [79, 71],
+    [89, 79],
+    [99, 85],
+    [114, 86],
+    [126, 83],
+    [133, 80],
+  ],
+];
+function highTrackDistanceSquared(x, z) {
+  if (x < 46 || z < 52) return Infinity;
+  let closest = Infinity;
+  for (const path of highTracks) {
+    for (let i = 1; i < path.length; i++) {
+      const [ax, az] = path[i - 1],
+        [bx, bz] = path[i],
+        dx = bx - ax,
+        dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      const ex = x - ax - t * dx,
+        ez = z - az - t * dz;
+      closest = Math.min(closest, ex * ex + ez * ez);
+    }
+  }
+  return closest;
+}
+const highTrackClear = (x, z, margin) => highTrackDistanceSquared(x, z) >= margin * margin;
+const settlementPads = [
+  [-79, -31, -68, -20],
+  [-69, -30, 34, 69],
+  [38, 85, -79, -37],
+  [38, 85, 23, 64],
+];
+function ground(x, z) {
   x = wrapped(x);
   z = wrapped(z);
-  const d = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
-  const t = Math.min(1, Math.max(0, (d - 10) / 18));
-  const rise = (v) => {
-    const k = Math.max(0, Math.min(1, (v - 3) / 24));
-    return k * k * (3 - 2 * k);
-  };
-  const plateau =
-    14 * rise(x) * rise(z) * Math.min(1, Math.max(0, (145 - Math.max(Math.abs(x), Math.abs(z))) / 32));
-  const blend = rimBlend(x, z),
-    a = (2 * Math.PI) / PERIOD;
-  const rim = 1.8 * Math.cos(a * x * 3) * Math.cos(a * z * 2) + 1.4 * Math.cos(a * (x + z) * 2);
-  return (
-    blend * rim +
-    (1 - blend) *
-      (plateau + t * (1.2 * Math.sin(x * 0.07) + 1.1 * Math.sin(z * 0.12) + 0.8 * Math.cos((x + z) * 0.06)))
-  );
-};
+  const road = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
+  const rim = rimBlend(x, z);
+  const edge = (Math.PI * 2) / PERIOD;
+  const meadow = 1.4 * Math.cos(edge * (3 * x + z)) + 1.1 * Math.sin(edge * (x - 2 * z));
+  let base = 3.35 * terrainFade(4, 40, x) * terrainFade(1.1, 23, z) * (1 - rim);
+  // The four settlements sit on surveyed level terraces. Roads, bridges and thresholds keep their grade.
+  let openGround = 20;
+  for (const [west, east, north, south] of settlementPads) {
+    openGround = Math.min(openGround, Math.max(west - x, x - east, north - z, z - south));
+  }
+  const wild =
+    terrainFade(0, 11, openGround) * terrainFade(4.1, 13.5, road) * terrainFade(4.5, 13, Math.abs(z));
+  if (wild) {
+    let relief = 0.65 * meadow + 0.58 * Math.sin(edge * (5 * x + 3 * z));
+    // A ravine winds through the western woods. At the main road its banks flatten into a natural ford.
+    if (x < -10 && z > 11) {
+      const bank = x + 87 - 0.19 * (z - 71) - 5.4 * Math.sin(z * 0.088);
+      const extent = terrainFade(11, 31, z) * (1 - terrainFade(116, 139, z));
+      const trough = ridgeFlank(bank, 8.7, 5.2);
+      const shoulder = ridgeFlank(bank + 10.2, 11, 8.4);
+      relief += extent * (3.6 * shoulder - 4.3 * trough);
+    }
+    // Sandstone bluffs above the mill and a shallow paleochannel through the grazing common.
+    if (x < -9 && z < -11) {
+      const trace = z + 91 - 0.18 * (x + 78) - 3.5 * Math.sin(x * 0.097);
+      const bluff = ridgeFlank(trace, 22, 10) * terrainFade(-139, -117, x) * (1 - terrainFade(-82, -28, x));
+      relief += bluff * (5.6 + 1.6 * Math.cos(x * 0.22));
+      const runoff = x + 103 + 5 * Math.cos(z * 0.072);
+      relief -= 2.8 * ridgeFlank(runoff, 11, 6) * terrainFade(-135, -96, z);
+    }
+    base += wild * relief;
+  }
+  if (x > 2 && z > 4 && openGround > 0) {
+    const north = z - (93 + (x - 68) * 0.18 + 4.2 * Math.sin(x * 0.104) + 1.6 * Math.sin(x * 0.23));
+    const east = x - (109 + (z - 67) * 0.16 + 4.5 * Math.sin(z * 0.1));
+    const spur = z - (11.3 + (x - 58) * 0.22 + 1.7 * Math.sin(x * 0.16));
+    const n = Math.abs(north) < 36 ? crestHeight(northDivide, x) * ridgeFlank(north, 28, 36) : 0;
+    const e = Math.abs(east) < 33 ? crestHeight(eastDivide, z) * ridgeFlank(east, 33, 24) : 0;
+    const k = Math.abs(spur) < 12 ? crestHeight(fortSpur, x) * ridgeFlank(spur, 11.5, 12) : 0;
+    const folds = Math.max(n, e, k);
+    if (folds) {
+      const ledges = 0.75 * Math.sin(x * 0.61 + z * 0.31) + 0.44 * Math.sin(z * 0.54 - x * 0.33);
+      base +=
+        terrainFade(4.2, 9, z) *
+        (1 - terrainFade(131, 143, Math.max(x, z))) *
+        terrainFade(0, 7, openGround) *
+        terrainFade(2.8, 9, road) *
+        (folds + terrainFade(1.5, 9, folds) * ledges);
+    }
+  }
+  base += rim * meadow * terrainFade(4, 15, road);
+  if (x > 45 && z > 52) {
+    const track = highTrackDistanceSquared(x, z);
+    if (track < 72.25) {
+      // Mule tracks follow a bench cut into each saddle. The grade and camber are continuous at the fork.
+      const shelf =
+        3.35 +
+        2.8 * terrainFade(64, 92, z) * (1 - terrainFade(97, 129, z)) +
+        0.42 * terrainFade(96, 116, x) -
+        2.45 * terrainFade(115, 134, x);
+      base += (shelf - base) * (1 - terrainFade(1.45, 8.5, Math.sqrt(track)));
+    }
+  }
+  return base;
+}
 class RealmGeometry {
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -175,16 +348,17 @@ class RealmGeometry {
       const q = zoneAt(x, z);
       if (
         Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50)) < 3.5 ||
+        !highTrackClear(x, z, 2.1) ||
+        !this.treeSite(x, z) ||
         CENTERS.some(([a, b]) => Math.hypot(x - a, z - b) < (q === 2 ? 18 : 23))
       )
         continue;
       if (q === 2 || this.rnd() < 0.15) {
         this.trees.push({ x, z, y: ground(x, z), h: 9 + this.rnd() * 13, a: this.rnd() * 6.2, near: null });
         this.bound(x, z, 0.58, 0.58);
-      } else if (this.rnd() < 0.18) {
-        const s = 0.55 + this.rnd() * 1.9;
-        this.put(this.stone, 0x66685c, x, ground(x, z) + s * 0.22, z, s, s * 0.8, s * 1.2, this.rnd() * 6);
-        this.bound(x, z, s * 1.25, s * 1.3);
+      } else if (this.rnd() < 0.11) {
+        const scale = 0.37 + this.rnd() * 0.85;
+        this.fieldStone(x, z, scale, this.rnd() * Math.PI * 2);
       }
     }
     this.dressSettlements();
@@ -245,8 +419,22 @@ class RealmGeometry {
       this.put(this.log, color, a, h / 2, b, r, h, r);
       this.bound(a, b, r * 1.5, r * 1.5);
       this.put(this.log, color, a, h - 0.3, b, r * 1.14, 0.9, r * 1.14);
-      if (dark) this.put(this.spire, roof, a, h + 1.7, b, r * 1.27, 4, r * 1.27);
-      else
+      if (dark) {
+        for (let i = 0; i < 7; i++) {
+          if ((i + Math.round(a + b)) % 5 === 0) continue;
+          const direction = (i * Math.PI * 2) / 7;
+          this.block(
+            a + r * Math.sin(direction),
+            h + 0.32,
+            b + r * Math.cos(direction),
+            0.63,
+            0.85,
+            0.55,
+            color,
+            direction,
+          );
+        }
+      } else
         for (let j = 0; j < 8; j++)
           this.block(
             a + Math.sin(j * 0.785) * r,
@@ -314,6 +502,11 @@ class RealmGeometry {
     this.scene.add(this.marker);
   }
   display(s, t, attackAnim, bob, target) {
+    if (s.dungeon) {
+      renderDungeon(this, s, t, attackAnim, bob);
+      return;
+    }
+    if (this.arrow3d.parent !== this.scene) this.scene.add(this.arrow3d);
     if (s.inside) {
       this.roomView(s, t, bob);
       return;
@@ -353,11 +546,7 @@ class RealmGeometry {
       }
       if (a.hp <= 0 && m.userData.fellAt == null) m.userData.fellAt = t;
       const fall = a.hp <= 0 ? Math.min(1, (t - m.userData.fellAt) * 3) : 0;
-      m.position.set(
-        nearest(a.x, s.x),
-        walkingSurface(a.x, a.z),
-        nearest(a.z, s.z),
-      );
+      m.position.set(nearest(a.x, s.x), walkingSurface(a.x, a.z), nearest(a.z, s.z));
       const range = distance(a, s);
       m.visible = range < 85;
       const contact = m.userData.groundShadow;
@@ -394,7 +583,7 @@ class RealmGeometry {
       this.marker.rotation.y = t;
     }
     this.animateDetails(s, t, attackAnim, bob);
-    if(typeof frameHeroCamera==='function') frameHeroCamera(this,s,t,attackAnim);
+    if (typeof frameHeroCamera === 'function') frameHeroCamera(this, s, t, attackAnim);
     if (s.delivery) setDeliveryCamera(this, s, t);
     updateFieldEffects(this, s, t);
     this.updateRiverMirror(s, t, c);

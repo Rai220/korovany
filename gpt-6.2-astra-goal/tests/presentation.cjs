@@ -49,6 +49,42 @@ async function main() {
     });
     assert.ok(clip.bones >= 55 && clip.visible && !clip.weapon && clip.cameraDistance > 2);
     assert.ok(clip.posed === 'slash' && clip.movement > 0.012, JSON.stringify(clip));
+    const guardMotion = await page.evaluate(() => {
+      const pose = (pressed, t) => {
+        game.blockTime = pressed ? 0.1 : 0;
+        world.updateHands(game, t, 0, 0);
+        return world.guardLift.value;
+      };
+      pose(false, 3);
+      const start = pose(true, 3.017);
+      const halfway = pose(true, 3.065);
+      for (let i = 5; i <= 24; i++) pose(true, 3 + i / 60);
+      const raised = world.guardLift.value;
+      const lowering = pose(false, 3.42);
+      for (let i = 26; i < 75; i++) pose(false, 3 + i / 60);
+      return [
+        start,
+        halfway,
+        raised,
+        lowering,
+        world.guardLift.value,
+        world.rightArm.group.visible,
+        world.shield.visible,
+      ];
+    });
+    assert.ok(
+      guardMotion[0] >= 0 &&
+        guardMotion[0] < guardMotion[1] &&
+        guardMotion[1] < guardMotion[2] &&
+        guardMotion[2] > 0.94,
+    );
+    assert.ok(
+      guardMotion[3] > 0.45 &&
+        guardMotion[3] < 1 &&
+        guardMotion[4] < 0.01 &&
+        guardMotion[5] &&
+        !guardMotion[6],
+    );
     await page.keyboard.press('2');
     await page.keyboard.down('r');
     const focus = await page.evaluate(() => {

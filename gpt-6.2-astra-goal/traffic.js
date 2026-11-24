@@ -124,3 +124,50 @@ function rollWagon(w, dx, dz, heading, dt) {
   Object.assign(w, pose);
   return true;
 }
+
+function escortSlot(w, side) {
+  return point(w.x + Math.cos(w.angle) * 2.6 * side, w.z - Math.sin(w.angle) * 2.6 * side);
+}
+function followWagon(a, dt) {
+  const w = game.wagon;
+  // Old saves have no assigned side. Keep the guard on the flank they already occupy.
+  if (a.escortSide !== 1 && a.escortSide !== -1) {
+    const occupied = game.actors.find(
+      (other) => other !== a && other.team === 'escort' && other.hp > 0 && other.escortSide,
+    );
+    a.escortSide = occupied
+      ? -occupied.escortSide
+      : distance(a, escortSlot(w, -1)) <= distance(a, escortSlot(w, 1))
+        ? -1
+        : 1;
+  }
+  const slot = escortSlot(w, a.escortSide);
+  const vx = a.lastSlot ? wrapped(slot.x - a.lastSlot.x) / dt : 0,
+    vz = a.lastSlot ? wrapped(slot.z - a.lastSlot.z) / dt : 0;
+  a.lastSlot = slot;
+  const dx = wrapped(slot.x - a.x),
+    dz = wrapped(slot.z - a.z),
+    error = Math.hypot(dx, dz);
+  const x = a.x,
+    z = a.z,
+    yaw = a.angle;
+  if (error > 3.5 || a.path?.length) {
+    advance(a, slot, 3.2, dt);
+  } else {
+    const ux = vx + dx * 2.6,
+      uz = vz + dz * 2.6,
+      speed = Math.hypot(ux, uz);
+    if (speed > 0.075) {
+      const length = Math.min(3.65, speed) * dt;
+      const moved = move(a, (ux / speed) * length, (uz / speed) * length);
+      if (moved < length * 0.25 && error > 0.55) advance(a, slot, 2.3, dt);
+    }
+  }
+  const mx = wrapped(a.x - x),
+    mz = wrapped(a.z - z),
+    speed = Math.hypot(mx, mz) / dt;
+  a.gaitSpeed = (a.gaitSpeed ?? speed) + (speed - (a.gaitSpeed ?? speed)) * (1 - Math.exp(-dt * 12));
+  a.walk = a.gaitSpeed > (a.wasWalking ? 0.09 : 0.18);
+  a.wasWalking = a.walk;
+  a.angle = speed > 0.09 ? yaw + clamp(angles(Math.atan2(mx, mz) - yaw), -4 * dt, 4 * dt) : yaw;
+}

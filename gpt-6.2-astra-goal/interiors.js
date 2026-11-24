@@ -1,58 +1,139 @@
 'use strict';
 
-const houses = {
-  mill: {
-    name: 'Мельница Эльды',
-    door: { x: -73, z: -55.45 },
-    object: 'Книга помола',
-    desk: { x: -2.6, z: -2.45 },
-    voice: 'Жернова ещё тёплые. На последних листах мука забилась в свежие чернила.',
-  },
-  archive: {
-    name: 'Палата печатей',
-    door: { x: 68, z: -63.25 },
-    object: 'Стол хранителя печатей',
-    desk: { x: -2.6, z: -2.45 },
-    voice: 'Из стены тянет холодом. В нишах лежат оттиски всех двенадцати зим.',
-  },
-};
 function roomAction() {
-  const g = game,
-    room = houses[g.inside],
-    p = { x: g.roomX, z: g.roomZ };
-  if (distance(p, { x: 0, z: 4.45 }) < 1.95) return { label: 'Выйти на улицу', key: 'leave' };
-  if (distance(p, room.desk) < 2.8) return { label: room.object, key: 'desk' };
-  if (distance(p, { x: 3.4, z: 1.6 }) < 2.45)
-    return {
-      label: g.inside === 'mill' ? 'Отдохнуть у очага · 3 монеты' : 'Прочитать караульную ведомость',
-      key: 'rest',
-    };
-  return null;
-}
-function enterRoom(id) {
   const g = game;
-  g.outsideYaw = g.yaw;
+  let best = null,
+    bestDistance = Infinity;
+  for (const feature of roomFeatures(g.inside)) {
+    const targetZ =
+      feature.endZ === undefined ? feature.z : Math.max(feature.endZ, Math.min(feature.z, g.roomZ));
+    const d = Math.hypot(g.roomX - feature.x, g.roomZ - targetZ);
+    if (d <= feature.r && d < bestDistance) {
+      best = feature;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+function enterRoom(id, entrance = 'front') {
+  const g = game,
+    room = houses[id];
+  if (!room) return;
+  if (!g.inside) g.outsideYaw = g.yaw;
   g.inside = id;
-  g.roomX = 0;
-  g.roomZ = 2.35;
-  g.yaw = g.pitch = g.air = g.vy = 0;
+  g.roomEntrance = entrance;
+  const rear = entrance === 'back';
+  g.roomX = room.kind === 'home' ? room.localX : 0;
+  g.roomZ = room.kind === 'home' ? (rear ? -1.37 : 1.37) : room.kind === 'hall' ? 6.79 : 2.35;
+  g.yaw = rear ? Math.PI : 0;
+  if (entrance === 'gallery') {
+    const palace = id === 'palace';
+    g.roomX = palace ? 4.65 : 3.55;
+    g.roomZ = palace ? -3.28 : -1.85;
+    g.yaw = Math.PI / 2;
+  }
+  g.pitch = g.air = g.vy = 0;
   g.arrow = null;
   keys.clear();
-  notify(houses[id].name, 2);
-  speak('Путевая запись', houses[id].voice);
+  realmVoice.stop();
+  $('subtitle').textContent = '';
+  notify(room.name, 2);
+  if (room.voice) speak('Путевая запись', room.voice);
   drawHud();
 }
-function leaveRoom() {
-  const g = game;
-  if (!g.inside) return;
-  g.yaw = g.outsideYaw ?? 0;
-  Object.assign(g, clearSpot(g.x, g.z, g));
-  g.pitch = 0;
+function leaveRoom(entrance) {
+  const g = game,
+    room = houses[g.inside];
+  if (!room) return;
+  const door = room.doors.find((d) => d.key === (entrance || g.roomEntrance)) || room.doors[0];
   g.inside = null;
-  g.roomX = g.roomZ = 0;
+  g.roomEntrance = null;
+  g.roomX = g.roomZ = g.pitch = g.air = g.vy = 0;
+  Object.assign(g, clearSpot(nearest(door.x, g.x), nearest(door.z + 0.91 * door.n, g.z), g));
+  g.yaw = door.n > 0 ? Math.PI : 0;
   keys.clear();
+  realmVoice.stop();
+  $('subtitle').textContent = '';
   lodTime = 0;
   drawHud();
+}
+function indoorService(price, needed, effect, result) {
+  const g = game;
+  if (!needed) return notify('Сейчас это не требуется');
+  if (g.coins < price) return notify('Не хватает монет');
+  g.coins -= price;
+  effect(g);
+  checkpoint();
+  drawHud();
+  notify(result, 2.6);
+}
+function useBuilding(id, key) {
+  const g = game,
+    room = houses[id];
+  if (key === 'dungeon') return enterDungeon(id);
+  if (key === 'gallery') return enterRoom(id === 'archive' ? 'palace' : 'archive', 'gallery');
+  if (key === 'note' && room.kind === 'home') return modal(room.name, room.note, '<p>' + room.text + '</p>');
+  if (key === 'note' && id === 'palace')
+    return modal(
+      room.name,
+      'Устав гарнизона',
+      '<p>Галерея за правой аркадой ведёт в Палату печатей. По нужде в лекаре обращайтесь в перевязочную возле входа. Под левой аркой в глубине зала начинается лестница в казематы.</p>',
+    );
+  if (key === 'note' && id === 'fort')
+    return modal(
+      room.name,
+      'Карта перевалов',
+      '<p>Северный караул охраняет дорогу к дворцу. На западной тропе стоят лесные дозоры. Старые выработки под крепостью отмечены красным углём. Вход в них за левой аркой.</p>',
+    );
+  const needsCare = g.health < 100 || g.bleed > 0;
+  if (id === 'palace' || id === 'herbalist' || id === 'inn') {
+    const cost = id === 'palace' ? 0 : id === 'inn' ? 3 : 4;
+    return indoorService(
+      cost,
+      needsCare || (id === 'inn' && g.stamina < 100),
+      (g) => {
+        g.health = Math.min(100, g.health + (id === 'herbalist' ? 42 : id === 'palace' ? 35 : 100));
+        g.bleed = 0;
+        if (id === 'inn') g.stamina = 100;
+      },
+      id === 'inn' ? 'Ночлег оплачен · силы восстановлены' : 'Раны обработаны',
+    );
+  }
+  if (id === 'wheelwright') {
+    if (g.repairedWheel) return notify('Колесо уже передано вознице');
+    g.repairedWheel = true;
+    g.coins += 7;
+    g.story.entries.push([
+      'Работа у колёсника',
+      'Новый обод подогнан к запасному колесу. Колёсник заплатил семь монет.',
+    ]);
+    checkpoint();
+    drawHud();
+    return notify('Обод подогнан · получено 7 монет');
+  }
+  if (id === 'weaver')
+    return indoorService(
+      4,
+      true,
+      (g) => {
+        g.bandages += 2;
+      },
+      'Два чистых бинта сложены в сумку',
+    );
+  if (id === 'fletcher' || id === 'fort') {
+    const count = id === 'fort' ? 12 : 6;
+    return indoorService(
+      id === 'fort' ? 8 : 3,
+      true,
+      (g) => {
+        g.arrows += count;
+      },
+      'Стрелы в колчане · +' + count,
+    );
+  }
+  if (id === 'factor') return shop();
+  if (id === 'posthouse') return rideFromShop();
+  if (id === 'watch') return mapDialog();
 }
 function insideInteract() {
   const g = game,
@@ -63,15 +144,16 @@ function insideInteract() {
     return;
   }
   if (act.key === 'leave') {
-    leaveRoom();
+    leaveRoom(act.door);
+    return;
+  }
+  if (houses[id].kind || act.key === 'gallery') {
+    useBuilding(id, act.key);
     return;
   }
   if (act.key === 'rest') {
     if (id === 'archive') {
-      speak(
-        'Караульная ведомость',
-        'Третью стражу с переправы снял регент. До рассвета ворота держали двое.',
-      );
+      speak('Караульная ведомость', 'Третью стражу с переправы снял регент. До рассвета ворота держали двое.');
       return;
     }
     if (g.coins < 3) {
@@ -156,20 +238,32 @@ function insideInteract() {
   );
 }
 function roomTick(dt) {
-  const g = game;
+  const g = game,
+    radius = bodyRadius(g);
+  const free = (x, z) => roomFree(g.inside, x, z, radius);
+  if (!free(g.roomX, g.roomZ)) {
+    // A loaded hero can be wider after buying a wheelchair beside a bench.
+    let safe = null;
+    for (let step = 1; !safe && step <= 8; step++) {
+      for (let j = 0; j < 16; j++) {
+        const a = (j * Math.PI) / 8,
+          x = g.roomX + Math.sin(a) * step * 0.18,
+          z = g.roomZ + Math.cos(a) * step * 0.18;
+        if (free(x, z)) {
+          safe = [x, z];
+          break;
+        }
+      }
+    }
+    [g.roomX, g.roomZ] = safe || [0, 0];
+  }
   if (keys.has('ArrowLeft')) g.yaw += dt * 1.85;
   if (keys.has('ArrowRight')) g.yaw -= dt * 1.85;
-  const f =
-      Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown')),
+  const f = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown')),
     r = Number(keys.has('KeyD')) - Number(keys.has('KeyA')),
     len = Math.hypot(f, r);
   if (len) {
     const v = (dt * (g.leg === 'lost' ? 1.25 : 3.65)) / len;
-    const free = (x, z) =>
-      Math.abs(x) < 4.65 &&
-      Math.abs(z) < 4.85 &&
-      !(x < -1.46 && x > -4.05 && z < -2.1 && z > -3.91) &&
-      !(x > 2.6 && z > 1.1 && z < 2.99);
     const x = g.roomX + (r * Math.cos(g.yaw) - f * Math.sin(g.yaw)) * v,
       z = g.roomZ + (-r * Math.sin(g.yaw) - f * Math.cos(g.yaw)) * v;
     if (free(x, g.roomZ)) g.roomX = x;
@@ -178,6 +272,10 @@ function roomTick(dt) {
   }
   g.vy -= 18 * dt;
   g.air = Math.max(0, g.air + g.vy * dt);
+  if (houses[g.inside].kind === 'home' && g.air > 1.14) {
+    g.air = 1.14;
+    g.vy = Math.min(0, g.vy);
+  }
   if (!g.air) g.vy = 0;
   if (g.bleed) {
     g.health -= g.bleed * dt;
@@ -193,6 +291,7 @@ function roomTick(dt) {
 }
 class InteriorRealm extends Borderlands {
   buildRoom(id) {
+    if (houses[id].kind) return buildFurnishedRoom(this, id);
     const sc = new THREE.Scene();
     sc.background = new THREE.Color(0x201d17);
     const mill = id === 'mill';
@@ -350,6 +449,10 @@ class InteriorRealm extends Borderlands {
       for (const side of [-1, 1]) box(1.4 + side * 2.82, 1.95, -4.46, 0.19, 3.88, 0.83, 0x594431);
       panel('standard-sun', -2.87, 3.04, -5.095, 1.38, 2.12, 0);
     }
+    if (!mill) {
+      panel('gate', 4.925, 1.29, -1.85, 1.56, 2.58, -Math.PI / 2);
+      box(4.91, 2.67, -1.85, 0.18, 0.17, 1.81, 0x716e60);
+    }
     box(4.31, 1.19, 1.8, 1.24, 2.38, 2.49, 0x969384);
     box(3.64, 0.73, 1.8, 0.13, 1.08, 1.33, 0x443b2f);
     for (let j = 0; j < 6; j++) {
@@ -396,13 +499,18 @@ class InteriorRealm extends Borderlands {
     $('play').classList.remove('bow-focus');
     this.camera.position.set(
       s.roomX,
-      (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.71) + s.air + bob,
+      (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.71) +
+        buildingFloor(s.inside, s.roomX, s.roomZ) +
+        s.air +
+        bob,
       s.roomZ,
     );
     this.camera.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
-    this.shield.visible = this.bow.visible = false;
-    this.weapon.visible = false;
-    sc.userData.fire.intensity = 13 + Math.sin(t * 4.5) * 1.2 + Math.sin(t * 13) * 0.43;
+    this.hideHands();
+    const fire = sc.userData.fire;
+    if (fire)
+      fire.intensity = (fire.userData.base || 13) * (1 + 0.07 * Math.sin(t * 4.5) + 0.026 * Math.sin(t * 13));
+    if (sc.userData.occupant) poseCharacter(sc.userData.occupant, sc.userData.occupantState, t);
     if (sc.userData.axle) sc.userData.axle.rotation.z = -t * 0.36;
     if (sc.userData.pinion) sc.userData.pinion.rotation.z = t * 0.72;
     this.renderer.render(sc, this.camera);

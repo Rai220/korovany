@@ -439,6 +439,7 @@ function cyclePostView() {
   world.refreshFrame = true;
 }
 function setDeliveryCamera(realm, s, t) {
+  realm.hideHands();
   const w = s.wagon,
     d = s.delivery,
     c = realm.camera,

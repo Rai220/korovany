@@ -43,6 +43,8 @@ function scoreScene(now) {
   if (scoreMode === 'menu' || !active || !game) return 'road';
   if (game.delivery || ($('dialog').open && document.querySelector('#dialog-body .cow-office')))
     return 'fair';
+  if (game.dungeon && game.health > 0 && dungeonState().foes.some((a) => a.hp > 0 && a.alert > 0))
+    return 'battle';
   if (game.inside || game.health <= 0) return 'mill';
   if (!$('dialog').open) {
     if (game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(game, a) < 17))

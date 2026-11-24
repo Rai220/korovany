@@ -1133,7 +1133,7 @@ kbd {
 
 #foe {
   position: absolute;
-  top: calc(50% - 60px);
+  top: 59px;
   left: 50%;
   transform: translateX(-50%);
   padding: 5px 10px;
