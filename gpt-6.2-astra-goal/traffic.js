@@ -10,17 +10,22 @@ function hitchDistance(x, z, w) {
     u = dx * c - dz * s,
     v = dx * s + dz * c;
   const bx = Math.abs(u) - 1.18,
-    bz = Math.abs(v) - 1.63;
+    bz = Math.abs(v + 0.315) - 1.955;
   let d = Math.hypot(Math.max(0, bx), Math.max(0, bz)) + Math.min(0, Math.max(bx, bz));
+  const hitch = w.bend || 0,
+    ch = Math.cos(hitch),
+    sh = Math.sin(hitch);
+  const teamX = u * ch - (v - 1.09) * sh,
+    teamZ = u * sh + (v - 1.09) * ch;
   for (const side of [-0.73, 0.73]) {
-    d = Math.min(d, Math.hypot(u - side, v - clamp(v, 2.45, 4.55)) - 0.4);
+    d = Math.min(d, Math.hypot(teamX - side, teamZ - clamp(teamZ, 1.36, 3.46)) - 0.4);
   }
   return d;
 }
 const bodyRadius = (a) =>
   a === game ? (a.leg === 'chair' ? 0.49 : 0.37) : a.kind === 'regent' ? 0.46 : 0.37;
 function livingFree(x, z, r, who, ignoreWagon = false) {
-  if (!world.free(x, z, r)) return false;
+  if (!world.free(x, z, r) || huntSolid(x, z, r, who)) return false;
   if (!ignoreWagon && game.wagon && hitchDistance(x, z, game.wagon) < r) return false;
   const overlaps = (b) => {
     if (b === who || (b === game ? game.inside || game.delivery : b.hp <= 0)) return false;
@@ -51,7 +56,7 @@ function makeWay(x, z, dx, dz) {
       if (livingFree(nx, nz, bodyRadius(a), a)) {
         a.x = wrapped(nx);
         a.z = wrapped(nz);
-        a.angle = Math.atan2(side * uz, -side * ux);
+        a.lookYaw = Math.atan2(side * uz, -side * ux);
         a.walk = true;
         break;
       }
@@ -67,12 +72,13 @@ function move(ent, dx, dz, r = bodyRadius(ent)) {
     const x = ent.x,
       z = ent.z;
     if (ent === game) makeWay(x, z, dx, dz);
-    if (livingFree(x + dx, z + dz, r, ent)) {
+    if (canClimbStep(x, z, x + dx, z + dz) && livingFree(x + dx, z + dz, r, ent)) {
       ent.x = wrapped(x + dx);
       ent.z = wrapped(z + dz);
     } else {
-      if (dx && livingFree(x + dx, z, r, ent)) ent.x = wrapped(x + dx);
-      if (dz && livingFree(ent.x, z + dz, r, ent)) ent.z = wrapped(z + dz);
+      if (dx && canClimbStep(x, z, x + dx, z) && livingFree(x + dx, z, r, ent)) ent.x = wrapped(x + dx);
+      if (dz && canClimbStep(ent.x, z, ent.x, z + dz) && livingFree(ent.x, z + dz, r, ent))
+        ent.z = wrapped(z + dz);
     }
     walked += Math.hypot(wrapped(ent.x - x), wrapped(ent.z - z));
   }
@@ -86,7 +92,14 @@ function repairSpacing() {
 }
 function rollWagon(w, dx, dz, heading, dt) {
   const turn = clamp(angles(heading - w.angle), -dt * 1.6, dt * 1.6);
-  const pose = { x: w.x + dx, z: w.z + dz, angle: w.angle + turn };
+  const travelled = Math.hypot(dx, dz);
+  const forward = dx * Math.sin(w.angle) + dz * Math.cos(w.angle);
+  const steer =
+    travelled > 0.0001
+      ? clamp(Math.atan((2.18 * turn) / (Math.sign(forward || 1) * travelled)), -0.58, 0.58)
+      : 0;
+  const bend = (w.bend || 0) + (steer - (w.bend || 0)) * (1 - Math.exp(-dt * 9));
+  const pose = { x: w.x + dx, z: w.z + dz, angle: w.angle + turn, bend };
   if (!game.inside && !game.delivery) {
     const next = hitchDistance(game.x, game.z, pose),
       current = hitchDistance(game.x, game.z, w);
@@ -126,7 +139,10 @@ function rollWagon(w, dx, dz, heading, dt) {
 }
 
 function escortSlot(w, side) {
-  return point(w.x + Math.cos(w.angle) * 2.6 * side, w.z - Math.sin(w.angle) * 2.6 * side);
+  // The 5.3-m timber bridge carries posts on both edges. Close ranks before the first post.
+  const bridge = Math.abs(Math.abs(w.x) - 50) < 5 ? Math.abs(w.z - streamZ(w.x)) : 99;
+  const flank = 2.04 + 0.56 * THREE.MathUtils.smoothstep(bridge, 5, 11);
+  return point(w.x + Math.cos(w.angle) * flank * side, w.z - Math.sin(w.angle) * flank * side);
 }
 function followWagon(a, dt) {
   const w = game.wagon;
@@ -166,8 +182,20 @@ function followWagon(a, dt) {
   const mx = wrapped(a.x - x),
     mz = wrapped(a.z - z),
     speed = Math.hypot(mx, mz) / dt;
-  a.gaitSpeed = (a.gaitSpeed ?? speed) + (speed - (a.gaitSpeed ?? speed)) * (1 - Math.exp(-dt * 12));
-  a.walk = a.gaitSpeed > (a.wasWalking ? 0.09 : 0.18);
+  a.walk = speed > (a.wasWalking ? 0.09 : 0.18);
   a.wasWalking = a.walk;
-  a.angle = speed > 0.09 ? yaw + clamp(angles(Math.atan2(mx, mz) - yaw), -4 * dt, 4 * dt) : yaw;
+  a.angle = speed > 0.09 ? Math.atan2(mx, mz) : yaw;
+}
+
+function updatePedestrianTurn(a, before, dt) {
+  if (a.hp <= 0 || dt <= 0) return;
+  const dist = Math.hypot(wrapped(a.x - before.x), wrapped(a.z - before.z));
+  const desired = a.angle,
+    delta = angles(desired - before.yaw);
+  const turn = clamp(delta, -dt * (a.windup ? 3.85 : 3.18), dt * (a.windup ? 3.85 : 3.18));
+  a.angle = angles(before.yaw + turn);
+  a.turnRate = turn / dt;
+  a.lookYaw = desired;
+  const speed = dist / dt;
+  a.gaitSpeed = (a.gaitSpeed ?? speed) + (speed - (a.gaitSpeed ?? speed)) * (1 - Math.exp(-dt * 11));
 }

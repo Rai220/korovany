@@ -140,7 +140,7 @@ const settlementPads = [
   [38, 85, -79, -37],
   [38, 85, 23, 64],
 ];
-function ground(x, z) {
+function surveyedGround(x, z) {
   x = wrapped(x);
   z = wrapped(z);
   const road = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
@@ -207,6 +207,326 @@ function ground(x, z) {
     }
   }
   return base;
+}
+// Each knot surveys a ridge crest in metres. The fourth and fifth coordinates give the width
+// of its respective flanks. Smaller branches share their parent mountain's upper edge.
+const rockRanges = [
+  [
+    [-38, -32, 0, 8, 7],
+    [-33, -28, 5, 15, 10],
+    [-27, -27, 10, 14, 12],
+    [-23, -24, 16, 18, 13],
+    [-20, -25, 13, 16, 12],
+    [-15, -28, 22, 19, 14],
+    [-13, -26, 21, 19, 13],
+    [-9, -25, 30, 20, 16],
+    [-6, -24, 26, 19, 15],
+    [-2, -23, 20, 19, 14],
+    [1, -21, 22, 19, 13],
+    [5, -20, 14, 19, 13],
+    [10, -19, 11, 18, 11],
+    [16, -17, 5, 15, 11],
+    [23, -16, 0, 11, 8],
+  ],
+  [
+    [-9, -25, 27, 7, 9],
+    [-7, -29, 21, 8, 10],
+    [-1, -35, 13, 10, 9],
+    [4, -38, 6, 10, 7],
+    [10, -41, 0, 8, 6],
+  ],
+  [
+    [-20, -25, 13, 7, 9],
+    [-21, -20, 13, 7, 9],
+    [-22, -15, 9, 9, 7],
+    [-27, -10, 0, 6, 6],
+  ],
+  // Split limestone crown beyond the forest common. The south-facing scar is physically part of the hillside.
+  [
+    [-43, 21, 0, 7, 9],
+    [-38, 21, 5, 9, 12],
+    [-35, 19, 9, 10, 11],
+    [-33, 18, 13, 10, 12],
+    [-31, 18, 14, 11, 12],
+    [-29, 16.5, 17, 11, 11],
+    [-26, 16, 14, 12, 12],
+    [-23, 18, 19, 12, 14],
+    [-20, 19, 16, 12, 13],
+    [-18, 20, 12, 13, 12],
+    [-14, 21, 9, 12, 12],
+    [-7, 24, 4, 12, 9],
+    [2, 24, 0, 9, 9],
+  ],
+  [
+    [-23, 18, 16, 6, 8],
+    [-24, 23, 12, 6, 8],
+    [-23, 27, 8, 8, 8],
+    [-18, 32, 3, 8, 6],
+    [-12, 34, 0, 6, 6],
+  ],
+  // The granite watershed behind the fort. Two mule gaps interrupt its broken crest.
+  [
+    [6, 88, 0, 8, 13],
+    [14, 86, 4, 12, 15],
+    [21, 86, 9, 14, 17],
+    [26, 88, 14, 13, 18],
+    [29, 89, 12, 16, 18],
+    [32, 89, 19, 15, 17],
+    [35, 87, 13, 14, 18],
+    [39, 87, 7, 13, 15],
+    [47, 90, 0, 13, 12],
+  ],
+  [
+    [56, 93, 0, 10, 13],
+    [62, 93, 6, 13, 17],
+    [68, 96, 12, 16, 18],
+    [72, 97, 14, 16, 16],
+    [75, 99, 11, 17, 18],
+    [80, 100, 21, 18, 17],
+    [84, 101, 14, 16, 19],
+    [89, 103, 7, 15, 16],
+    [96, 106, 0, 13, 13],
+  ],
+  [
+    [80, 100, 14, 8, 10],
+    [81, 97, 13, 8, 10],
+    [84, 95, 10, 9, 9],
+    [84, 92, 12, 7, 8],
+    [87, 91, 8, 7, 9],
+    [88, 87, 6, 8, 7],
+    [87, 82, 0, 7, 6],
+  ],
+  [
+    [71, 96, 10, 9, 8],
+    [70, 92, 9, 9, 9],
+    [66, 89, 8, 11, 9],
+    [65, 86, 6, 9, 9],
+    [60, 81, 0, 8, 7],
+  ],
+  [
+    [97, 99, 0, 8, 12],
+    [101, 102, 9, 13, 15],
+    [105, 107, 17, 14, 17],
+    [109, 109, 15, 14, 16],
+    [112, 110, 18, 15, 15],
+    [116, 112, 11, 14, 16],
+    [125, 113, 0, 14, 10],
+  ],
+  [
+    [112, 52, 0, 12, 13],
+    [112, 58, 8, 17, 13],
+    [114, 64, 15, 18, 13],
+    [116, 67, 13, 18, 13],
+    [115, 72, 21, 18, 14],
+    [117, 76, 12, 17, 15],
+    [118, 81, 5, 15, 13],
+    [122, 87, 0, 10, 10],
+  ],
+  [
+    [92, 20, 0, 11, 11],
+    [99, 23, 6, 15, 13],
+    [103, 28, 12, 16, 14],
+    [107, 33, 15, 18, 14],
+    [109, 38, 10, 13, 12],
+    [111, 46, 0, 10, 8],
+  ],
+  // West-country downland, cut by sandstone benches and the shallow heads of streams.
+  [
+    [-136, -112, 0, 9, 14],
+    [-129, -109, 7, 13, 17],
+    [-125, -106, 13, 15, 19],
+    [-120, -102, 18, 17, 17],
+    [-116, -103, 16, 17, 20],
+    [-111, -101, 25, 17, 22],
+    [-107, -98, 19, 19, 21],
+    [-103, -95, 17, 19, 18],
+    [-101, -90, 14, 17, 17],
+    [-93, -86, 9, 17, 15],
+    [-87, -81, 5, 14, 13],
+    [-82, -73, 0, 11, 9],
+  ],
+  [
+    [-133, 34, 0, 12, 10],
+    [-128, 29, 12, 16, 12],
+    [-123, 26, 16, 19, 14],
+    [-120, 24, 22, 18, 13],
+    [-116, 20, 18, 17, 14],
+    [-112, 18, 14, 16, 12],
+    [-108, 14, 11, 15, 12],
+    [-102, 12, 7, 15, 9],
+    [-91, 10, 0, 10, 7],
+  ],
+];
+let mountainSurvey;
+function upliftSurvey() {
+  if (mountainSurvey) return mountainSurvey;
+  const stride = PERIOD + 1,
+    height = new Float32Array(stride * stride);
+  function stamp(a, b, c) {
+    const den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+    if (Math.abs(den) < 0.001) return;
+    const minX = Math.max(-143, Math.floor(Math.min(a[0], b[0], c[0]))),
+      maxX = Math.min(143, Math.ceil(Math.max(a[0], b[0], c[0])));
+    const minZ = Math.max(-143, Math.floor(Math.min(a[1], b[1], c[1]))),
+      maxZ = Math.min(143, Math.ceil(Math.max(a[1], b[1], c[1])));
+    for (let z = minZ; z <= maxZ; z++)
+      for (let x = minX; x <= maxX; x++) {
+        const u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (z - c[1])) / den,
+          v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (z - c[1])) / den,
+          w = 1 - u - v;
+        if (Math.min(u, v, w) < -0.0001) continue;
+        const k = (z + WORLD_LIMIT) * stride + x + WORLD_LIMIT;
+        height[k] = Math.max(height[k], a[2] * u + b[2] * v + c[2] * w);
+      }
+  }
+  for (let id = 0; id < rockRanges.length; id++) {
+    const path = rockRanges[id],
+      widths = [-1, -0.79, -0.54, -0.39, -0.15, 0, 0.12, 0.26, 0.54, 0.87, 1],
+      profiles = [0, 0.045, 0.19, 0.38, 0.7, 1, 0.83, 0.76, 0.31, 0.055, 0];
+    let prev = null;
+    for (let i = 0; i < path.length; i++) {
+      const [x, z, h, lee, wind] = path[i],
+        before = path[Math.max(0, i - 1)],
+        after = path[Math.min(path.length - 1, i + 1)];
+      const length = Math.hypot(after[0] - before[0], after[1] - before[1]),
+        nx = -(after[1] - before[1]) / length,
+        nz = (after[0] - before[0]) / length;
+      const strip = widths.map((fraction, j) => {
+        const shoulder = Math.sin(Math.PI * Math.abs(fraction)),
+          seed = id * 7.151 + i * 2.792;
+        const lateral =
+          fraction * (fraction < 0 ? lee : wind) * (1 + 0.19 * Math.sin(seed)) +
+          0.93 * Math.sin(seed + j * 0.53) * shoulder;
+        const along = shoulder * (2.15 * Math.sin(seed - 0.813 * j) + 0.68 * Math.cos(seed * 1.63 + 0.48 * j));
+        const elev = Math.max(
+          0,
+          h * (profiles[j] + shoulder * (0.12 * Math.cos(seed * 0.91 + j * 0.71) + 0.052 * Math.sin(seed + j))),
+        );
+        return [x + nx * lateral + nz * along, z + nz * lateral - nx * along, elev];
+      });
+      if (prev)
+        for (let j = 1; j < strip.length; j++) {
+          stamp(prev[j - 1], strip[j - 1], strip[j]);
+          stamp(prev[j - 1], strip[j], prev[j]);
+        }
+      prev = strip;
+    }
+  }
+  const protectedSites = [
+    [-87, -24, 4],
+    [-95, -7, 3],
+    [-77, 75, 5],
+    [-80, 29, 4],
+    [-105, 91, 4],
+    [-112, -6, 4],
+    [-114, 77, 4],
+    [63, 68, 4],
+    [26, 61, 4],
+    [94, 99, 4],
+    [67, 80, 4],
+    [-93, 40, 10],
+    [25, -95, 10],
+    [95, 117, 17],
+  ];
+  for (let z = -143; z <= 143; z++)
+    for (let x = -143; x <= 143; x++) {
+      const k = (z + WORLD_LIMIT) * stride + x + WORLD_LIMIT;
+      const uplands = x > 5 && z > 8 && x < 135 && z < 135,
+        old = uplands ? surveyedGround(x, z) : 0;
+      if (height[k] === 0 && old < 7) continue;
+      const road = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
+      let terrace = Infinity;
+      for (const [west, east, north, south] of settlementPads)
+        terrace = Math.min(terrace, Math.max(west - x, x - east, north - z, z - south));
+      for (const [a, b, r] of protectedSites) terrace = Math.min(terrace, Math.hypot(a - x, b - z) - r);
+      let mask =
+        terrainFade(4, 12, road) *
+        terrainFade(1, 10, terrace) *
+        terrainFade(4.8, 13, Math.abs(z)) *
+        (1 - terrainFade(133, 143, Math.max(Math.abs(x), Math.abs(z))));
+      if (x > 45 && z > 52) mask *= terrainFade(2.5, 10, Math.sqrt(highTrackDistanceSquared(x, z)));
+      if (old > 7) {
+        // Plucked rock and crossing joints cut terraces on both sides of the older watershed.
+        const exposure = terrainFade(7, 17, old),
+          plane = x * 0.17 + z * 0.13 + old * 0.81;
+        const joint = plane / 3.22 + 0.27 * Math.sin(x * 0.23 + z * 0.12) + 0.13 * Math.cos(z * 0.53);
+        const edge = joint - Math.floor(joint),
+          step = 2.8 * (terrainFade(0.7, 0.93, edge) - edge);
+        const spur = Math.abs(Math.sin(x * 0.19 - z * 0.14 + 1.18 * Math.sin(z * 0.103))) ** 0.83;
+        const gully = (1 - Math.abs(Math.sin(x * 0.143 + z * 0.216 + 0.92 * Math.cos(x * 0.139)))) ** 3;
+        height[k] +=
+          exposure *
+          (-0.19 * (old - 7) + step + 3.65 * spur - 3.95 * gully + 0.6 * Math.sin(x * 0.72 + z * 0.47));
+        // Three oblique clefts actually interrupt the skyline instead of drawing a seam across it.
+        for (const [cx, cz, heading, rate, reach] of [
+          [77, 98, 0.32, 0.39, 19],
+          [110, 67, -0.61, 0.3, 15],
+          [30, 90, 0.53, 0.32, 16],
+        ]) {
+          const axial = z - cz,
+            cross = x - cx - heading * axial - 0.8 * Math.sin(axial * 0.39);
+          const cut = (1 - terrainFade(0, 3.25, Math.abs(cross))) * (1 - terrainFade(4, reach, Math.abs(axial)));
+          height[k] -= Math.max(0, old + height[k] - 11) * rate * cut;
+        }
+        const lifted = old + height[k],
+          bed = (lifted + 0.19 * x - 0.14 * z + 0.63 * Math.sin(x * 0.24 + z * 0.18)) / 5.75,
+          f = bed - Math.floor(bed);
+        height[k] += exposure * terrainFade(9, 18, lifted) * 3.75 * (terrainFade(0.5, 0.93, f) - f);
+      }
+      height[k] *= mask;
+    }
+  mountainSurvey = height;
+  return height;
+}
+function rockUplift(x, z) {
+  const survey = upliftSurvey(),
+    stride = PERIOD + 1,
+    u = wrapped(x) + WORLD_LIMIT,
+    v = wrapped(z) + WORLD_LIMIT;
+  const i = Math.floor(u),
+    j = Math.floor(v),
+    a = u - i,
+    b = v - j,
+    k = j * stride + i;
+  return a + b <= 1
+    ? survey[k] + a * (survey[k + 1] - survey[k]) + b * (survey[k + stride] - survey[k])
+    : survey[k + stride + 1] +
+        (1 - a) * (survey[k + stride] - survey[k + stride + 1]) +
+        (1 - b) * (survey[k + 1] - survey[k + stride + 1]);
+}
+let playableHeightGrid;
+function upliftedGround(x, z, base, rise) {
+  if (!playableHeightGrid || rise === 0) return base + rise;
+  const { positions, xSteps, zSteps } = playableHeightGrid,
+    az = Math.abs(z);
+  const gridZ =
+    Math.sign(z) * (az < 8.64 ? az / 0.3 : 28.8 + ((az - 8.64) * (WORLD_LIMIT - 28.8)) / (WORLD_LIMIT - 8.64));
+  const u = ((x + WORLD_LIMIT) * xSteps) / PERIOD,
+    v = ((gridZ + WORLD_LIMIT) * zSteps) / PERIOD;
+  const i = Math.min(xSteps - 1, Math.max(0, Math.floor(u))),
+    j = Math.min(zSteps - 1, Math.max(0, Math.floor(v)));
+  const a = u - i,
+    b = v - j,
+    n = xSteps + 1,
+    k = j * n + i;
+  const height =
+    a + b <= 1
+      ? positions.getY(k) * (1 - a - b) + positions.getY(k + 1) * a + positions.getY(k + n) * b
+      : positions.getY(k + n + 1) * (a + b - 1) +
+        positions.getY(k + n) * (1 - a) +
+        positions.getY(k + 1) * (1 - b);
+  const blend = terrainFade(0, 0.22, Math.abs(rise));
+  return base + rise + (height - base - rise) * blend;
+}
+function ground(x, z) {
+  x = wrapped(x);
+  z = wrapped(z);
+  return upliftedGround(x, z, surveyedGround(x, z), rockUplift(x, z));
+}
+function canClimbStep(x, z, nx, nz) {
+  if (Math.abs(rockUplift(nx, nz)) < 0.35) return true;
+  const change = ground(nx, nz) - ground(x, z);
+  return change <= Math.hypot(wrapped(nx - x), wrapped(nz - z)) * 1.08 + 0.012;
 }
 class RealmGeometry {
   constructor() {
@@ -354,8 +674,7 @@ class RealmGeometry {
       )
         continue;
       if (q === 2 || this.rnd() < 0.15) {
-        this.trees.push({ x, z, y: ground(x, z), h: 9 + this.rnd() * 13, a: this.rnd() * 6.2, near: null });
-        this.bound(x, z, 0.58, 0.58);
+        this.plantTree({ x, z, y: ground(x, z), h: 9 + this.rnd() * 13, a: this.rnd() * 6.2, near: null }, 0.58);
       } else if (this.rnd() < 0.11) {
         const scale = 0.37 + this.rnd() * 0.85;
         this.fieldStone(x, z, scale, this.rnd() * Math.PI * 2);
@@ -521,14 +840,6 @@ class RealmGeometry {
     );
     c.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
     this.skyMesh.position.copy(c.position);
-    const swing = Math.sin(attackAnim * Math.PI);
-    this.weapon.position.set(0.38 - swing * 0.29, -0.42 + swing * 0.08, -0.65 - swing * 0.32);
-    this.weapon.rotation.set(-0.54 - swing * 0.95, 0.05, -0.32 + swing * 0.95);
-    if (s.arm === 'lost') {
-      this.weapon.position.x *= -1;
-      this.weapon.rotation.z *= -1;
-    }
-    this.weapon.visible = s.health > 0;
     this.chair.visible = s.leg === 'chair';
     if (this.chair.visible) {
       this.chair.position.set(s.x, walkingSurface(s.x, s.z), s.z);
@@ -571,7 +882,7 @@ class RealmGeometry {
         this.actors.delete(id);
       }
     const w = s.wagon;
-    this.wagon.position.set(nearest(w.x, s.x), ground(w.x, w.z), nearest(w.z, s.z));
+    this.wagon.position.set(nearest(w.x, s.x), walkingSurface(w.x, w.z), nearest(w.z, s.z));
     this.wagon.rotation.y = w.angle;
     this.marker.visible = !!target;
     if (target) {
@@ -587,6 +898,9 @@ class RealmGeometry {
     if (s.delivery) setDeliveryCamera(this, s, t);
     updateFieldEffects(this, s, t);
     this.updateRiverMirror(s, t, c);
+    drawExploration(this,s,t);
+    drawHunts(this,s,t);
+    drawDragon(this,s,t);
     this.renderer.render(this.scene, c);
   }
   clearPeople() {

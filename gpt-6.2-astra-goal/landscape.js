@@ -19,7 +19,12 @@ function creekDepth(x, z) {
   return Math.max(0, 1 - Math.abs(wrapped(z) - streamZ(x)) / 2.8) * 1.65;
 }
 function walkingSurface(x, z) {
-  return ground(x, z) - creekDepth(x, z);
+  const bed = ground(x, z) - creekDepth(x, z);
+  const lane = wrapped(x), bridgeX = lane < 0 ? -50 : 50;
+  if (Math.abs(lane - bridgeX) > 2.65) return bed;
+  const along = Math.abs(wrapped(z) - streamZ(bridgeX));
+  if (along > 3.75) return bed;
+  return Math.max(bed, 0.155 * (1 - THREE.MathUtils.smoothstep(along, 2.64, 3.74)));
 }
 // Project in metres so stone and timber retain their dimensions on stretched building instances.
 function projectedMaterial(name, tint, scale, metalness = 0) {
@@ -114,6 +119,126 @@ function geometry(positions, uvs, indices) {
   geo.computeVertexNormals();
   return geo;
 }
+// Several kilometres of skyline in perspective. Each azimuth has its own saddle, face direction and snow line.
+function distantMountains(layer, fogColor) {
+  const profile = [
+    [0, 18],
+    [9, 14],
+    [18, 22],
+    [24, 30],
+    [30, 22],
+    [35, 40],
+    [38, 34],
+    [41, 39],
+    [49, 25],
+    [58, 16],
+    [69, 14],
+    [79, 20],
+    [86, 16],
+    [94, 34],
+    [100, 29],
+    [109, 44],
+    [115, 37],
+    [121, 49],
+    [126, 35],
+    [137, 23],
+    [150, 25],
+    [161, 16],
+    [168, 21],
+    [178, 30],
+    [187, 24],
+    [193, 39],
+    [198, 35],
+    [206, 45],
+    [214, 24],
+    [223, 26],
+    [238, 16],
+    [249, 18],
+    [260, 29],
+    [266, 26],
+    [274, 34],
+    [281, 29],
+    [291, 44],
+    [298, 35],
+    [304, 39],
+    [317, 23],
+    [331, 25],
+    [341, 17],
+    [349, 22],
+    [360, 18],
+  ];
+  const rows = 11,
+    n = 384,
+    p = [],
+    uv = [],
+    ix = [],
+    colors = [],
+    ao = [];
+  for (let i = 0; i <= n; i++) {
+    const theta = ((i % n) * Math.PI * 2) / n,
+      deg = (((i % n) * 360) / n + layer * 24) % 360;
+    const point = profile.findIndex((r, j) => j < profile.length - 1 && deg >= r[0] && deg < profile[j + 1][0]);
+    const [left, a] = profile[point],
+      [right, b] = profile[point + 1],
+      t = (deg - left) / (right - left);
+    const jitter = (Math.sin(theta * 39 + layer) * 0.56 + Math.sin(theta * 73 + layer * 3) * 0.44) * 1.77;
+    const peak = (a + (b - a) * t + jitter) * (layer ? 0.73 : 1.10);
+    for (let j = 0; j < rows; j++) {
+      const u = Math.max(0, (j - 1) / (rows - 2)),
+        h = j ? -16 + (peak + 16) * u : -218,
+        channel = Math.sin(theta * 36 + layer * 2 + j * 0.73) + 0.48 * Math.sin(theta * 59 + j * 0.2);
+      const radius =
+        (layer ? 202 : 250) +
+        u * (layer ? 42 : 52) +
+        5.6 * Math.sin(theta * 5 + layer * 2) +
+        Math.sin(Math.PI * u) * channel * 4.6;
+      p.push(Math.sin(theta) * radius, h + Math.sin(Math.PI * u) * channel * 2.2, Math.cos(theta) * radius);
+      uv.push(i / n, u);
+      ao.push(channel);
+      if (i && j) {
+        const k = i * rows + j;
+        ix.push(k - rows - 1, k - rows, k, k - rows - 1, k, k - 1);
+      }
+    }
+  }
+  const geo = geometry(p, uv, ix),
+    normals = geo.attributes.normal;
+  const night = new THREE.Color(layer ? 0x83949b : 0x9aa9b8),
+    sun = new THREE.Color(layer ? 0xa7b2ad : 0xb7c4c7),
+    snow = new THREE.Color(0xd2d8d3);
+  for (let i = 0; i < normals.count; i++) {
+    const y = p[i * 3 + 1],
+      lit = 0.47 + 0.3 * normals.getX(i) - 0.08 * normals.getZ(i) + 0.12 * normals.getY(i) + 0.09 * ao[i];
+    const c = night.clone().lerp(sun, Math.max(0, Math.min(1, lit)));
+    if (!layer) c.lerp(snow, terrainFade(30, 54, y) * terrainFade(0.12, 0.93, lit) * 0.83);
+    colors.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      fog: false,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  mesh.material.onBeforeCompile = (shader) => {
+    shader.uniforms.foothillHaze = { value: fogColor };
+    shader.vertexShader = 'varying float ridgeHeight;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nridgeHeight = position.y;',
+    );
+    shader.fragmentShader = 'varying float ridgeHeight; uniform vec3 foothillHaze;\n' + shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      '#include <color_fragment>\ndiffuseColor.rgb=mix(foothillHaze,diffuseColor.rgb,.53*smoothstep(-4.,44.,ridgeHeight));',
+    );
+  };
+  mesh.renderOrder = -12 + layer;
+  mesh.frustumCulled = false;
+  return mesh;
+}
 class FrontierLandscape extends RealmGeometry {
   prepareMaterials() {
     this.materialFamilies = new Map();
@@ -175,12 +300,14 @@ class FrontierLandscape extends RealmGeometry {
           '#include <map_fragment>\nfloat airColumn=1.-smoothstep(-.035,.265,skyAltitude); diffuseColor.rgb=mix(diffuseColor.rgb,horizonColor,airColumn*horizonHaze);',
         );
     };
-    // Compress the lower hemisphere so ridgelines sit above the playable horizon.
+    // The playable ridges sit in front of two distant ranges and the photographed sky.
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++)
-      uv.setY(i, Math.min(1, Math.max(0, 0.476 + (uv.getY(i) - 0.5) * 0.94)));
+      uv.setY(i, Math.min(1, Math.max(0, 0.593 + Math.max(-0.026,uv.getY(i) - 0.5) * 0.795)));
     this.skyMesh = new THREE.Mesh(geo, mat);
     this.skyMesh.rotation.y = 1.18;
+    this.skyMesh.renderOrder=-16;
+    for (const layer of [0, 1]) this.skyMesh.add(distantMountains(layer, this.scene.fog.color));
     this.scene.add(this.skyMesh);
     const env = texture('sky').clone();
     env.mapping = THREE.EquirectangularReflectionMapping;
@@ -192,7 +319,8 @@ class FrontierLandscape extends RealmGeometry {
     const g = new THREE.PlaneGeometry(PERIOD, PERIOD, 164, 180);
     g.rotateX(-Math.PI / 2);
     const p = g.attributes.position,
-      colors = [];
+      colors = [],
+      surveyedHeights = new Float32Array(p.count);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i),
         gridZ = p.getZ(i),
@@ -201,7 +329,8 @@ class FrontierLandscape extends RealmGeometry {
           Math.sign(gridZ) *
           (abs < 28.8 ? abs * 0.3 : 8.64 + ((abs - 28.8) * (WORLD_LIMIT - 8.64)) / (WORLD_LIMIT - 28.8));
       p.setZ(i, z);
-      p.setY(i, walkingSurface(x, z));
+      surveyedHeights[i]=surveyedGround(x,z)-creekDepth(x,z);
+      p.setY(i, surveyedHeights[i]+rockUplift(x,z));
       const tint = new THREE.Color([0xf4f1df, 0xf8ece0, 0xdadfcd, 0xe3dfea][zoneAt(x, z)]);
       tint.lerp(new THREE.Color(0xeae8da), rimBlend(x, z));
       tint.multiplyScalar(0.96 + 0.08 * Math.sin(((x * 14 + z * 9) * Math.PI) / WORLD_LIMIT));
@@ -209,7 +338,8 @@ class FrontierLandscape extends RealmGeometry {
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
-    this.landGrid = { positions: p, xSteps: 164, zSteps: 180 };
+    this.landGrid = { positions: p, surveyedHeights, xSteps: 164, zSteps: 180 };
+    playableHeightGrid=this.landGrid;
     const mat = new THREE.MeshStandardMaterial({
       map: texture('soil'),
       normalMap: texture('land-normal'),
@@ -217,7 +347,16 @@ class FrontierLandscape extends RealmGeometry {
       envMapIntensity: 0.43,
       vertexColors: true,
     });
+    const outcrop=texture('outcrop-atlas',mountainImages);
+    outcrop.colorSpace = THREE.NoColorSpace;
+    // The two atlas halves encode different data. Never let a wrapping derivative sample the other half.
+    outcrop.generateMipmaps = false;
+    outcrop.minFilter = THREE.LinearFilter;
+    outcrop.magFilter = THREE.LinearFilter;
+    outcrop.anisotropy = 1;
+    outcrop.needsUpdate = true;
     mat.onBeforeCompile = (shader) => {
+      shader.uniforms.outcrop={value:outcrop};
       shader.uniforms.landShadow = { value: this.landShadow };
       shader.uniforms.trackMap = { value: texture('road') };
       for (const name of ['meadow', 'scree', 'moss', 'cobbles', 'grit'])
@@ -229,7 +368,7 @@ class FrontierLandscape extends RealmGeometry {
           '#include <begin_vertex>\nterrainPoint=position;',
         );
       shader.fragmentShader =
-        'uniform sampler2D trackMap,meadow,scree,moss,cobbles,grit,landShadow;varying vec3 terrainPoint;\n' +
+        'uniform sampler2D trackMap,meadow,scree,moss,cobbles,grit,landShadow,outcrop;varying vec3 terrainPoint;\n' +
         shader.fragmentShader.replace(
           '#include <map_fragment>',
           `
@@ -265,6 +404,21 @@ class FrontierLandscape extends RealmGeometry {
       float bank=(1.-smoothstep(1.6,3.18,abs(pos.y-creek)+wav*.17))*smoothstep(2.8,3.6,dist.x);
       wild=mix(wild,rock*vec3(.79,.84,.80),bank);
       wild=mix(wild,bedrock*mix(vec3(.84,.87,.89),vec3(1.11,1.08,1.01),.5+.5*bedding),cliff*.93);
+      // Exposed gneiss has broad bedding planes. Old snow persists on the shelves and inside high clefts.
+      float altitude=terrainPoint.y,upper=smoothstep(12.,30.,altitude);
+      vec3 upAxis=normalize(cross(dFdx(terrainPoint),dFdy(terrainPoint)));upAxis*=sign(upAxis.y);
+      vec2 faultUV=landAxis.y>.80?pos*.194:(landAxis.x>landAxis.z?terrainPoint.zy:terrainPoint.xy)*vec2(.185,.171);
+      faultUV+=vec2(.039*sin(dot(pos,vec2(.053,.17))),.044*sin(pos.y*.13));
+      vec2 localFace=fract(faultUV)*.997+.0015;
+      vec3 gneiss=pow(texture2D(outcrop,vec2(localFace.x,.5+.5*localFace.y)).rgb,vec3(2.2));
+      float joint=abs(sin(altitude*.81+pos.x*.33-pos.y*.14+1.56*sin(pos.y*.23+pos.x*.11)+gneiss.r*3.2));
+      float warmth=.5+.5*sin(altitude*.19+pos.x*.067+pos.y*.079+.9*gneiss.g);
+      vec3 schist=gneiss*mix(vec3(.88,.95,1.02),vec3(1.19,1.10,.90),warmth)*(.93+.09*smoothstep(.04,.55,joint));
+      float rockFace=max(upper,cliff*smoothstep(5.,18.,altitude));
+      wild=mix(wild,schist,rockFace*.96);
+      float grainSnow=texture2D(grit,pos*.169).r+.27*sin(pos.x*.54+pos.y*.41);
+      float snow=smoothstep(27.,39.,altitude+4.5*upAxis.z+3.1*grainSnow)*smoothstep(.17,.79,upAxis.y+.19*grainSnow);
+      wild=mix(wild,vec3(.67,.77,.81)*(.91+.13*grainSnow),snow*.94);
       vec3 survey=texture2D(landShadow,pos/288.+.5).rgb;
       vec3 worn=mix(mix(gravel,packedDirt,.48),cobble,survey.b);
       wild=mix(wild,worn, .86*smoothstep(.03,.87,survey.g+wav*.21));
@@ -286,12 +440,22 @@ class FrontierLandscape extends RealmGeometry {
         vec3 cobbleN=texture2D(normalMap,fract(cuv)*.495+vec2(.5025,.0025)).xyz;
         vec3 grain=mix(mix(meadowN,rockN,max(mountain,bank)),mix(roadN,cobbleN,palace),road)*2.-1.;
         grain.xy*=.64*(1.-smoothstep(19.,48.,length(vViewPosition)));
-        normal=normalize(getTangentFrame(-vViewPosition,normal,pos)*grain);`,
+        normal=normalize(getTangentFrame(-vViewPosition,normal,pos)*grain);
+        vec3 planeNormal=normalize(cross(dFdx(vViewPosition),dFdy(vViewPosition)));
+        if(dot(planeNormal,normal)<0.)planeNormal=-planeNormal;
+        normal=normalize(mix(normal,planeNormal,.32*cliff));
+        if(rockFace>.10&&length(vViewPosition)<64.){
+          vec3 fracture=texture2D(outcrop,vec2(localFace.x,.5*localFace.y)).xyz*2.-1.;
+          fracture.xy*=.74;
+          vec3 splitNormal=normalize(getTangentFrame(-vViewPosition,normal,faultUV)*fracture);
+          normal=normalize(mix(normal,splitNormal,min(.88,rockFace)*(1.-smoothstep(41.,64.,length(vViewPosition)))));
+        }`,
       );
     };
     const land = new THREE.Mesh(g, mat);
     land.receiveShadow = true;
     this.tileGround(land);
+    this.exposedRock(mat);
     const verts = [],
       uvs = [],
       ind = [];
@@ -377,6 +541,81 @@ class FrontierLandscape extends RealmGeometry {
     mirror.tiles = this.tiles.filter((tile) => tile.material === water);
     this.riverBanks();
   }
+  exposedRock(material) {
+    // Low edges are buried in the actual terrain triangles. All intermediate vertices follow the surface,
+    // so a long shelf cannot bridge across a gully. The adjoining mountain and these ledges share a shader.
+    const p = [],
+      uv = [],
+      ix = [],
+      colors = [];
+    const hash = (i, j, k) => {
+      let n = Math.imul(i + 233, 721987) ^ Math.imul(j + 19, 71237) ^ Math.imul(k + 11, 973733);
+      n = Math.imul(n ^ (n >>> 12), 936689);
+      return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
+    };
+    for (let i = -52; i <= 52; i++)
+      for (let j = -52; j <= 52; j++) {
+        const x = (i + hash(i, j, 1) * 0.73) * 2.7,
+          z = (j + hash(i, j, 2) * 0.73) * 2.7,
+          base = ground(x, z);
+        if (base < 6 || Math.abs(rockUplift(x, z)) < 0.42) continue;
+        const gx = ground(x + 0.42, z) - ground(x - 0.42, z),
+          gz = ground(x, z + 0.42) - ground(x, z - 0.42),
+          incline = Math.hypot(gx, gz) / 0.84;
+        if (incline < 0.62 || incline > 4.1 || !highTrackClear(x, z, 3.0)) continue;
+        const bands = Math.sin(base * 0.74 + x * 0.153 - z * 0.077 + 0.78 * Math.sin(x * 0.19));
+        if (bands < -0.07 && hash(i, j, 3) < 0.82) continue;
+        const angle = Math.atan2(gx, gz) + (hash(i, j, 4) - 0.5) * 0.18,
+          sn = Math.sin(angle),
+          cs = Math.cos(angle),
+          w = 0.71 + 1.21 * hash(i, j, 5),
+          h = 0.27 + 0.53 * hash(i, j, 6);
+        const rise = Math.min(0.16, Math.max(0.068, incline * 0.083)),
+          tint = new THREE.Color([0xf4f1df, 0xf8ece0, 0xdadfcd, 0xe3dfea][zoneAt(x, z)]);
+        const ring = [
+            [-0.99, 0.16],
+            [-0.52, 0.76],
+            [0.31, 0.83],
+            [0.94, 0.29],
+            [0.78, -0.36],
+            [0.27, -0.59],
+            [-0.49, -0.51],
+          ],
+          first = p.length / 3;
+        for (let n = 0; n < 4; n++)
+          for (let k = 0; k < ring.length; k++) {
+            const [a, b] = ring[k],
+              r = [1, 0.82, 0.45, 0.055][n],
+              u = r * a * w * (0.88 + 0.24 * hash(i, j, k + 16)),
+              v = r * b * h;
+            const xx = x + u * cs + v * sn,
+              zz = z - u * sn + v * cs,
+              yy = ground(xx, zz);
+            const lift =
+              n === 0
+                ? -0.125
+                : n === 1
+                  ? rise * (b > 0 ? 0.17 : 0.78)
+                  : n === 2
+                    ? rise * (0.77 + 0.19 * hash(i, j, k + 24))
+                    : rise * 0.97;
+            p.push(xx, yy + lift, zz);
+            uv.push(xx / PERIOD + 0.5, zz / PERIOD + 0.5);
+            colors.push(tint.r, tint.g, tint.b);
+            if (n) {
+              const q = first + n * 7 + k,
+                f = first + n * 7 + ((k + 1) % 7);
+              ix.push(q - 7, f - 7, q, q, f - 7, f);
+            }
+          }
+        for (let k = 1; k < 6; k++) ix.push(first + 21, first + 21 + k, first + 22 + k);
+      }
+    const g = geometry(p, uv, ix);
+    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const ledges = new THREE.Mesh(g, material);
+    ledges.receiveShadow = true;
+    this.tileGround(ledges);
+  }
   updateRiverMirror(s, t, c) {
     const distanceToBank = Math.abs(wrapped(c.position.z) - streamZ(c.position.x));
     const mirror = this.riverMirror;
@@ -447,17 +686,19 @@ class FrontierLandscape extends RealmGeometry {
   }
 
   riverBanks() {
-    const stone = new THREE.DodecahedronGeometry(1, 1),
-      reed = new THREE.CylinderGeometry(0.3, 1, 1, 4);
+    const reed = new THREE.CylinderGeometry(0.3, 1, 1, 4);
     for (let i = 0; i < 420; i++) {
       const x = -WORLD_LIMIT + PERIOD * meadowHash(i, 4, 9),
         side = i % 2 ? 1 : -1;
       if (Math.min(Math.abs(x - 50), Math.abs(x + 50)) < 4.1) continue;
       const bed = streamZ(x),
-        z = bed + side * (1.5 + meadowHash(i, 3, 4) * 1.69),
-        y = walkingSurface(x, z);
-      const h = 0.07 + 0.24 * meadowHash(i, 7, 31);
-      this.put(stone, i % 3 ? 0x746e63 : 0x868577, x, y + 0.045, z, h * 1.34, h * 0.7, h, i * 0.71, i * 0.27);
+        z = bed + side * (1.5 + meadowHash(i, 3, 4) * 1.69);
+      // Pale chips settle on the inside of the bend, in irregular and widely separated deposits.
+      const curve = streamZ(x - 3) + streamZ(x + 3) - 2 * bed;
+      if (side * curve > 0.045 && meadowHash(i, 23, 4) > 0.7) {
+        const width = 0.25 + 0.34 * meadowHash(i, 7, 31);
+        this.shaleSeam(x, z, width, -Math.atan2(streamZ(x + 1) - streamZ(x - 1), 2), i, true);
+      }
       if (i % 5 || Math.abs(z - bed) < 1.9) continue;
       for (let k = 0; k < 7; k++) {
         const px = x + 0.66 * (meadowHash(k, i, 3) - 0.5),
@@ -537,7 +778,8 @@ class FrontierLandscape extends RealmGeometry {
     for (const x of [-50, 50]) {
       const z = streamZ(x);
       for (let j = -8; j <= 8; j++)
-        this.block(x, 0.055, z + j * 0.44, 5.3, 0.2, 0.429, 0x897454, 0, 0.002 * Math.sin(j));
+        this.block(x, walkingSurface(x, z + j * 0.44) - 0.1, z + j * 0.44, 5.3, 0.2, 0.429,
+          0x897454, 0, 0.002 * Math.sin(j));
       for (const sign of [-1, 1]) {
         for (let j = -2; j <= 2; j++)
           this.block(x + sign * 2.63, 0.68, z + j * 1.65, 0.17, 1.36, 0.17, 0x594431);
@@ -594,7 +836,13 @@ class FrontierLandscape extends RealmGeometry {
         this.fieldStone(x, z, scale, 1.29 + 0.64 * meadowHash(i, 35, 9));
     }
   }
-  terrainIncline(x, z) {
+  plantTree(tree, width) {
+    // Consume the original site's random draws before rejecting its new cliff, preserving the rest of the seed.
+    if (rockUplift(tree.x, tree.z) > 0.5 && (tree.y > 28 || this.terrainIncline(tree.x, tree.z) > 0.64)) return;
+    this.trees.push(tree);
+    this.bound(tree.x, tree.z, width, width);
+  }
+  terrainIncline(x, z, beforeUplift = false) {
     // Match the two triangles of the rendered tile, including its denser rows along the river.
     if (!this.landGrid) return 0;
     const { positions, xSteps, zSteps } = this.landGrid;
@@ -614,46 +862,123 @@ class FrontierLandscape extends RealmGeometry {
     const a = first ? top : lower + 1,
       b = first ? top + 1 : lower,
       c = first ? lower : top + 1;
-    const sx = ((positions.getY(b) - positions.getY(a)) * xSteps) / PERIOD;
-    const sz = (positions.getY(c) - positions.getY(a)) / (positions.getZ(lower) - positions.getZ(top));
+    const old = this.landGrid.surveyedHeights;
+    const ya = beforeUplift ? old[a] : positions.getY(a),
+      yb = beforeUplift ? old[b] : positions.getY(b),
+      yc = beforeUplift ? old[c] : positions.getY(c);
+    const sx = ((yb - ya) * xSteps) / PERIOD,
+      sz = (yc - ya) / (positions.getZ(lower) - positions.getZ(top));
     return Math.hypot(sx, sz);
   }
   treeSite(x, z) {
     if (x > 52 && x < 84 && ((z > -78 && z < -51) || (z > 22 && z < 49))) return false;
-    if (this.terrainIncline(x, z) > 0.76) return false;
+    if (this.terrainIncline(x, z, true) > 0.76) return false;
     if (x < 2 || z < 5) return true;
-    const height = ground(x, z);
+    const height = surveyedGround(x, z);
     return (
       height < 20.5 + 1.25 * Math.sin(x * 0.37 + z * 0.13) &&
-      this.terrainIncline(x - 0.75, z) < 1 &&
-      this.terrainIncline(x + 0.75, z) < 1 &&
-      this.terrainIncline(x, z - 0.75) < 1 &&
-      this.terrainIncline(x, z + 0.75) < 1
+      this.terrainIncline(x - 0.75, z, true) < 1 &&
+      this.terrainIncline(x + 0.75, z, true) < 1 &&
+      this.terrainIncline(x, z - 0.75, true) < 1 &&
+      this.terrainIncline(x, z + 0.75, true) < 1
     );
   }
-  fieldStone(x, z, scale, yaw) {
-    // The scan is embedded at its natural base. Random orientation breaks up the exposed bedding.
-    this.fieldStoneGeo ||= trailGeometry('fieldstone', 'body');
-    const wide = scale * (0.8 + 0.16 * Math.sin(yaw * 2.3));
-    const deep = scale * (0.62 + 0.18 * Math.cos(yaw * 1.7));
-    const high = scale * (0.45 + 0.17 * Math.sin(yaw));
-    this.put(
-      this.fieldStoneGeo,
-      0x84917c,
-      x,
-      walkingSurface(x, z) + 0.06 * scale,
-      z,
-      wide,
-      high,
-      deep,
-      yaw,
-      0.1,
-    );
-    if (scale > 0.68) {
-      const sx = Math.abs(Math.sin(yaw)),
-        cz = Math.abs(Math.cos(yaw));
-      this.bound(x, z, 1.61 * (cz * wide + sx * deep), 1.61 * (sx * wide + cz * deep));
+  // Use the same triangle and diagonal as the visible terrain. A low flake must sit flush even on a river bank.
+  chipSurface(x, z) {
+    const { positions, xSteps, zSteps } = this.landGrid;
+    const az = Math.abs(z);
+    const gridZ =
+      Math.sign(z) * (az < 8.64 ? az / 0.3 : 28.8 + ((az - 8.64) * (WORLD_LIMIT - 28.8)) / (WORLD_LIMIT - 8.64));
+    const gx = Math.max(0, Math.min(xSteps - 1e-6, ((x + WORLD_LIMIT) * xSteps) / PERIOD));
+    const gz = Math.max(0, Math.min(zSteps - 1e-6, ((gridZ + WORLD_LIMIT) * zSteps) / PERIOD));
+    const i = Math.floor(gx),
+      j = Math.floor(gz),
+      u = gx - i,
+      v = gz - j;
+    const a = i + j * (xSteps + 1),
+      c = a + xSteps + 1;
+    const ha = positions.getY(a),
+      hb = positions.getY(a + 1),
+      hc = positions.getY(c);
+    if (u + v <= 1) return ha + u * (hb - ha) + v * (hc - ha);
+    const hd = positions.getY(c + 1);
+    return hd + (1 - u) * (hc - hd) + (1 - v) * (hb - hd);
+  }
+  chipBatch(x, z, material) {
+    this.groundDebris ||= new Map();
+    const cx = (Math.floor(x / 32) + 0.5) * 32,
+      cz = (Math.floor(z / 32) + 0.5) * 32;
+    const key = [cx, cz, material].join('/');
+    if (!this.groundDebris.has(key)) this.groundDebris.set(key, { cx, cz, material, vertices: [], uv: [] });
+    return this.groundDebris.get(key);
+  }
+  shaleSeam(x, z, width, yaw, seed, bank = false) {
+    // Each chip has a sharp toe and a higher broken edge. Its split faces follow the bed of the ground.
+    const co = Math.cos(yaw),
+      si = Math.sin(yaw);
+    const roll = (chip, salt) => meadowHash(seed, chip, salt);
+    const count = bank ? 2 + Math.floor(roll(1, 9) * 4) : 2 + Math.floor(roll(2, 9) * 3);
+    const batch = this.chipBatch(x, z, bank ? 0x84917c : 0x746e63);
+    for (let n = 0; n < count; n++) {
+      const along = (n - (count - 1) / 2) * width * (0.57 + 0.34 * roll(n, 8));
+      const across = (roll(n, 2) - 0.5) * width * 0.73;
+      const ox = x + along * co + across * si,
+        oz = z - along * si + across * co;
+      const angle = yaw + (roll(n, 6) - 0.5) * 0.76,
+        a = Math.cos(angle),
+        b = Math.sin(angle);
+      const length = width * (0.51 + 0.59 * roll(n, 4)),
+        depth = length * (0.34 + 0.43 * roll(n, 7));
+      const height = Math.min(0.17, length * (0.11 + 0.06 * roll(n, 10)));
+      const uvOffset = 0.19 + roll(n, 14) * 0.41;
+      const point = (u, v, h) => {
+        const px = ox + a * u * length + b * v * depth,
+          pz = oz - b * u * length + a * v * depth;
+        return [
+          px - batch.cx,
+          this.chipSurface(px, pz) + h,
+          pz - batch.cz,
+          uvOffset + u * 0.105,
+          0.63 + v * 0.13,
+        ];
+      };
+      const ring = [
+        [-0.62, -0.2],
+        [-0.41, 0.39],
+        [0.1 + 0.19 * roll(n, 13), 0.53],
+        [0.53, 0.14],
+        [0.46 + 0.24 * roll(n, 12), -0.21],
+        [-0.12, -0.48],
+      ];
+      const rim = ring.map(([u, v], k) => point(u, v, height * (k < 2 ? 0.7 : 0.15 + 0.27 * roll(n, k + 18))));
+      const root = ring.map(([u, v]) => point(u * 1.05, v * 1.05, -0.038));
+      const crest = point(-0.28, -0.04, height);
+      const add = (v) => {
+        batch.vertices.push(v[0], v[1], v[2]);
+        batch.uv.push(v[3], v[4]);
+      };
+      for (let i = 0; i < ring.length; i++) {
+        const next = (i + 1) % ring.length;
+        [crest, rim[i], rim[next], rim[next], rim[i], root[i], rim[next], root[i], root[next]].forEach(add);
+      }
     }
+  }
+  fieldStone(x, z, scale, yaw) {
+    const seed = Math.round(x * 41 + z * 97);
+    const mountain = zoneAt(x, z) === 3 && ground(x, z) > 5;
+    if (!mountain || meadowHash(seed, 8, 14) < 0.68 || this.terrainIncline(x, z) > 0.83) return;
+    this.shaleSeam(x, z, Math.min(1.04, 0.4 + 0.44 * scale), yaw, seed);
+  }
+  finishGroundDebris() {
+    for (const batch of this.groundDebris?.values() || []) {
+      const geo = new THREE.BufferGeometry();
+      geo.name = 'Bedded shale chips';
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(batch.vertices, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(batch.uv, 2));
+      geo.computeVertexNormals();
+      this.put(geo, batch.material, batch.cx, 0, batch.cz, 1, 1, 1);
+    }
+    this.groundDebris = null;
   }
   barrel(x, z, r) {
     this.put(this.log, 0x897454, x, r * 1.2, z, r, r * 2.4, r);

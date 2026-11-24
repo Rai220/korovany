@@ -83,6 +83,7 @@ class Borderlands extends FrontierLandscape {
     this.block(x + 1.45, 4.28, z - 1.2, 0.67, 2.43, 0.71, 0x716e60);
     this.block(x + 1.45, 5.53, z - 1.2, 0.81, 0.22, 0.84, 0x969384);
     if (forest) {
+      if(j===1)this.forestHall(x,z);
       // Hand-hewn ridge ends and an oak shingle vent give the foresters' roofs a lighter profile.
       for (const side of [-1, 1]) {
         for (const pitch of [-1, 1])
@@ -372,12 +373,134 @@ class Borderlands extends FrontierLandscape {
       this.scene.add(m);
     }
   }
+  carvedBeam(a, b, width, depth = width, tint = 0x594431) {
+    const from = new THREE.Vector3(...a),
+      to = new THREE.Vector3(...b),
+      dir = to.sub(from),
+      len = dir.length();
+    const euler = new THREE.Euler().setFromQuaternion(
+      new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()),
+    );
+    this.block(
+      a[0] + dir.x * 0.5,
+      a[1] + dir.y * 0.5,
+      a[2] + dir.z * 0.5,
+      width,
+      len,
+      depth,
+      tint,
+      euler.y,
+      euler.z,
+      euler.x,
+    );
+  }
+  // Projecting eaves, a high curved ridge and carved terminals distinguish the forest carpenters' work.
+  shingledRoof(x, z, width, length, eave, rise, timber = 0x534432) {
+    const p = [],
+      uv = [],
+      ix = [],
+      rows = 8;
+    const point = (side, j, k) => {
+      const t = j / rows,
+        u = k / 3,
+        end = Math.abs(t * 2 - 1),
+        curve = 0.24 * end ** 3;
+      return [
+        x + side * width * u,
+        eave + rise * (1 - u) ** 1.19 + curve * (0.46 + 0.54 * u) + 0.105 * Math.sin(Math.PI * u),
+        z + (2 * t - 1) * length,
+      ];
+    };
+    for (const side of [-1, 1]) {
+      const start = p.length / 3;
+      for (let j = 0; j <= rows; j++)
+        for (let k = 0; k < 4; k++) {
+          const q = point(side, j, k);
+          p.push(...q);
+          uv.push((j / rows) * length, (k / 3) * width);
+          if (j && k) {
+            const n = start + j * 4 + k;
+            ix.push(n - 5, n - 4, n, n - 5, n, n - 1);
+          }
+        }
+      for (let j = 0; j < rows; j++)
+        this.carvedBeam(point(side, j, 3), point(side, j + 1, 3), 0.14, 0.14, timber);
+      for (const j of [0, rows])
+        for (let k = 0; k < 3; k++) this.carvedBeam(point(side, j, k), point(side, j, k + 1), 0.13, 0.16, timber);
+    }
+    const roofMat = this.mat(0x4d5948).clone();
+    roofMat.side = THREE.DoubleSide;
+    roofMat.onBeforeCompile = this.mat(0x4d5948).onBeforeCompile;
+    roofMat.customProgramCacheKey = this.mat(0x4d5948).customProgramCacheKey;
+    const mesh = new THREE.Mesh(geometry(p, uv, ix), roofMat);
+    mesh.position.y = this.buildHeight || 0;
+    mesh.castShadow = mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    for (const sign of [-1, 1]) {
+      const end = z + sign * length,
+        h = eave + rise + 0.24;
+      this.carvedBeam([x, h - 0.05, end - sign * 0.31], [x, h + 0.23, end + sign * 0.35], 0.16, 0.19, timber);
+      this.carvedBeam([x, h + 0.22, end + sign * 0.33], [x, h + 0.53, end + sign * 0.37], 0.13, 0.16, timber);
+      this.carvedBeam([x, h + 0.48, end + sign * 0.36], [x, h + 0.52, end + sign * 0.72], 0.105, 0.13, timber);
+    }
+  }
+  forestHall(x, z) {
+    // A raised smoke louvre above the common hall, flanked by split oak jaws on both gables.
+    const w = 1.12,
+      l = 1.6,
+      y = 4.7;
+    this.block(x, y + 0.4, z, w * 2, 0.82, l * 2, 0x897454);
+    for (const s of [-1, 1])
+      for (const k of [-0.91, -0.31, 0.31, 0.91]) {
+        this.block(x + s * (w + 0.02), y + 0.52, z + k * l, 0.048, 0.42, 0.54, 0x364842);
+        this.block(x + s * (w + 0.045), y + 0.5, z + k * l, 0.09, 0.061, 0.54, 0x87704d);
+      }
+    this.shingledRoof(x, z, 1.61, 2.11, y + 0.89, 1.35);
+    const top = y + 2.35;
+    this.block(x, top + 0.43, z, 1.08, 0.98, 1.7, 0x897454);
+    for (const s of [-1, 1]) {
+      this.block(x + s * 0.56, top + 0.5, z, 0.06, 0.57, 1.23, 0x364842);
+      for (const dz of [-0.5, 0, 0.5]) this.block(x + s * 0.6, top + 0.51, z + dz, 0.08, 0.71, 0.09, 0x87704d);
+    }
+    this.shingledRoof(x, z, 0.93, 1.28, top + 0.94, 1.02);
+  }
+  rangerPavilion(x, z) {
+    const floor = 4.61,
+      eave = 7.33;
+    for (const side of [-1, 1])
+      for (const end of [-1, 1]) {
+        const px = x + side * 1.57,
+          pz = z + end * 1.37;
+        this.carvedBeam([px, floor, pz], [x + side * 1.48, eave, pz], 0.19, 0.22);
+        this.carvedBeam([px, floor + 1.62, pz], [px - side * 0.84, eave - 0.02, pz], 0.115, 0.16);
+        this.carvedBeam([px, floor + 1.7, pz], [px, eave - 0.06, pz - end * 0.83], 0.12, 0.17);
+        this.block(px, eave + 0.01, pz, 0.31, 0.21, 0.35, 0x897454);
+      }
+    for (const s of [-1, 1]) {
+      this.block(x, eave - 0.07, z + s * 1.36, 3.49, 0.21, 0.23, 0x594431);
+      this.block(x + s * 1.56, eave - 0.07, z, 0.19, 0.23, 3.03, 0x594431);
+      this.carvedBeam(
+        [x + s * 1.34, eave, z + 1.42],
+        [x + s * 0.18, eave + 0.94, z + 1.42],
+        0.145,
+        0.2,
+        0x897454,
+      );
+      this.carvedBeam([x + s * 1.55, 3.67, z + 1.33], [x + s * 0.48, 4.42, z + 1.33], 0.21, 0.2);
+    }
+    this.shingledRoof(x, z, 2.26, 2.26, eave, 1.48);
+    for (const dz of [-0.8, 0, 0.8]) {
+      this.block(x + 1.57, 5.19, z + dz, 0.17, 1.04, 0.13, 0x594431);
+      this.carvedBeam([x + 1.57, 4.69, z + dz - 0.34], [x + 1.57, 5.48, z + dz + 0.3], 0.067, 0.074, 0x897454);
+    }
+    this.block(x + 1.57, 5.53, z, 0.16, 0.12, 2.72, 0x897454);
+  }
   lookout() {
     const z = 56;
     for (const x of [-59, -41]) {
       this.trees.push({ x, z: z - 2.5, y: 0, h: 25, a: x * 0.07, near: null });
       this.bound(x, z - 2.5, 0.81, 0.81);
-      this.put(this.log, 0x534936, x, 5.54, z - 2.5, 0.48, 11.08, 0.48);
+      this.put(this.log, 0x534936, x, 3.14, z - 2.5, 0.48, 6.28, 0.48);
       for (let j = -4; j <= 4; j++) this.block(x + j * 0.46, 4.52, z, 0.45, 0.19, 3.7, 0x897454);
       for (const side of [-1, 1]) {
         this.block(x + side * 1.59, 2.2, z + 1.43, 0.24, 4.4, 0.24, 0x594431);
@@ -385,6 +508,7 @@ class Borderlands extends FrontierLandscape {
       }
       this.banner(x, 3.56, z + 1.89, 1.24, 1.62, true);
       this.lantern(x + 0.85, z + 1.93, 4.02);
+      if(x===-41)this.rangerPavilion(x,z);
     }
     const points = [[], []];
     for (let j = 0; j <= 35; j++) {
@@ -550,8 +674,8 @@ class Borderlands extends FrontierLandscape {
       Math.min(1, Math.max(0, (s.z - 6) / 24));
     this.storm = alpha;
     const overlook = alpha * terrainFade(4, 17, ground(s.x, s.z));
-    this.horizonHaze.value = 0.46 + alpha * 0.43 + overlook * 0.1;
-    this.scene.fog.density = 0.0102 + alpha * 0.0036 - overlook * 0.0053;
+    this.horizonHaze.value = 0.64 + alpha * 0.28 + overlook * 0.07;
+    this.scene.fog.density = 0.0069 + alpha * 0.0034 - overlook * 0.0028;
     const colors = (this.weatherColors ||= [
       0xcac9bc, 0xb9c2b6, 0xa8adba, 0xffe3b8, 0xd8dbe8, 0xd5e2f1, 0xbfcadb,
     ].map((c) => new THREE.Color(c)));

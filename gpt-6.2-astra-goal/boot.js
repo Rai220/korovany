@@ -35,7 +35,7 @@ const editionBoot = (() => {
     if (failed) return false;
     el('start-label').textContent = 'Начать историю';
     el('begin').disabled = false;
-    for (const id of ['post-race', 'resume', 'audio', 'settings']) el(id).disabled = false;
+    for (const id of ['post-race', 'explore-entry', 'resume', 'audio', 'settings']) el(id).disabled = false;
     return true;
   }
   return {

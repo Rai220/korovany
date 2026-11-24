@@ -52,15 +52,13 @@ function frameHeroCamera(realm, s, t, attackAnim) {
   const state =
     attackAnim > 0.01
       ? 'slash'
-      : s.blockTime > 0
-        ? 'block'
-        : s.vy !== 0 && s.air > 0.13
-          ? 'jump'
-          : moving
-            ? sprinting
-              ? 'run'
-              : 'walk'
-            : 'idle';
+      : s.vy !== 0 && s.air > 0.13
+        ? 'jump'
+        : moving
+          ? sprinting
+            ? 'run'
+            : 'walk'
+          : 'idle';
   const stepForward =
     Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'));
   const stepRight = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
@@ -70,7 +68,13 @@ function frameHeroCamera(realm, s, t, attackAnim) {
   if (hero.userData.facing == null || dt === 0) hero.userData.facing = facing;
   hero.userData.facing += angles(facing - hero.userData.facing) * (1 - Math.exp(-17 * dt));
   hero.rotation.set(0, hero.userData.facing, 0);
-  poseGuardedHero(hero, attackAnim > 0.01 && s.heavy ? 'heavy' : state, t, realm.guardKick.value);
+  poseGuardedHero(
+    hero,
+    attackAnim > 0.01 && s.heavy ? 'heavy' : state,
+    t,
+    realm.guardKick.value,
+    realm.guardLift.value,
+  );
   const fx = -Math.sin(s.yaw),
     fz = -Math.cos(s.yaw),
     rx = Math.cos(s.yaw),

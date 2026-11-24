@@ -55,6 +55,10 @@ class Realm extends County {
         s.taper(0x594431, [x, -0.109, z], [x, 0.198, z], 0.011, 0.011);
         for (const y of [-0.08, 0.159]) s.oval(0xb7cccd, x, y, z + 0.012, 0.009, 0.009, 0.005);
       }
+      for (const x of [-0.152, -0.077, 0.006, 0.083, 0.154]) {
+        const end = -0.27 + Math.abs(x) * 1.02;
+        s.taper(0x65513c, [x, end, depth(x) + 0.002], [x + 0.003, 0.224, depth(x) + 0.002], 0.0014, 0.0017);
+      }
       // Leather enarme and iron staples sit on the inner side of the board.
       s.taper(0x47392f, [0, -0.144, 0.05], [0, 0.096, 0.05], 0.019, 0.019);
       for (const y of [-0.144, 0.096]) {
@@ -162,6 +166,9 @@ class Realm extends County {
       }
     });
     this.camera.add(this.bow);
+    this.drawDepth = 0;
+    this.drawnWeapon = 'sword';
+    prepareViewEquipment(this.weapon, this.bow, this.shield, this.leftArm.group, this.rightArm.group);
     this.arrow3d = new THREE.Group();
     this.part(this.arrow3d, this.log, 0x897454, 0, 0, 0, 0.012, 0.88, 0.012).rotation.x = Math.PI / 2;
     this.part(this.arrow3d, this.spire, 0x7c817c, 0, 0, 0.48, 0.026, 0.1, 0.026).rotation.x = Math.PI / 2;
@@ -173,16 +180,35 @@ class Realm extends County {
     this.wagon = g;
     this.scene.add(g);
     this.wheelParts = [];
+    const turntable = new THREE.Group();
+    turntable.position.z = 1.09;
+    this.turntable = turntable;
+    g.add(turntable);
+    carved(turntable, (shape) => {
+      shape.box(0x594431, 0, 0.72, 0, 2.18, 0.12, 0.15);
+      shape.drum(0x56564d, 0, 0.82, 0, 0.245, 0.16, 0.245);
+      for (const side of [-1, 1]) {
+        shape.box(0x785537, side * 0.46, 0.92, 1.48, 0.105, 0.13, 3.05);
+        shape.taper(0x735740, [side * 0.65, 1.24, 0.43], [side * 0.73, 1.28, 1.66], 0.027, 0.032);
+      }
+      shape.box(0x594431, 0, 1.19, 2.93, 1.97, 0.11, 0.15);
+      for (const x of [-0.73, 0.73]) shape.drum(0x62615c, x, 1.21, 2.94, 0.095, 0.14, 0.1);
+    });
     const add = (geo, c, x, y, z, w, h, d) => this.part(g, geo, c, x, y, z, w, h, d);
     add(this.box, 0x785537, 0, 1.09, 0, 2.08, 0.26, 3.3);
     for (const s of [-1, 1]) {
       for (let j = 0; j < 4; j++) add(this.box, 0x897454, s, 1.24 + j * 0.17, 0, 0.11, 0.158, 3.3);
       for (let j = 0; j < 4; j++) add(this.box, 0x594431, s * 1.08, 1.51, -1.55 + j * 1.03, 0.08, 0.91, 0.1);
-      add(this.box, 0x594431, s * 0.54, 0.93, 2.68, 0.11, 0.13, 3.15);
+
       for (const k of [-1, 1]) {
         const wheel = new THREE.Group();
         wheel.position.set(s * 1.14, 0.7, k * 1.09);
-        g.add(wheel);
+        if (k > 0) {
+          wheel.position.z = 0;
+          turntable.add(wheel);
+        } else g.add(wheel);
+        wheel.userData.side = s;
+        wheel.userData.front = k > 0;
         const hoop = this.part(
           wheel,
           new THREE.TorusGeometry(0.635, 0.075, 6, 24),
@@ -266,12 +292,15 @@ class Realm extends County {
       const patch = new THREE.Mesh(new THREE.PlaneGeometry(w, d), contact);
       patch.rotation.x = -Math.PI / 2;
       patch.position.set(x, 0.035, z);
-      g.add(patch);
+      if (z > 0) {
+        patch.position.z -= 1.09;
+        turntable.add(patch);
+      } else g.add(patch);
     }
     this.team = [makeBeast(true), makeBeast(false)];
     for (const [i, animal] of this.team.entries()) {
-      animal.position.set(i ? 0.73 : -0.73, 0, 3.34);
-      g.add(animal);
+      animal.position.set(i ? 0.73 : -0.73, 0, 2.25);
+      turntable.add(animal);
     }
     carved(g, (s) => {
       for (const side of [-1, 1]) {
@@ -284,7 +313,6 @@ class Realm extends County {
           s.taper(0x8e7b58, [side * 1.122, 1.88, z - 0.12], [side * 1.095, 1.49, z], 0.011, 0.011);
           s.taper(0x8e7b58, [side * 1.095, 1.49, z], [side * 1.122, 1.88, z + 0.12], 0.011, 0.011);
         }
-        s.taper(leather, [side * 0.72, 1.25, 1.43], [side * 0.73, 1.27, 2.48], 0.037, 0.038);
       }
       for (const side of [-1, 1]) {
         s.drum(0xbac0b2, side * 0.53, 1.82, 0.97, 0.193, 0.46, 0.193);
@@ -309,24 +337,47 @@ class Realm extends County {
     const delta = previous ? Math.hypot(wrapped(w.x - previous.x), wrapped(w.z - previous.z)) : 0;
     const dt = previous ? Math.max(0, Math.min(0.2, t - previous.t)) : 0;
     const travel = delta < 2 && dt > 0 ? delta : 0;
-    this.teamLast = { x: w.x, z: w.z, t };
+    const direction = previous
+      ? Math.sign(
+          wrapped(w.x - previous.x) * Math.sin(w.angle) + wrapped(w.z - previous.z) * Math.cos(w.angle),
+        )
+      : 1;
+    const signedTravel = travel * direction;
+    const turn = previous ? angles(w.angle - (previous.angle ?? w.angle)) : 0;
+    this.teamLast = { x: w.x, z: w.z, t, angle: w.angle };
     this.travelPhase += travel;
     const pace = dt > 0 ? Math.min(1, travel / dt) : 0;
     this.teamEnergy = THREE.MathUtils.damp(this.teamEnergy || 0, pace, 10, dt);
-    for (const wheel of this.wheelParts) wheel.rotation.x = this.travelPhase / 0.68;
+    const bend = w.bend || 0;
+    this.turntable.rotation.y = bend;
+    for (const wheel of this.wheelParts) {
+      const distance = signedTravel - turn * wheel.userData.side * 1.14;
+      if (previous && dt > 0) wheel.rotation.x += distance / 0.683;
+    }
     const sine = Math.sin(w.angle),
       cosine = Math.cos(w.angle);
-    const height = (x, z) => ground(w.x + cosine * x + sine * z, w.z - sine * x + cosine * z);
+    const height = (x, z) => walkingSurface(w.x + cosine * x + sine * z, w.z - sine * x + cosine * z);
     this.wagon.rotation.x = -Math.atan2(height(0, 1) - height(0, -1), 2);
-    this.wagon.rotation.z = Math.atan2(height(1, 0) - height(-1, 0), 2);
+    const roll =
+      Math.atan2(height(1, 0) - height(-1, 0), 2) +
+      clamp((dt ? turn / dt : 0) * (dt ? travel / dt : 0) * 0.012, -0.08, 0.08);
+    this.wagon.rotation.z = THREE.MathUtils.damp(this.wagon.rotation.z, roll, 9, dt || 0.08);
     this.team.forEach((animal, i) => {
       const { body, legs, head, tail, ears } = animal.userData;
-      const x = animal.position.x,
-        z = animal.position.z;
+      const ch = Math.cos(bend),
+        sh = Math.sin(bend),
+        lx = animal.position.x,
+        lz = animal.position.z;
+      const x = ch * lx + sh * lz,
+        z = 1.09 - sh * lx + ch * lz;
       animal.position.y =
-        height(x, z) - ground(w.x, w.z) + z * this.wagon.rotation.x - x * this.wagon.rotation.z;
+        height(x, z) - walkingSurface(w.x, w.z) + z * this.wagon.rotation.x - x * this.wagon.rotation.z;
       const e = this.teamEnergy,
-        phase = this.travelPhase / (i ? 1.17 : 1.04) + i * 0.31;
+        pace = dt ? travel / dt : 0;
+      const strideLength = clamp((i ? 1.02 : 0.99) + pace * 0.125, 1.08, 1.85);
+      animal.userData.stride =
+        (animal.userData.stride || 0) + (signedTravel - turn * (i ? 0.73 : -0.73)) / strideLength;
+      const phase = animal.userData.stride + i * 0.31;
       body.position.y = Math.sin(phase * Math.PI * 4) * 0.025 * e + Math.sin(t * 1.6 + i) * 0.009;
       const answering = !i && (w.listening || 0) > 0;
       head.rotation.x =
@@ -334,13 +385,15 @@ class Realm extends County {
       head.rotation.y = answering ? 0.28 * Math.sin(t * 2.1) : 0.065 * Math.sin(t * 0.91 + i);
       for (const ear of ears) {
         const side = ear.userData.side;
-        ear.rotation.y = side * (i ? 0.095 : 0.052) * Math.sin(t * (i ? 1.08 : 0.7) + side * 1.9 + i);
+        ear.rotation.y =
+          ear.userData.restYaw + side * (i ? 0.095 : 0.052) * Math.sin(t * (i ? 1.08 : 0.7) + side * 1.9 + i);
         ear.rotation.z = side * 0.034 * Math.cos(t * 0.92 + i + side);
       }
       tail.rotation.z = 0.26 * Math.sin(t * 2.2 + i) + 0.1 * Math.sin(t * 5 + i);
       for (const { hip, knee, foot, front, side } of legs) {
-        const p = (phase + (side < 0 ? 0.5 : 0) + (front ? 0.74 : 0)) % 1;
-        const stride = (i ? 0.55 : 0.48) * e;
+        const gait = clamp((pace - 2.1) / 2.8, 0, 1);
+        const p = (((phase + (side < 0 ? 0.5 : 0) + (front ? 0.74 - 0.24 * gait : 0)) % 1) + 1) % 1;
+        const stride = Math.min(0.96, strideLength * 0.6) * e;
         // Stance sweeps back at ground speed; a lifted hoof returns on the shorter swing.
         const forward = p < 0.6 ? stride * (0.5 - p / 0.6) : stride * (-0.5 + (p - 0.6) / 0.4);
         const lift = p < 0.6 ? 0 : Math.sin(((p - 0.6) / 0.4) * Math.PI) * 0.22 * e;
@@ -358,6 +411,7 @@ class Realm extends County {
   hideHands() {
     for (const o of [this.weapon, this.bow, this.shield, this.rightArm.group, this.leftArm.group])
       o.visible = false;
+    if (this.viewBody) this.viewBody.visible = false;
   }
   receiveGuardHit(parry) {
     this.guardKick.speed = Math.min(8.4, this.guardKick.speed + (parry ? 5.8 : 7.5));
@@ -367,9 +421,41 @@ class Realm extends County {
     const dt = THREE.MathUtils.clamp(t - (this.handTime ?? t - 1 / 60), 0, 0.12);
     this.handTime = t;
     if (s.health <= 0 || s.delivery) return;
-    const bow = s.weapon === 'bow',
-      blocking = !bow && s.blockTime > 0;
-    stepViewSpring(this.guardLift, blocking ? 1 : 0, blocking ? 21 : 16, dt);
+    const standing = !['lost', 'chair'].includes(s.leg);
+    this.leftArm.bodyPitch = this.rightArm.bodyPitch = s.pitch * (standing ? 0.2 : 0.14);
+    if (standing && s.pitch < -0.31) {
+      this.viewBodies ??= [];
+      if (!this.viewBodies[s.side]) {
+        this.viewBodies[s.side] = createViewBody(s.side);
+        this.camera.add(this.viewBodies[s.side]);
+      }
+      const body = (this.viewBody = this.viewBodies[s.side]);
+      body.visible = true;
+      body.rotation.set(-s.pitch, Math.PI, 0, 'XYZ');
+      body.position.set(0, -1.71 - bob, 0.23).applyAxisAngle(this.rightArm.pitchAxis, -s.pitch);
+      const moving = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'].some((key) => keys.has(key));
+      poseCharacter(
+        body,
+        s.air > 0.16
+          ? 'jump'
+          : moving
+            ? keys.has('ShiftLeft') || keys.has('ShiftRight')
+              ? 'run'
+              : 'walk'
+            : 'idle',
+        t,
+      );
+    }
+    if (s.weapon !== this.drawnWeapon) {
+      this.drawDepth = Math.min(1, this.drawDepth + dt * 6.4);
+      if (this.drawDepth === 1) this.drawnWeapon = s.weapon;
+    } else {
+      this.drawDepth = Math.max(0, this.drawDepth - dt * 4.1);
+    }
+    const holster = THREE.MathUtils.smootherstep(this.drawDepth, 0, 1);
+    const bow = this.drawnWeapon === 'bow',
+      blocking = !bow && s.weapon === 'sword' && s.blockTime > 0;
+    stepViewSpring(this.guardLift, blocking ? 1 : 0, blocking ? 10.8 : 9.5, dt);
     stepViewSpring(this.guardKick, 0, 18, dt);
     const lift = this.guardLift.value,
       kick = this.guardKick.value;
@@ -393,53 +479,63 @@ class Realm extends County {
       const release = Math.sin(attackAnim * Math.PI);
       this.bow.visible = true;
       this.bow.scale.setScalar(0.76);
-      this.bow.position.set(-width * 0.71, -0.112 + bob * 0.21, -0.527 + release * 0.025);
-      this.bow.rotation.set(0.025 - release * 0.075, 0.24, -0.12);
+      this.bow.position.set(
+        -width * 0.71,
+        -0.112 + bob * 0.21 - holster * 0.47,
+        -0.527 + release * 0.025 + holster * 0.25,
+      );
+      this.bow.rotation.set(0.025 - release * 0.075 - holster * 1.24, 0.24, -0.12 - holster * 0.9);
       this.leftArm.place(this.bow, -1);
       return;
     }
     const cut = this.cutPose,
       peace = this.loweredBlade;
     cutChannels(s.heavy ? fieldCuts.heavy : fieldCuts.light, 1 - attackAnim, cut);
+    const oneHand = s.arm === 'lost';
+    const exchange = oneHand ? THREE.MathUtils.smootherstep(lift, 0, 0.42) : 0;
+    const stow = Math.max(exchange, holster);
     this.weapon.visible = true;
     this.weapon.scale.setScalar(0.78);
     this.weapon.position.set(
       hand * (width + cut[0] - 0.033 * lift),
-      -0.213 + cut[1] - 0.09 * peace + bob * 0.23 - 0.04 * lift,
-      -0.477 + cut[2] + 0.024 * peace,
+      -0.213 + cut[1] - 0.09 * peace + bob * 0.23 - 0.04 * lift - 0.44 * stow,
+      -0.477 + cut[2] + 0.024 * peace + stow * 0.21,
     );
     const edge = -this.weapon.position.z * Math.tan(THREE.MathUtils.degToRad(fov / 2)) * aspect * 0.77;
     this.weapon.position.x = THREE.MathUtils.clamp(this.weapon.position.x, -edge, edge);
     this.weapon.rotation.set(
-      -0.58 + cut[3] - 0.42 * peace - 0.18 * lift,
+      -0.58 + cut[3] - 0.42 * peace - 0.18 * lift - stow * 1.15,
       hand * (0.01 + cut[4]),
       hand * (-0.16 + cut[5] - 0.16 * lift),
     );
     this.rightArm.place(this.weapon, hand, Math.min(1, attackAnim * 3));
-    if (lift > 0.003 || blocking) {
+    if (!oneHand || lift >= 0.42) {
       const shieldHand = -1;
-      if (s.arm === 'lost') {
+      if (oneHand) {
         this.weapon.visible = false;
         this.rightArm.group.visible = false;
       }
       this.shield.visible = true;
+      const rise = oneHand ? THREE.MathUtils.smoothstep(lift, 0.42, 1) : lift;
+      const arc = Math.sin(Math.PI * rise);
       this.shield.position.set(
-        shieldHand * (width * 1.12 - lift * 0.108),
-        -0.54 + lift * 0.435 + kick * 0.055 + bob * 0.16,
-        -0.313 - lift * 0.175 + kick * 0.29,
+        shieldHand * (width * 1.27 - rise * 0.175 + arc * 0.024),
+        -0.45 + rise * 0.315 + arc * 0.031 + kick * 0.046 + bob * 0.16 - holster * 0.25,
+        -0.335 - rise * 0.183 - arc * 0.045 + kick * 0.19 + holster * 0.115,
       );
       this.shield.rotation.set(
-        0.46 - lift * 0.39 + kick * 0.56,
-        shieldHand * (0.88 - lift * 0.52 + kick * 0.18),
-        shieldHand * (0.48 - lift * 0.37 + kick * 0.38),
+        0.64 - rise * 0.57 + arc * 0.09 + kick * 0.5 + holster * 0.43,
+        shieldHand * (1.02 - rise * 0.66 + arc * 0.15 + kick * 0.18),
+        shieldHand * (0.81 - rise * 0.7 + arc * 0.12 + kick * 0.38),
       );
-      this.leftArm.place(this.shield, shieldHand, lift);
+      this.leftArm.place(this.shield, shieldHand, rise);
     }
   }
   animateDetails(s, t, attackAnim, bob) {
     this.animateWeather(s, t);
     this.updateAtmosphere(s, t);
     this.animateTeam(s.wagon, t);
+    renderConvoy(this, s, t);
     harnessFoley(s, this.travelPhase);
     this.updateHands(s, t, attackAnim, bob);
     this.arrow3d.visible = !!s.arrow;

@@ -357,6 +357,7 @@ function dungeonInteract() {
       return;
     }
     s.unlocked = true;
+    awardOnce('wheel-' + game.dungeon, 20, 'Механизм открыт');
     s.lift = 0;
     tone(76, 0.65, 'triangle', 0.12, 36);
     notify('Противовес опущен. Ворота поднялись.', 3);
@@ -375,6 +376,7 @@ function dungeonInteract() {
     return;
   }
   s.claimed = true;
+  awardOnce('vault-' + game.dungeon, 65, 'Тайник экспедиции');
   game.coins += d.reward;
   game.bandages += d.bandages;
   game.arrows += d.arrows;
@@ -497,6 +499,19 @@ function dungeonMove(entity, dx, dz, r, player = false) {
   }
   return travel;
 }
+function dungeonArmor(m, amount, type) {
+  if (
+    m.kind !== 'sentinel' ||
+    m.recover > 0 ||
+    m.stagger > 0 ||
+    type === 'parry' ||
+    (type === 'heavy' && hasTalent('breaker'))
+  )
+    return amount;
+  const p = dungeonPlayer(),
+    front = Math.abs(angles(Math.atan2(p.x - m.x, p.z - m.z) - m.yaw)) < 1.34;
+  return front ? Math.max(1, Math.round(amount * (type === 'heavy' ? 0.65 : 0.4))) : amount;
+}
 function monsterTick(m, dt) {
   if (m.hp <= 0) return;
   const s = dungeonState(),
@@ -510,6 +525,8 @@ function monsterTick(m, dt) {
   m.walk = false;
   if (los && dist < (m.kind === 'sentinel' ? 14 : 11)) m.alert = 9;
   else m.alert = Math.max(0, m.alert - dt);
+  m.recover = Math.max(0, (m.recover || 0) - dt);
+  if (m.recover > 0) return;
   if (m.stagger > 0) {
     m.windup = 0;
     return;
@@ -519,15 +536,32 @@ function monsterTick(m, dt) {
     if (!m.windup) {
       m.struckAt = gameTime;
       m.cd = m.kind === 'sentinel' ? 2.05 : 1.48;
-      if (los && dist < spec.reach + 0.52 && game.air < 1.6) hitPlayer(spec.power, m);
+      const slam = m.moveKind === 'slam',
+        span = slam ? 3.4 : spec.reach + 0.52;
+      const angle = Math.abs(angles(Math.atan2(p.x - m.x, p.z - m.z) - m.yaw));
+      if (los && dist < span && (slam ? game.air < 0.62 : angle < 1.12 && game.air < 1.6))
+        hitPlayer(spec.power * (slam ? 1.45 : 1), m);
+      if (m.kind === 'sentinel') {
+        m.recover = slam ? 1.45 : 0.7;
+        m.moveKind = null;
+      }
     }
     return;
   }
   if (!m.alert) return;
   if (los && dist <= spec.reach) {
-    m.yaw = Math.atan2(p.x - m.x, p.z - m.z);
-    if (m.cd <= 0) {
+    const face = angles(Math.atan2(p.x - m.x, p.z - m.z) - m.yaw);
+    m.yaw += clamp(face, -dt * 3, dt * 3);
+    if (m.cd <= 0 && Math.abs(face) < 0.32) {
       m.windup = spec.wind;
+      if (m.kind === 'sentinel') {
+        m.beats = (m.beats || 0) + 1;
+        if (m.beats % 3 === 0 || (m.hp < m.maxHp * 0.5 && m.beats % 2 === 0)) {
+          m.moveKind = 'slam';
+          m.windup = 1.38;
+          notify('Страж бьёт в пол · отпрыгните или перепрыгните волну', 1.25);
+        }
+      }
       monsterCall(m.kind, false);
     }
     return;
@@ -610,7 +644,7 @@ function dungeonTick(dt) {
   g.vy -= 18 * dt;
   g.air = Math.max(0, g.air + g.vy * dt);
   if (!g.air) g.vy = 0;
-  swing = Math.max(0, swing - dt * (g.heavy ? 1.35 : 2));
+  swing = Math.max(0, swing - dt * (g.weapon === 'bow' && hasTalent('quiver') ? 3 : g.heavy ? 1.35 : 2));
   flash = Math.max(0, flash - dt);
   $('hurt').style.opacity = flash;
   if (g.bleed) {
@@ -657,7 +691,7 @@ function dungeonArrowTick(dt) {
         a.y < bestiary[m.kind].top + 0.15,
     );
     if (mob) {
-      hurtActor(mob, 34 + game.upgrade * 6, true);
+      hurtActor(mob, 34 + game.upgrade * 6, true, 'arrow');
       game.arrow = null;
       return;
     }

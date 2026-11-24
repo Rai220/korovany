@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#171817" />
     <title>Соляной тракт — Gpt-6.2-Astra + Goal (gpt-6.2-astra)</title>
-    <link rel="preload" as="image" href="./assets/cover.webp?v=underways1" fetchpriority="high" />
-    <link rel="prefetch" as="image" href="./assets/atlas.webp?v=underways1" />
-    <link rel="icon" href="./assets/mark.svg?v=underways1" type="image/svg+xml" />
-    <link rel="stylesheet" href="./style.css?v=underways1" />
-    <link rel="stylesheet" href="./edition.css?v=underways1" />
-    <link rel="stylesheet" href="./post.css?v=underways1" />
-    <link rel="stylesheet" href="./salt.css?v=underways1" />
-    <script src="./boot.js?v=underways1"></script>
+    <link rel="preload" as="image" href="./assets/cover.webp?v=frontier1" fetchpriority="high" />
+    <link rel="prefetch" as="image" href="./assets/atlas.webp?v=frontier1" />
+    <link rel="icon" href="./assets/mark.svg?v=frontier1" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css?v=frontier1" />
+    <link rel="stylesheet" href="./edition.css?v=frontier1" />
+    <link rel="stylesheet" href="./post.css?v=frontier1" />
+    <link rel="stylesheet" href="./assets/exploration/field.css?v=frontier1" />
+    <link rel="stylesheet" href="./frontier.css?v=frontier1" />
+    <link rel="stylesheet" href="./salt.css?v=frontier1" />
+    <script src="./boot.js?v=frontier1"></script>
   </head>
   <body>
     <header class="bar">
@@ -66,6 +68,7 @@
               </button>
             </div>
           </div>
+          <button type="button" id="explore-entry" disabled><i data-icon="compass"></i><span><strong>Отправиться в экспедицию</strong><small>Свободный старт у старой переправы</small></span><i data-icon="arrow"></i></button>
           <button class="post-race" id="post-race" type="button" disabled>
             <span
               ><small>Дворцовая почта</small><strong>Почтовый перегон</strong
@@ -123,10 +126,12 @@
       </section>
       <button id="post-view" title="Сменить вид камеры (V)" aria-pressed="false">Камера <kbd>V</kbd></button>
       <button id="post-bell">Звонок <kbd>Пробел</kbd></button>
+      <output id="xp-event" hidden></output>
       <div id="event" role="status"></div>
       <div id="interact"></div>
       <div class="hud vitals">
         <div class="vital-line"><span>Здоровье</span><b id="hp"></b></div>
+        <button id="rank-key" type="button" aria-label="Уровень и умения героя"></button>
         <div class="meter"><b id="hpbar"></b></div>
         <div class="energy"><b id="stamina-bar"></b></div>
         <small id="supplies"></small><small id="condition"></small>
@@ -158,38 +163,45 @@
       <span>Соляной тракт</span><strong>Выходим на дорогу…</strong>
     </div>
     <div id="message" role="status"></div>
-    <script src="./interface.js?v=underways1"></script>
-    <script src="./vendor/three.min.js?v=underways1"></script>
-    <script data-pack src="./assets/materials.js?v=underways1"></script>
-    <script src="./effects.js?v=underways1"></script>
-    <script src="./world.js?v=underways1"></script>
-    <script data-pack src="./assets/environment/trail-pack.js?v=underways1"></script>
-    <script src="./landscape.js?v=underways1"></script>
-    <script src="./hamlets.js?v=underways1"></script>
-    <script src="./buildings.js?v=underways1"></script>
-    <script src="./interiors.js?v=underways1"></script>
-    <script src="./county.js?v=underways1"></script>
-    <script data-pack src="./assets/characters/cast-data.js?v=underways1"></script>
-    <script src="./characters.js?v=underways1"></script>
-    <script src="./arms.js?v=underways1"></script>
-    <script src="./sculpt.js?v=underways1"></script>
-    <script src="./cast.js?v=underways1"></script>
-    <script src="./trails.js?v=underways1"></script>
-    <script src="./voice.js?v=underways1"></script>
-    <script src="./cinematography.js?v=underways1"></script>
-    <script src="./chronicle.js?v=underways1"></script>
-    <script data-pack src="./assets/field/recordings.js?v=underways1"></script>
-    <script src="./field-sound.js?v=underways1"></script>
-    <script src="./sound.js?v=underways1"></script>
-    <script src="./settings.js?v=underways1"></script>
-    <script src="./traffic.js?v=underways1"></script>
-    <script src="./dairy.js?v=underways1"></script>
-    <script src="./compass.js?v=underways1"></script>
-    <script src="./delivery.js?v=underways1"></script>
-    <script data-pack src="./assets/creatures/skulls.js?v=underways1"></script>
-    <script src="./creatures.js?v=underways1"></script>
-    <script src="./dungeon.js?v=underways1"></script>
-    <script src="./vaults.js?v=underways1"></script>
-    <script src="./game.js?v=underways1"></script>
+    <script src="./interface.js?v=frontier1"></script>
+    <script src="./vendor/three.min.js?v=frontier1"></script>
+    <script data-pack src="./assets/materials.js?v=frontier1"></script>
+    <script src="./effects.js?v=frontier1"></script>
+    <script src="./world.js?v=frontier1"></script>
+    <script data-pack src="./assets/environment/trail-pack.js?v=frontier1"></script>
+    <script src="./assets/environment/mountains.js?v=frontier1"></script>
+    <script src="./landscape.js?v=frontier1"></script>
+    <script src="./hamlets.js?v=frontier1"></script>
+    <script src="./buildings.js?v=frontier1"></script>
+    <script src="./interiors.js?v=frontier1"></script>
+    <script src="./county.js?v=frontier1"></script>
+    <script data-pack src="./assets/characters/cast-data.js?v=frontier1"></script>
+    <script src="./characters.js?v=frontier1"></script>
+    <script src="./arms.js?v=frontier1"></script>
+    <script src="./sculpt.js?v=frontier1"></script>
+    <script src="./cast.js?v=frontier1"></script>
+    <script src="./trails.js?v=frontier1"></script>
+    <script src="./voice.js?v=frontier1"></script>
+    <script src="./cinematography.js?v=frontier1"></script>
+    <script src="./chronicle.js?v=frontier1"></script>
+    <script data-pack src="./assets/field/recordings.js?v=frontier1"></script>
+    <script src="./field-sound.js?v=frontier1"></script>
+    <script src="./sound.js?v=frontier1"></script>
+    <script src="./settings.js?v=frontier1"></script>
+    <script src="./traffic.js?v=frontier1"></script>
+    <script src="./convoy.js?v=frontier1"></script>
+    <script src="./dairy.js?v=frontier1"></script>
+    <script src="./compass.js?v=frontier1"></script>
+    <script src="./delivery.js?v=frontier1"></script>
+    <script data-pack src="./assets/creatures/skulls.js?v=frontier1"></script>
+    <script src="./creatures.js?v=frontier1"></script>
+    <script src="./dungeon.js?v=frontier1"></script>
+    <script src="./vaults.js?v=frontier1"></script>
+    <script src="./assets/exploration/scenery.js?v=frontier1"></script>
+    <script src="./dragon.js?v=frontier1"></script>
+    <script src="./hunts.js?v=frontier1"></script>
+    <script src="./exploration.js?v=frontier1"></script>
+    <script src="./progression.js?v=frontier1"></script>
+    <script src="./game.js?v=frontier1"></script>
   </body>
 </html>

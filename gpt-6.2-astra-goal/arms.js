@@ -50,16 +50,28 @@ class ViewArm {
     const cross = new T.Vector3().crossVectors(up, fore);
     const gripBasis = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(cross, up, fore));
     this.axis = new T.Vector3(0, 1, 0);
+    this.pitchAxis = new T.Vector3(1, 0, 0);
+    this.bodyPitch = 0;
     const intoWeapon = new T.Quaternion().setFromAxisAngle(this.axis, 0.5).multiply(gripBasis.invert());
     this.rest = [this.upper, this.lower, this.wrist].map((b) =>
       b.getWorldQuaternion(new T.Quaternion()).premultiply(intoWeapon),
     );
     this.wristToGrip = grip.sub(pos(this.wrist)).applyQuaternion(intoWeapon);
+    // The hilt lies inside the curled fingers, between the knuckles and the palm.
+    this.wristToGrip.z += 0.019;
     // Preserve the skin bind matrices when making the upper arm the root of the view model.
     this.group.attach(this.upper);
     this.group.remove(bones[0]);
     this.upperLength = this.lower.position.length();
     this.lowerLength = this.wrist.position.length();
+    // Continue the fitted sleeve into the shoulder yoke. Its inner end is under the
+    // collar, behind the near plane, even when the elbow crosses the centre of the frame.
+    this.yoke = new T.Group();
+    this.group.add(this.yoke);
+    carved(this.yoke, (s) => {
+      s.taper(0x414e58, [-0.025, -0.16, 0.13], [0.185, -0.015, 0.008], 0.13, 0.082);
+      s.oval(0x414e58, 0.177, -0.013, 0.001, 0.09, 0.084, 0.097, 0.08, 0, -0.31);
+    });
     this.shoulder = new T.Vector3();
     this.elbow = new T.Vector3();
     this.goal = new T.Vector3();
@@ -139,7 +151,11 @@ class ViewArm {
     this.rotation.copy(item.quaternion);
     this.rotation.y *= hand;
     this.rotation.z *= hand;
-    this.shoulder.set(0.196, -0.225 + lift * 0.022, -0.055 - lift * 0.03);
+    this.shoulder.set(0.195 - lift * 0.019, -0.262 + lift * 0.026, -0.019 - lift * 0.044);
+    this.shoulder.applyAxisAngle(this.pitchAxis, -this.bodyPitch);
+    this.yoke.rotation.x = -this.bodyPitch;
+    this.yoke.position.copy(this.shoulder);
+    this.yoke.position.x -= 0.177;
     this.goal.copy(item.position);
     this.goal.x *= hand;
     this.wristGoal.copy(this.wristToGrip).applyQuaternion(this.rotation).negate().add(this.goal);
@@ -168,6 +184,72 @@ class ViewArm {
     item.position.copy(this.goal);
     item.position.x *= hand;
   }
+}
+
+// Reserve the front of the depth buffer for the camera rig. Fingers, leather and steel
+// still occlude one another normally while a nearby actor or door cannot cut across a sleeve.
+const viewMaterials = new WeakMap();
+function prepareViewEquipment(...parts) {
+  for (const part of parts)
+    part.traverse((mesh) => {
+      if (!mesh.isMesh) return;
+      mesh.castShadow = mesh.receiveShadow = false;
+      const source = mesh.material;
+      if (!viewMaterials.has(source)) {
+        const material = source.clone();
+        const shaderKey = source.customProgramCacheKey();
+        material.customProgramCacheKey = () => 'view-equipment:' + shaderKey;
+        material.onBeforeCompile = (shader, renderer) => {
+          source.onBeforeCompile(shader, renderer);
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <project_vertex>',
+            '#include <project_vertex>\n gl_Position.z = mix(-gl_Position.w, gl_Position.z, 0.035);',
+          );
+        };
+        viewMaterials.set(source, material);
+      }
+      mesh.material = viewMaterials.get(source);
+    });
+}
+
+// The first-person chest, belt, legs and boots use the same costume and walk cycle as
+// the third-person hero. Exclude the head and arm polygons replaced by the two view rigs.
+function createViewBody(side) {
+  const body = appearance(heroRoles[side], 'hero', true);
+  for (const mesh of [...body.children]) {
+    if (!mesh.isSkinnedMesh) continue;
+    const original = mesh.geometry;
+    const { position, skinIndex, skinWeight } = original.attributes;
+    const keepBone = mesh.skeleton.bones.map((b) =>
+      /^(pelvis|spine|thigh|calf|foot|ball|toe|clavicle)/i.test(b.name),
+    );
+    const keep = new Uint8Array(position.count);
+    for (let i = 0; i < keep.length; i++) {
+      if (position.getY(i) > 1.595 || (position.getY(i) > 0.91 && Math.abs(position.getX(i)) > 0.215))
+        continue;
+      let weight = 0;
+      for (let j = 0; j < 4; j++)
+        if (keepBone[skinIndex.array[4 * i + j]]) weight += skinWeight.getComponent(i, j);
+      keep[i] = Number(weight >= 0.48);
+    }
+    const source = original.index.array,
+      faces = [];
+    for (let i = 0; i < source.length; i += 3)
+      if (keep[source[i]] && keep[source[i + 1]] && keep[source[i + 2]])
+        faces.push(source[i], source[i + 1], source[i + 2]);
+    if (!faces.length) {
+      body.remove(mesh);
+      continue;
+    }
+    const geometry = new THREE.BufferGeometry();
+    for (const [key, value] of Object.entries(original.attributes)) geometry.setAttribute(key, value);
+    geometry.setIndex(faces);
+    mesh.geometry = geometry;
+    mesh.frustumCulled = false;
+  }
+  prepareViewEquipment(body);
+  body.userData.playerSide = side;
+  return body;
 }
 
 // Hand targets are in metres from the camera. Rotations describe grip travel, then blade follow-through.
@@ -204,24 +286,47 @@ function stepViewSpring(s, target, freq, dt) {
   s.speed = (s.speed - freq * d) * e;
 }
 
-// Restore the unmoved clip pose before sampling the next frame. The physical shield stays
-// attached to the forearm while its impact travels through the elbow into the upper body.
-function poseGuardedHero(hero, state, t, impact) {
+// Blend only the upper body into guard. The same lift curve drives both cameras,
+// and the walking cycle keeps running underneath the strapped shield.
+function poseGuardedHero(hero, state, t, impact, lift) {
   let pose = hero.userData.guardPose;
   if (!pose) {
-    pose = hero.userData.guardPose = {
-      joints: ['spine_03', 'upperarm_l', 'lowerarm_l'].map((n) => hero.getObjectByName(n)),
-      rest: [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()],
-      applied: false,
-    };
+    const sex = hero.userData.actorStyle.sex,
+      rig = borderCast.rigs[sex],
+      clip = borderCast.clips[sex].block;
+    const joints = [
+      ['spine_02', 0.48],
+      ['spine_03', 0.7],
+      ['clavicle_l', 1],
+      ['upperarm_l', 1],
+      ['lowerarm_l', 1],
+      ['hand_l', 1],
+      ['clavicle_r', 0.6],
+      ['upperarm_r', 0.72],
+      ['lowerarm_r', 0.72],
+      ['hand_r', 0.72],
+    ].map(([name, amount]) => {
+      const values = castValues(clip.q[rig.bones.indexOf(name)], Int16Array);
+      const at = Math.floor((values.length / 4 - 1) * 0.45) * 4;
+      return {
+        name,
+        bone: hero.getObjectByName(name),
+        amount,
+        base: new THREE.Quaternion(),
+        braced: new THREE.Quaternion().fromArray(values, at).normalize(),
+      };
+    });
+    pose = hero.userData.guardPose = { joints, applied: false };
   }
-  if (pose.applied) pose.joints.forEach((b, i) => b.quaternion.copy(pose.rest[i]));
+  if (pose.applied) for (const j of pose.joints) j.bone.quaternion.copy(j.base);
   poseCharacter(hero, state, t);
-  pose.applied = impact > 0.0005;
-  if (pose.applied) {
-    pose.joints.forEach((b, i) => pose.rest[i].copy(b.quaternion));
-    pose.joints[0].rotateX(impact * 0.34);
-    pose.joints[1].rotateZ(impact * 0.68);
-    pose.joints[2].rotateX(-impact * 0.94);
+  pose.applied = lift > 0.0001 || impact > 0.0001;
+  if (!pose.applied) return;
+  for (const j of pose.joints) {
+    j.base.copy(j.bone.quaternion);
+    j.bone.quaternion.slerp(j.braced, lift * j.amount);
+    if (j.name === 'spine_03') j.bone.rotateX(impact * 0.34);
+    if (j.name === 'upperarm_l') j.bone.rotateZ(impact * 0.68);
+    if (j.name === 'lowerarm_l') j.bone.rotateX(-impact * 0.94);
   }
 }

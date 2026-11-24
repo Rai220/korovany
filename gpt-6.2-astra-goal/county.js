@@ -338,8 +338,7 @@ class County extends InteriorRealm {
         dairies.some((d) => Math.hypot(x - d.x, z - d.z) < 6)
       )
         continue;
-      this.trees.push({ x, z, y: ground(x, z), a: this.rnd() * 6.28, h: 5 + this.rnd() * 10 });
-      this.bound(x, z, 0.63, 0.63);
+      this.plantTree({ x, z, y: ground(x, z), a: this.rnd() * 6.28, h: 5 + this.rnd() * 10 }, 0.63);
     }
     // Small groves fill the woodland beyond the settlement, leaving entrances and the archery deck clear.
     for (let i = 0; i < 126; i++) {
@@ -352,14 +351,16 @@ class County extends InteriorRealm {
         Math.cos(x * 0.19 + z * 0.07) + Math.sin(z * 0.1) < -0.21
       )
         continue;
-      this.trees.push({
-        x,
-        z,
-        y: ground(x, z),
-        a: meadowHash(i, 1, 68) * 6.28,
-        h: 6 + meadowHash(i, 2, 22) * 12,
-      });
-      this.bound(x, z, 0.42, 0.42);
+      this.plantTree(
+        {
+          x,
+          z,
+          y: ground(x, z),
+          a: meadowHash(i, 1, 68) * 6.28,
+          h: 6 + meadowHash(i, 2, 22) * 12,
+        },
+        0.42,
+      );
     }
     // Stands along the outer ridge break the crest into believable tree lines. Keep the trade lane open.
     for (let i = 0; i < 165; i++) {
@@ -374,38 +375,20 @@ class County extends InteriorRealm {
         Math.sin(x * 0.12 + z * 0.17) < -0.45
       )
         continue;
-      this.trees.push({
-        x,
-        z,
-        y: ground(x, z),
-        a: meadowHash(i, 1, 43) * 6.28,
-        h: 7.5 + meadowHash(i, 2, 3) * 9,
-      });
-      this.bound(x, z, 0.48, 0.48);
+      this.plantTree(
+        {
+          x,
+          z,
+          y: ground(x, z),
+          a: meadowHash(i, 1, 43) * 6.28,
+          h: 7.5 + meadowHash(i, 2, 3) * 9,
+        },
+        0.48,
+      );
     }
-    const stone = trailGeometry('fieldstone', 'body'),
-      stump = trailGeometry('stump', 'body');
-    const debris = [
-      [-45, -5, 1.2],
-      [-42, -3.8, 0.63],
-      [-59, 4.7, 1.1],
-      [-34, 1.1, 0.83],
-      [-40, -7.7, 1.4],
-      [28, 3.8, 1.2],
-      [59, 1.4, 1.65],
-      [76, 2.8, 0.98],
-      [-57, 67, 0.83],
-      [-38, 69, 0.68],
-      [43, -35, 0.84],
-      [71, 37, 1.09],
-      [80, 67, 1.32],
-      [26, 70, 0.91],
-    ];
-    for (const [x, z, k] of debris) {
-      if (!this.free(x, z, 0.85 * k)) continue;
-      this.put(stone, 0x84917c, x, walkingSurface(x, z) + 0.11 * k, z, k, k, k, x * 0.19);
-      this.bound(x, z, 1.4 * k, 1.13 * k);
-    }
+    const stump = trailGeometry('stump', 'body');
+    // The path and the bridge abutments stay clear. Deposits occur at actual bends of the stream.
+    this.finishGroundDebris();
     for (const [x, z, k] of [
       [-55, 68, 0.83],
       [-66, 72, 0.7],

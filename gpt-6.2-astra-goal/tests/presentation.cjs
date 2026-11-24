@@ -58,10 +58,10 @@ async function main() {
       pose(false, 3);
       const start = pose(true, 3.017);
       const halfway = pose(true, 3.065);
-      for (let i = 5; i <= 24; i++) pose(true, 3 + i / 60);
+      for (let i = 5; i <= 33; i++) pose(true, 3 + i / 60);
       const raised = world.guardLift.value;
-      const lowering = pose(false, 3.42);
-      for (let i = 26; i < 75; i++) pose(false, 3 + i / 60);
+      const lowering = pose(false, 3.57);
+      for (let i = 35; i < 90; i++) pose(false, 3 + i / 60);
       return [
         start,
         halfway,
@@ -83,7 +83,7 @@ async function main() {
         guardMotion[3] < 1 &&
         guardMotion[4] < 0.01 &&
         guardMotion[5] &&
-        !guardMotion[6],
+        guardMotion[6],
     );
     await page.keyboard.press('2');
     await page.keyboard.down('r');

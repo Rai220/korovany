@@ -1322,7 +1322,9 @@ function settleCryptBody(root, body) {
     for (let i = 0; i < p.length; i += 3)
       lowest = Math.min(lowest, m[1] * p[i] + m[5] * p[i + 1] + m[9] * p[i + 2] + m[13]);
   });
-  body.position.y += 0.004 - lowest;
+  const transform=root.matrixWorld.elements;
+  const scaleY=Math.hypot(transform[4],transform[5],transform[6]);
+  body.position.y+=(transform[13]+.004-lowest)/scaleY;
 }
 function poseCreature(root, m, t) {
   const { body, head, tail, jaw, limbs, hands, eyes } = root.userData.parts,

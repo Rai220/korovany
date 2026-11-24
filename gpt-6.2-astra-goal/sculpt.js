@@ -248,80 +248,74 @@ function saltStamp() {
   tex.anisotropy = 4;
   return new THREE.MeshStandardMaterial({ map: tex, color: 0xc5b295, roughness: 0.97 });
 }
-// Auricles are closed, cupped sheets. Each side pivots at the poll or at the side of the ox's skull.
+// A closed pinna, with a convex hairy back and a darker, hollow front between the two lips.
 function draughtEar(head, cow, side) {
   const ear = joint(
     head,
     cow ? 'ox-ear' : 'horse-ear',
-    side * (cow ? 0.181 : 0.103),
-    cow ? 0.141 : 0.25,
-    -0.024,
+    side * (cow ? 0.181 : 0.092),
+    cow ? 0.141 : 0.259,
+    cow ? -0.024 : 0.003,
   );
-  const pos = [],
+  const positions = [],
     colors = [],
-    ix = [],
-    rows = 13,
-    cols = 11;
-  const rim = new THREE.Color(cow ? 0xa77455 : 0x8e5b46),
-    inner = new THREE.Color(cow ? 0xa9705c : 0x73503f);
-  const root = new THREE.Color(cow ? 0x977655 : 0x66483b),
-    shade = new THREE.Color();
-  for (let face = 0; face < 2; face++)
-    for (let r = 0; r <= rows; r++) {
-      const t = r / rows,
-        envelope = Math.pow(Math.sin(Math.PI * t), 0.79);
-      const width = (1 - t) * (cow ? 0.047 : 0.036) + envelope * (cow ? 0.061 : 0.039) + 0.0015;
-      for (let c = 0; c <= cols; c++) {
-        const u = (c / cols) * 2 - 1,
-          lips = Math.abs(u),
-          cross = width * u;
-        const x = cow ? 0.288 * t : 0.067 * t + cross;
-        const y = cow ? 0.045 * Math.sin(Math.PI * t) + 0.028 * t + cross : 0.249 * t - cross * 0.24;
-        const curl = (cow ? 0.016 : 0.022) * envelope;
-        const z =
-          (cow ? -0.061 : -0.044) * t +
-          (face
-            ? -0.014 - 0.019 * (1 - lips * lips) * envelope
-            : 0.009 +
-              curl * (2.2 * Math.pow(lips, 1.45) - 0.59) +
-              0.008 * Math.exp(-((u + 0.41) ** 2) / 0.036) * envelope);
-        pos.push(side * x, y, z);
-        shade.copy(face ? root : inner).lerp(rim, face ? 0.48 * t : Math.min(1, 0.14 + 0.91 * lips ** 2));
-        shade.multiplyScalar(1 - 0.19 * (1 - lips) * envelope);
-        colors.push(shade.r, shade.g, shade.b);
-        if (!r || !c) continue;
-        const j = pos.length / 3 - 1,
-          p = j - cols - 1;
-        ix.push(p - 1, p, j, p - 1, j, j - 1);
-      }
+    indices = [];
+  const rows = 17,
+    sides = 24;
+  const hair = new THREE.Color(cow ? 0x995f44 : 0x84513d);
+  const edge = new THREE.Color(cow ? 0xb78a69 : 0xad7956);
+  const hollow = new THREE.Color(cow ? 0x936655 : 0x49342f);
+  const tipColor = new THREE.Color(cow ? 0x75493c : 0x51352b);
+  const shade = new THREE.Color();
+  for (let row = 0; row <= rows; row++) {
+    const t = row / rows;
+    const leaf = Math.sin(Math.PI * t) ** 0.8;
+    const width = cow ? 0.047 * (1 - t) + 0.061 * leaf : 0.026 * (1 - t) + 0.034 * leaf * (1 - 0.24 * t);
+    const thickness = (cow ? 0.018 : 0.025) * (1 - t) + (cow ? 0.019 : 0.027) * leaf;
+    for (let j = 0; j < sides; j++) {
+      const a = (j * Math.PI * 2) / sides,
+        u = Math.cos(a),
+        face = Math.sin(a);
+      const x = cow ? 0.288 * t : 0.039 * t + 0.008 * leaf + width * u;
+      const y = cow ? 0.042 * leaf + 0.023 * t + width * u : 0.222 * t - width * u * 0.17;
+      const front = face > 0;
+      // The lower half is tubular. The front opens into a cup and comes to a single narrow tip.
+      const wall = front ? face * (1 - (cow ? 1.23 : 1.47) * leaf * face ** 2) : face;
+      const z =
+        (cow ? -0.06 : 0.033) * t +
+        (cow ? 0 : 0.011) * leaf +
+        thickness * (wall + (front ? 0.15 * (1 - face) : 0));
+      positions.push(side * x, y, z);
+      shade.copy(hair);
+      if (front) shade.lerp(hollow, face * leaf).lerp(edge, 0.62 * (1 - face) * leaf);
+      else shade.lerp(edge, 0.23 * leaf * Math.abs(u));
+      shade.lerp(tipColor, THREE.MathUtils.smoothstep(t, 0.77, 1) * 0.87);
+      colors.push(shade.r, shade.g, shade.b);
+      if (!row) continue;
+      const i = (row - 1) * sides + j,
+        next = (row - 1) * sides + ((j + 1) % sides);
+      if (row < rows) indices.push(i, i + sides, next + sides);
+      indices.push(i, next + sides, next);
     }
-  const layer = (rows + 1) * (cols + 1);
-  for (let r = 0; r < rows; r++)
-    for (const c of [0, cols]) {
-      const a = r * (cols + 1) + c,
-        b = a + cols + 1;
-      ix.push(a, b, a + layer, b, b + layer, a + layer);
-    }
-  for (const r of [0, rows])
-    for (let c = 0; c < cols; c++) {
-      const a = r * (cols + 1) + c;
-      ix.push(a, a + 1, a + layer, a + 1, a + 1 + layer, a + layer);
-    }
+  }
+  // The transverse coordinate is vertical on an ox and horizontal on a horse.
+  if (side < 0 !== cow) {
+    for (let i = 0; i < indices.length; i += 3) [indices[i], indices[i + 2]] = [indices[i + 2], indices[i]];
+  }
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geo.setIndex(ix);
+  geo.setIndex(indices);
   geo.computeVertexNormals();
-  if (!draughtEar.material)
-    draughtEar.material = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.89,
-      side: THREE.DoubleSide,
-    });
-  const mesh = new THREE.Mesh(geo, draughtEar.material);
+  const material = (draughtEar.material ||= new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.95,
+  }));
+  const mesh = new THREE.Mesh(geo, material);
   mesh.castShadow = mesh.receiveShadow = true;
   ear.add(mesh);
   ear.userData.side = side;
+  ear.userData.restYaw = cow ? 0 : side * 0.24;
   return ear;
 }
 function draughtHorn(head, side) {

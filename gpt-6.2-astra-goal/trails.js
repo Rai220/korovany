@@ -86,7 +86,7 @@ function visitResident(a) {
     if (s.herbs === 'gathered') {
       s.herbs = 'done';
       game.bandages += 3;
-      game.health = Math.min(100, game.health + 25);
+      game.health = Math.min(maxHealth(), game.health + 25);
       s.entries.push(['Три перевязи', 'Мара сделала три чистых бинта из принесённого тысячелистника.']);
       checkpoint();
       speak(npc.name, 'Вода кипела, пока ты ходил. Вот три чистых перевязи.');

@@ -1,0 +1,166 @@
+.field-sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr);
+  gap: 1.3rem;
+  align-items: start;
+}
+.field-print {
+  min-height: 11.2rem;
+  align-self: stretch;
+  background: #302d23 center/cover;
+  border: 1px solid #665e48;
+}
+.field-sheet.river .field-print {
+  background-image: url('./river.webp');
+}
+.field-sheet.names .field-print {
+  background-image: url('./names.webp');
+}
+.field-sheet.glass .field-print {
+  background-image: url('./glass.webp');
+}
+.field-copy > .field-quote {
+  font:
+    italic 1.08rem/1.45 Georgia,
+    serif;
+  color: #f4e2b3;
+  margin: 0.55rem 0;
+}
+.field-copy > p {
+  margin: 0.5rem 0 1rem;
+}
+.field-copy aside {
+  padding: 0.5rem 0.7rem;
+  border-left: 2px solid #b49b64;
+  background: #b49b6410;
+  margin: 0.5rem 0;
+}
+.field-copy aside p {
+  margin: 0.25rem 0;
+}
+.field-options {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+.field-options .action,
+.field-track {
+  min-height: 2.4rem;
+}
+.field-dial {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-bottom: 1px solid #88754c55;
+  padding: 0.25rem 0;
+}
+.field-notes {
+  display: flex;
+  gap: 0.4rem;
+}
+.field-notes span {
+  flex: 1;
+  border: 1px solid #716449;
+  text-align: center;
+  padding: 0.32rem 0;
+}
+.field-journal {
+  border-top: 1px solid #9c885661;
+  margin: 1rem 0 0.6rem;
+  padding-top: 0.35rem;
+}
+.field-journal h3 {
+  font:
+    600 1.36rem Georgia,
+    serif;
+  color: #e9d7a5;
+  margin: 0.6rem 0;
+}
+.field-record {
+  padding: 0.66rem 0;
+  border-bottom: 1px solid #6d624044;
+}
+.field-record header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.field-record header small {
+  color: #c9bb91;
+}
+.field-record p,
+.field-cache-list p {
+  margin: 0.35rem 0;
+}
+.field-record ul,
+.field-cache-list {
+  padding-left: 1.08rem;
+  color: #d1c5a8;
+}
+.field-track {
+  margin: 0.2rem 0;
+}
+.field-cache-list .field-track {
+  display: block;
+}
+.field-map-mark {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #f9eabe;
+  background: #668575;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 4px #251d0c;
+  pointer-events: none;
+}
+.field-map-mark.cache {
+  border-radius: 1px;
+  background: #9a7644;
+}
+.field-map-mark.resolved {
+  background: #817c6a;
+  border-color: #c2b59b;
+}
+@media (max-width: 620px) {
+  .field-sheet {
+    grid-template-columns: 1fr;
+    gap: 0.48rem;
+  }
+  .field-print {
+    min-height: 6rem;
+    max-height: 6rem;
+    background-position: center 48%;
+  }
+  .field-options {
+    grid-template-columns: 1fr;
+  }
+  .field-copy > p {
+    margin-bottom: 0.5rem;
+  }
+}
+
+.field-person {
+  position: relative;
+  overflow: hidden;
+  min-height: 15rem;
+}
+.field-person canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 620px) {
+  .field-person {
+    min-height: 9rem;
+    max-height: 9rem;
+  }
+}
+
+dialog:has(.field-sheet) {
+  width: min(48rem, 94vw);
+}

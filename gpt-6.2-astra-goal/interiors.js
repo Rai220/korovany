@@ -85,14 +85,17 @@ function useBuilding(id, key) {
       'Карта перевалов',
       '<p>Северный караул охраняет дорогу к дворцу. На западной тропе стоят лесные дозоры. Старые выработки под крепостью отмечены красным углём. Вход в них за левой аркой.</p>',
     );
-  const needsCare = g.health < 100 || g.bleed > 0;
+  const needsCare = g.health < maxHealth(g) || g.bleed > 0;
   if (id === 'palace' || id === 'herbalist' || id === 'inn') {
     const cost = id === 'palace' ? 0 : id === 'inn' ? 3 : 4;
     return indoorService(
       cost,
       needsCare || (id === 'inn' && g.stamina < 100),
       (g) => {
-        g.health = Math.min(100, g.health + (id === 'herbalist' ? 42 : id === 'palace' ? 35 : 100));
+        g.health = Math.min(
+          maxHealth(g),
+          g.health + (id === 'herbalist' ? 42 : id === 'palace' ? 35 : maxHealth(g)),
+        );
         g.bleed = 0;
         if (id === 'inn') g.stamina = 100;
       },
@@ -153,19 +156,22 @@ function insideInteract() {
   }
   if (act.key === 'rest') {
     if (id === 'archive') {
-      speak('Караульная ведомость', 'Третью стражу с переправы снял регент. До рассвета ворота держали двое.');
+      speak(
+        'Караульная ведомость',
+        'Третью стражу с переправы снял регент. До рассвета ворота держали двое.',
+      );
       return;
     }
     if (g.coins < 3) {
       notify('Для ночлега нужно 3 монеты');
       return;
     }
-    if (g.health >= 100 && !g.bleed) {
+    if (g.health >= maxHealth(g) && !g.bleed) {
       notify('Вы полны сил');
       return;
     }
     g.coins -= 3;
-    g.health = 100;
+    g.health = maxHealth(g);
     g.bleed = 0;
     g.stamina = 100;
     notify('Огонь согрел вас · Здоровье восстановлено');
@@ -259,7 +265,8 @@ function roomTick(dt) {
   }
   if (keys.has('ArrowLeft')) g.yaw += dt * 1.85;
   if (keys.has('ArrowRight')) g.yaw -= dt * 1.85;
-  const f = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown')),
+  const f =
+      Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown')),
     r = Number(keys.has('KeyD')) - Number(keys.has('KeyA')),
     len = Math.hypot(f, r);
   if (len) {

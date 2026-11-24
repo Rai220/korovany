@@ -113,6 +113,7 @@ function endingAccount(story, side) {
 }
 function checkpoint(state = game) {
   if (state.health <= 0 || state.delivery) return;
+  if (state === game && game.training) trainingMilestones();
   try {
     state.writtenAt = Date.now();
     localStorage.setItem(saveKey() + '.checkpoint', JSON.stringify(state));
@@ -471,7 +472,8 @@ function escortTick(dt) {
 function storyTick() {
   const g = game,
     s = g.story;
-  if (!s.started) {
+  const [homeX, homeZ] = CENTERS[sides[g.side].place];
+  if (!s.started && (!g.frontierStart || distance(g, { x: homeX, z: homeZ }) < 34)) {
     s.started = true;
     const [name, who, line] = opening[g.side];
     chapter(name, 'Глава I · ' + lands[sides[g.side].place].name);
@@ -492,28 +494,47 @@ function storyTick() {
   if (gameTime > subtitleUntil && !realmVoice.active) $('subtitle').textContent = '';
   if (gameTime > chapterUntil) $('chapter-toast').style.opacity = 0;
 }
-function journal() {
+function journal(tab = game.journalTab || 'expeditions') {
+  if (!['expeditions', 'story', 'hunts'].includes(tab)) tab = game.journalTab || 'expeditions';
+  game.journalTab = tab;
   const s = game.story,
     obj = goal();
+  const tabs =
+    '<nav class="journal-tabs" aria-label="Разделы дневника">' +
+    [
+      ['expeditions', 'Экспедиции'],
+      ['story', 'История'],
+      ['hunts', 'Охота'],
+    ]
+      .map(
+        ([id, label]) =>
+          '<button data-journal-tab="' + id + '" aria-pressed="' + (tab === id) + '">' + label + '</button>',
+      )
+      .join('') +
+    '</nav>';
+  const story =
+    '<img class="story-art" alt="" src="./assets/tale' +
+    (s.phase === 'done' ? 3 : s.phase === 'origin' ? 0 : 1) +
+    '.webp"><p class="journal-current">' +
+    obj.text +
+    '</p>' +
+    s.entries.map(([t, p]) => '<div class="chapter-entry"><b>' + t + '</b><p>' + p + '</p></div>').join('') +
+    (s.phase === 'trail' || s.phase === 'choice'
+      ? '<p>Вещдоки ' +
+        s.clues.length +
+        ' / 2 · Свидетель ' +
+        (s.aid ? 'найден' : 'пропал на дворцовом тракте') +
+        '</p>'
+      : '');
   modal(
     'Полевой дневник',
-    'Соляной тракт',
-    '<img class="story-art" alt="" src="./assets/tale' +
-      (s.phase === 'done' ? 3 : s.phase === 'origin' ? 0 : 1) +
-      '.webp"><p class="journal-current">' +
-      obj.text +
-      '</p>' +
-      s.entries
-        .map(([t, p]) => '<div class="chapter-entry"><b>' + t + '</b><p>' + p + '</p></div>')
-        .join('') +
-      (s.phase === 'trail' || s.phase === 'choice'
-        ? '<p>Вещдоки ' +
-          s.clues.length +
-          ' / 2 · Свидетель ' +
-          (s.aid ? 'найден' : 'пропал на дворцовом тракте') +
-          '</p>'
-        : ''),
+    tab === 'story' ? 'Соляной тракт' : tab === 'hunts' ? 'Охотничьи вести' : 'Записи путешественника',
+    tabs + (tab === 'story' ? story : tab === 'hunts' ? huntJournal() : fieldQuestJournal()),
   );
+  for (const b of document.querySelectorAll('[data-journal-tab]'))
+    b.onclick = () => journal(b.dataset.journalTab);
+  if (tab === 'hunts') bindHuntJournal();
+  if (tab === 'expeditions') bindFieldJournal();
 }
 function priceAt(base, index) {
   const s = game.story;

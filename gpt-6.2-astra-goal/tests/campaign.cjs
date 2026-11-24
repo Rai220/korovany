@@ -174,7 +174,50 @@ const { chromium } = require('playwright'),
     await press('e');
     assert.ok(await ev(() => game.actors.some((a) => a.tag === 'escort' && a.team === 'hostile')));
     await ev(() => battle('escort'));
-    assert.ok(await ev(() => walkTo(() => game.wagon, 3.5)));
+    const pursuit = await ev(() => {
+      const w = game.wagon;
+      let road = nearestConvoyRoad(game),
+        guarded = 0;
+      for (let i = 0; i < 1200 && game.health > 0 && !$('dialog').open; i++) {
+        const rear = convoyPlace(w, 0, -3.1);
+        if (distance(game, rear) < 0.6 && interactable()?.a === w)
+          return { caught: true, guarded, speed: w.convoy.speed, elapsed: i * 0.04 };
+        // Follow the ring road through its bends. Close on the tailboard from behind.
+        if (i % 6 === 0) {
+          let nearest = road,
+            gap = Infinity;
+          for (let s = road - 2; s <= road + 5; s += 0.3) {
+            const d = distance(game, convoyRoad(s));
+            if (d < gap) {
+              nearest = s;
+              gap = d;
+            }
+          }
+          road = nearest;
+        }
+        face(distance(game, rear) < 7 ? rear : convoyRoad(road + 3.8));
+        keys.add('KeyW');
+        const arrow = w.convoy.shots.find((a) => distance(a, game) < 4.4);
+        if (arrow) {
+          face({ x: arrow.startX, z: arrow.startZ });
+          keys.add('KeyR');
+          guarded++;
+        } else keys.add('ShiftLeft');
+        if ((game.bleed || game.health < 48) && game.bandages) key('KeyH');
+        tick(1);
+        keys.clear();
+      }
+      return {
+        caught: false,
+        guarded,
+        hero: [game.x, game.z, game.health, game.leg],
+        wagon: [w.x, w.z, w.convoy.speed],
+        road,
+        modal: $('dialog-title').textContent,
+      };
+    });
+    assert.ok(pursuit.caught && pursuit.speed > 4 && pursuit.guarded > 0, JSON.stringify(pursuit));
+    console.log('PASS caught the moving rear under fire', pursuit);
     await press('e');
     assert.equal(await ev(() => game.stage), 2);
     await ev(() => {

@@ -59,6 +59,7 @@ function newGame() {
     [x, z] = CENTERS[s.place];
   game = {
     version: 2,
+    training: newTraining(),
     inside: null,
     roomX: 0,
     roomZ: 0,
@@ -114,13 +115,15 @@ function newGame() {
   actor('commander', choice === 1 ? 'neutral' : 'resident', 52, -51, 'commander');
   for (const side of [-1, 1]) {
     const w = game.wagon;
-    spawnAt(
+    const guard = spawnAt(
       'escort',
       'escort',
       w.x + side * 2.65 * Math.cos(w.angle),
       w.z - side * 2.65 * Math.sin(w.angle),
       'escort',
-    ).escortSide = side;
+    );
+    guard.escortSide = side;
+    guard.angle = w.angle;
   }
   if (choice === 0) {
     spawnAt('guard', 'hostile', x - 3, z - 10, 'first');
@@ -131,7 +134,7 @@ function newGame() {
     spawnAt('spy', 'hostile', x + 3, z + 18, 'intruder');
   }
 }
-function start(load, post = false) {
+function start(load, post = false, explore = false) {
   realmVoice.unlock();
   let saved = null;
   if (load) {
@@ -157,16 +160,35 @@ function start(load, post = false) {
   world.clearPeople();
   if (saved) {
     game = saved;
+    restoreTraining(game);
+    delete game.xpAt;
+    delete game.rankUpAt;
+    delete game.wardWarningAt;
+    game.riposteLeft = 0;
+    for (const m of [...game.actors, ...Object.values(game.hunts || {})]) {
+      m.pinUntil = 0;
+      m.struckAt = null;
+      if (m.hunt) m.fellAt = null;
+    }
     for (const record of Object.values(game.undercrofts || {})) {
       for (const m of record.foes) {
         m.fellAt = null;
         m.struckAt = null;
         m.hitAt = null;
+        m.pinUntil = 0;
         m.planTime = 0;
         m.path = null;
       }
     }
   } else newGame();
+  if (explore && !load) {
+    const shore = fieldPoint('ferry');
+    Object.assign(game, clearSpot(shore.x + 3, shore.z + 5.8, game));
+    game.yaw = Math.atan2(game.x - shore.x, game.z - shore.z);
+    game.frontierStart = true;
+    fieldState().tracked = 'river';
+    game.journalTab = 'expeditions';
+  }
   if (post) initializeDelivery();
   else repairSpacing();
   world.teamLast = null;
@@ -197,6 +219,7 @@ function start(load, post = false) {
   drawHud();
   frame = requestAnimationFrame(loop);
   if (post) postDispatch();
+  else if (explore) journal('expeditions');
   else capture();
 }
 function valid(s) {
@@ -209,6 +232,8 @@ function valid(s) {
     ['origin', 'miller', 'trail', 'choice', 'escort', 'intercept', 'requisition', 'return', 'done'].includes(
       s.story.phase,
     ) &&
+    validTraining(s.training) &&
+    validAdventureSave(s) &&
     validDungeonSave(s) &&
     (!s.inside || (houses[s.inside] && Number.isFinite(s.roomX) && Number.isFinite(s.roomZ))) &&
     ['sword', 'bow'].includes(s.weapon) &&
@@ -216,7 +241,7 @@ function valid(s) {
     Number.isFinite(s.arrows) &&
     s.side === choice &&
     s.health > 0 &&
-    s.health <= 100 &&
+    s.health <= maxHealth(s) &&
     [
       'x',
       'z',
@@ -299,6 +324,7 @@ function pauseGame() {
     'Привал',
     actions([
       ['back', 'Продолжить игру'],
+      ['abilities', 'Уровень и умения'],
       ['record', 'Сохранить кампанию'],
       ['travel', 'Открыть карту'],
       ['pages', 'Полевой дневник'],
@@ -316,6 +342,7 @@ function pauseGame() {
     const ok = save();
     $('record').textContent = ok ? 'Кампания сохранена ✓' : 'Хранилище недоступно';
   };
+  $('abilities').onclick = trainingDialog;
   $('travel').onclick = mapDialog;
   $('pages').onclick = journal;
   $('preferences').onclick = settings;
@@ -421,6 +448,10 @@ function navigationGoal() {
   if (game.markHall && !game.inside && houses[game.markHall]) {
     return { text: 'Найдите вход · ' + houses[game.markHall].name, target: houses[game.markHall].door };
   }
+  if (!game.inside && !game.delivery) {
+    const trail = fieldQuestGoal() || huntGoal();
+    if (trail) return trail;
+  }
   return goal();
 }
 function drawHud() {
@@ -445,8 +476,9 @@ function drawHud() {
     : !g.inside && obj.target
       ? targetBearing(obj.target) + '  До цели ' + Math.round(distance(g, obj.target)) + ' м'
       : '';
-  $('hp').textContent = Math.ceil(g.health) + ' / 100';
-  $('hpbar').style.width = g.health + '%';
+  trainingHUD();
+  $('hp').textContent = Math.ceil(g.health) + ' / ' + maxHealth();
+  $('hpbar').style.width = (100 * g.health) / maxHealth() + '%';
   $('stamina-bar').style.width = g.stamina + '%';
   $('supplies').textContent =
     (g.weapon === 'bow' ? 'Лук · Стрелы ' + g.arrows : 'Меч +' + g.upgrade) +
@@ -455,6 +487,7 @@ function drawHud() {
     '   ·   Монеты ' +
     g.coins;
   const effects = [];
+  if (g.webbed > 0) effects.push('Опутан паутиной');
   if (g.bleed > 0) effects.push('Кровотечение · H — бинт');
   if (g.leg === 'lost') effects.push('Ползком');
   if (g.leg === 'chair') effects.push('Коляска');
@@ -464,9 +497,16 @@ function drawHud() {
   $('blind').hidden = g.eye !== 'lost';
   const item = interactable();
   $('interact').textContent = item ? 'E  ·  ' + item.label : '';
-  const foe = g.dungeon ? dungeonTarget(13, 0.42) : g.inside ? null : aimedEnemy(10, 0.25);
+  const boss =
+    !g.inside && g.dragon?.engaged && g.dragon.hp > 0 && distance(g, g.dragon) < 30 ? g.dragon : null;
+  const foe = boss || (g.dungeon ? dungeonTarget(13, 0.42) : g.inside ? null : aimedEnemy(10, 0.25));
   $('foe').hidden = !foe;
-  $('foe').classList.toggle('readied', !!foe && foe.windup > 0);
+  $('foe').classList.toggle('warded', !!foe && requiredRank(foe) > heroLevel());
+  $('foe').classList.toggle('boss', !!boss);
+  $('foe').classList.toggle(
+    'readied',
+    !!foe && (foe.windup > 0 || (boss && ['inhale', 'chargeWind', 'brand', 'biteWind'].includes(boss.mode))),
+  );
   if (foe) {
     const names = {
       guard: 'Стражник',
@@ -477,9 +517,29 @@ function drawHud() {
       commander: 'Капитан Арда',
       regent: 'Регент Вельт',
     };
+    const focusName = foe.convoyPart === 'archer' ? 'Лучник обоза' : foe.convoyPart ? 'Ось повозки' : null;
     $('foe-name').textContent =
-      (bestiary[foe.kind]?.name || names[foe.kind] || 'Противник') + (foe.windup > 0 ? ' · Замах' : '');
-    $('foe-hp').max = foe.maxHp || (['commander', 'escort'].includes(foe.kind) ? 75 : 58);
+      (focusName || foe.name || bestiary[foe.kind]?.name || names[foe.kind] || 'Противник') +
+      (requiredRank(foe) > 1 ? ' · ур. ' + requiredRank(foe) : '') +
+      (requiredRank(foe) > heroLevel()
+        ? ' · Защита'
+        : foe.moveKind === 'slam'
+          ? ' · Удар в пол'
+          : foe.phase === 'recover' || foe.recover > 0
+            ? ' · Открыт'
+            : foe.windup > 0
+              ? ' · Замах'
+              : '');
+    if (foe.hunt && foe.phase === 'wind')
+      $('foe-name').textContent +=
+        ' · ' + ({ rush: 'Бросок', web: 'Плетёт ловушку', bite: 'Укус' }[foe.attack] || '');
+    if (boss)
+      $('foe-name').textContent +=
+        ' · ' + ['I', 'II', 'III'][boss.phase - 1] + ' · ' + dragonMoves[boss.mode];
+    $('foe-hp').max =
+      (foe.convoyPart === 'archer' ? 46 : foe.convoyPart ? 82 : 0) ||
+      foe.maxHp ||
+      (['commander', 'escort'].includes(foe.kind) ? 75 : 58);
     $('foe-hp').value = foe.hp;
   }
   return obj.target;
@@ -519,6 +579,7 @@ function mapDialog() {
     dairies
       .map((d, i) => pin((g.story.dairyStamps || []).includes(i) ? 'dairy-dot stamped' : 'dairy-dot', d))
       .join('') +
+    fieldQuestMap() +
     pin('hall-marker', houses.palace.door) +
     pin('hall-marker', houses.fort.door) +
     pin('wagon-dot', g.wagon) +
@@ -529,16 +590,19 @@ function mapDialog() {
     '</div><p class="map-legend"><span>● Герой</span><span>◇ Цель</span><span>■ Караван</span>' +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? '<span>✧ Свидетель</span>' : '') +
     (g.story.herbs === 'seek' ? '<span>✚ Травы</span>' : '') +
-    '<span>♜ Крепость</span></p><div class="hall-routes"><button data-hall="palace">Затопленный склеп · Дворец</button><button data-hall="fort">Чёрная жила · Старый форт</button></div><p id="map-note">' +
+    '<span>♜ Крепость</span></p><div class="hall-routes"><button data-hall="palace">Затопленный склеп · ур. 2</button><button data-hall="fort">Шахты Чёрной жилы · ур. 3</button><button id="atlas-expeditions">Слухи и экспедиции</button></div><p id="map-note">' +
     goal().text +
     '</p>';
   modal('Пограничье', 'Карта мира', body);
+  $('atlas-expeditions').onclick = () => journal('expeditions');
   for (const el of document.querySelectorAll('[data-hall]')) {
     const id = el.dataset.hall;
     el.setAttribute('aria-pressed', String(id === g.markHall));
     el.title = id === g.markHall ? 'Снять метку с компаса' : 'Показать вход на компасе';
     el.onclick = () => {
       g.markHall = g.markHall === id ? null : id;
+      g.trackHunt = null;
+      if (g.exploration) g.exploration.tracked = null;
       closeModal();
       drawHud();
       notify(g.markHall ? 'Вход отмечен на компасе' : 'Показана цель кампании');
@@ -624,6 +688,12 @@ function interactable() {
     const a = roomAction();
     return a ? { label: a.label } : null;
   }
+  const dragonLoot = dragonLootPrompt();
+  if (dragonLoot) return { dragonLoot: true, label: dragonLoot };
+  const quarry = huntLootOption();
+  if (quarry) return quarry;
+  const discovery = fieldQuestOption();
+  if (discovery) return discovery;
   const special = storyOptions()[0];
   if (special) return special;
   const g = game;
@@ -657,8 +727,8 @@ function interactable() {
   dairies.forEach((site, i) =>
     options.push({ a: site, label: 'Поставить печать · ' + site.title, dairy: i }),
   );
-  options.push({ a: bovineOffice(), cow: true, label: 'Окликнуть возницу' });
-  options.push({ a: g.wagon, label: 'Ограбить караван · V для переговоров' });
+  if (!g.wagon.convoy?.alarm) options.push({ a: bovineOffice(), cow: true, label: 'Окликнуть возницу' });
+  options.push({ a: g.wagon, label: wagonRaidLabel() });
   const target = goal().target;
   // Orders have their own Q binding. A follower beside a stall should leave E to the merchant.
   const objective = target?.team === 'friend' ? null : target;
@@ -686,6 +756,18 @@ function interact() {
     return;
   }
   const g = game;
+  if (it.questSite) {
+    fieldQuestUse(it);
+    return;
+  }
+  if (it.dragonLoot) {
+    collectDragonLoot();
+    return;
+  }
+  if (it.huntLoot) {
+    takeHunt(it.huntLoot);
+    return;
+  }
   if (it.ladder) {
     if (g.leg === 'lost' || g.leg === 'chair') {
       notify('Для подъёма нужна здоровая нога или протез');
@@ -730,13 +812,7 @@ function interact() {
       notify('Караван пуст. Новый груз будет позже');
       return;
     }
-    const defenders = g.actors.filter((a) => a.tag === 'escort' && a.hp > 0);
-    if (defenders.length) {
-      defenders.forEach((a) => (a.team = 'hostile'));
-      notify('Охрана каравана вступает в бой');
-      return;
-    }
-    claimCargo();
+    raidWagon();
     return;
   }
   if (it.a.tag === 'shop') {
@@ -782,9 +858,9 @@ const goods = [
   [
     'Помощь лекаря',
     12,
-    (g) => g.health < 100 || g.bleed,
+    (g) => g.health < maxHealth(g) || g.bleed,
     (g) => {
-      g.health = 100;
+      g.health = maxHealth(g);
       g.bleed = 0;
     },
   ],
@@ -856,13 +932,13 @@ function shop() {
 }
 function bandage() {
   const g = game;
-  if (!g.bandages || (g.health === 100 && !g.bleed)) {
+  if (!g.bandages || (g.health >= maxHealth(g) && !g.bleed)) {
     notify(g.bandages ? 'Перевязка не требуется' : 'Бинты закончились');
     return;
   }
   g.bandages--;
   g.bleed = 0;
-  g.health = Math.min(100, g.health + 34);
+  g.health = Math.min(maxHealth(g), g.health + (hasTalent('medic') ? 54 : 34));
   notify('Перевязка завершена');
   tone(320, 0.2);
   drawHud();
@@ -896,6 +972,7 @@ function hitPlayer(d, attacker) {
     const parry = game.parryWindow > 0;
     world.receiveGuardHit(parry);
     game.stamina -= parry ? 3 : 7;
+    if (parry && hasTalent('riposte')) game.riposteLeft = 3;
     attacker.cd = parry ? 2.7 : 1.5;
     if (!game.dungeon)
       fieldImpact(
@@ -906,14 +983,14 @@ function hitPlayer(d, attacker) {
     fieldStrike('ring', 0.75);
     scoreCue('parry');
     notify(parry ? 'Парирование · противник открыт' : 'Удар принят на щит', 0.8);
-    if (parry) {
+    if (parry && !attacker.ranged) {
       attacker.stagger = 1.15;
-      hurtActor(attacker, 9, true);
+      hurtActor(attacker, 9, true, 'parry');
     }
     return;
   }
   const g = game;
-  g.health = Math.max(0, g.health - d);
+  g.health = Math.max(0, g.health - (hasTalent('bulwark') ? Math.max(1, Math.round(d * 0.76)) : d));
   g.hits++;
   flash = 0.42;
   if (attacker) {
@@ -926,10 +1003,30 @@ function hitPlayer(d, attacker) {
     death();
     return;
   }
-  if (g.hits % 4 === 0) wound();
+  if (g.hits % (hasTalent('bulwark') ? 6 : 4) === 0) wound();
 }
-function hurtActor(a, amount, byPlayer) {
+function hurtActor(a, amount, byPlayer, type = 'melee') {
   if (a.hp <= 0) return;
+  if (a.tag === 'escort' && byPlayer) alarmConvoy();
+  if (warded(a)) {
+    if (a.kind === 'dragon' && byPlayer) dragonHit(amount, true, type);
+    if (a.hunt) a.engaged = true;
+    return;
+  }
+  if (byPlayer) amount = trainedDamage(a, amount, type);
+  if (a.convoyPart) {
+    convoyHit(a, amount, byPlayer, type);
+    return;
+  }
+  if (a.kind === 'dragon') {
+    dragonHit(amount, byPlayer, type);
+    return;
+  }
+  if (a.hunt) {
+    if (byPlayer) huntHit(a, amount);
+    return;
+  }
+  if (game.dungeon) amount = dungeonArmor(a, amount, type);
   a.hp = Math.max(0, a.hp - amount);
   if (game.dungeon) {
     a.alert = 12;
@@ -961,6 +1058,11 @@ function hurtActor(a, amount, byPlayer) {
     if (byPlayer) {
       game.coins += 5;
       game.kills++;
+      if (a.team === 'hostile' || a.tag === 'escort')
+        awardXP(
+          { hound: 27, weaver: 24, sentinel: 78, regent: 70 }[a.kind] || 19,
+          bestiary[a.kind]?.name || 'Победа в бою',
+        );
       notify('Противник повержен · +5 монет', 1.7);
     }
   }
@@ -993,6 +1095,9 @@ function aimedEnemy(range, cone) {
       best = d;
     }
   }
+  for (const candidate of [convoyTarget(range, cone), huntTarget(range, cone), dragonTarget(range, cone)]) {
+    if (candidate && (!target || distance(g, candidate) < distance(g, target))) target = candidate;
+  }
   return target;
 }
 function attack(heavy = false) {
@@ -1003,7 +1108,18 @@ function attack(heavy = false) {
     notify('Опустите щит для удара', 0.8);
     return;
   }
-  const cost = heavy ? 22 : 10;
+  const cost =
+    g.weapon === 'bow'
+      ? hasTalent('quiver')
+        ? 5
+        : 9
+      : heavy
+        ? hasTalent('breaker')
+          ? 16
+          : 22
+        : hasTalent('blade')
+          ? 7
+          : 10;
   if (g.stamina < cost) {
     notify('Переведите дыхание', 0.7);
     return;
@@ -1019,7 +1135,7 @@ function attack(heavy = false) {
     }
     if (g.arrow) return;
     g.arrows--;
-    g.stamina -= 9;
+    g.stamina -= cost;
     swing = 1;
     scoreCue('bow');
     const cp = Math.cos(g.pitch);
@@ -1031,6 +1147,7 @@ function attack(heavy = false) {
         (g.leg === 'lost' ? 0.78 : g.leg === 'chair' ? 1.32 : 1.71) +
         g.air,
       z: p.z,
+      aimed: keys.has('KeyR'),
       dx: -Math.sin(g.yaw) * cp * 55,
       dy: Math.sin(g.pitch) * 55 + 1.6,
       dz: -Math.cos(g.yaw) * cp * 55,
@@ -1065,7 +1182,12 @@ function attack(heavy = false) {
       notify('Вельт держит щит · G — пробивающий удар', 1.3);
       return;
     }
-    if (heavy) {
+    if (
+      heavy &&
+      requiredRank(target) <= heroLevel() &&
+      target.kind !== 'dragon' &&
+      (target.kind !== 'sentinel' || hasTalent('breaker') || target.recover > 0)
+    ) {
       target.stagger = 0.68;
       target.windup = 0;
     }
@@ -1073,6 +1195,7 @@ function attack(heavy = false) {
       target,
       (heavy ? 11 : 0) + (g.arm === 'lost' ? 13 : 29) + g.upgrade * 8 + (target.stagger > 0 ? 16 : 0),
       true,
+      heavy ? 'heavy' : 'melee',
     );
     fieldStrike(
       'ring',
@@ -1107,10 +1230,14 @@ function detour(a, target) {
         next = v * n + u;
       if (u < 0 || v < 0 || u >= n || v >= n || parents[next] !== -1) continue;
       const x = a.x + (u - mid) * unit,
-        z = a.z + (v - mid) * unit;
+        z = a.z + (v - mid) * unit,
+        mx = x - dx * unit * 0.5,
+        mz = z - dz * unit * 0.5;
       if (
+        !canClimbStep(x - dx * unit, z - dz * unit, mx, mz) ||
+        !canClimbStep(mx, mz, x, z) ||
         !livingFree(x, z, bodyRadius(a), a) ||
-        !livingFree(x - dx * unit * 0.5, z - dz * unit * 0.5, bodyRadius(a), a)
+        !livingFree(mx, mz, bodyRadius(a), a)
       )
         continue;
       parents[next] = at;
@@ -1137,8 +1264,10 @@ function advance(a, t, speed, dt) {
     dz = wrapped(dest.z - a.z),
     d = Math.hypot(dx, dz);
   if (d < 0.12) return;
-  a.angle = Math.atan2(dx, dz);
-  const step = Math.min(d, speed * dt);
+  const desired = Math.atan2(dx, dz),
+    turning = Math.abs(angles(desired - a.angle));
+  a.angle = desired;
+  const step = Math.min(d, speed * dt * (0.16 + 0.84 * Math.max(0, Math.cos(turning))));
   let walked = move(a, (dx / d) * step, (dz / d) * step);
   if (walked < step * 0.36) {
     // Keep the same passing side until the lane opens so two oncoming walkers can separate.
@@ -1146,7 +1275,7 @@ function advance(a, t, speed, dt) {
       const yaw = a.angle + angle;
       const x = a.x + Math.sin(yaw) * step,
         z = a.z + Math.cos(yaw) * step;
-      if (livingFree(x, z, bodyRadius(a), a)) {
+      if (canClimbStep(a.x, a.z, x, z) && livingFree(x, z, bodyRadius(a), a)) {
         walked += move(a, Math.sin(yaw) * step, Math.cos(yaw) * step);
         a.angle = yaw;
         break;
@@ -1171,94 +1300,96 @@ function wagonTick(dt) {
     return;
   }
   if (g.story.phase === 'escort') {
+    if (w.convoy?.alarm) delete w.convoy;
     escortTick(dt);
     return;
   }
-  const fight = g.actors.some(
-    (a) => a.tag === 'escort' && a.team === 'hostile' && a.hp > 0 && distance(g, w) < 16,
-  );
-  if (!fight) {
-    const [x, z] = route[w.node],
-      dx = x - w.x,
-      dz = z - w.z,
-      d = Math.hypot(dx, dz);
-    if (d < 0.18) w.node = (w.node + 1) % 4;
-    else {
-      const heading = Math.atan2(dx, dz);
-      const n = Math.min(dt * 1.35, d) / d;
-      rollWagon(w, dx * n, dz * n, heading, dt);
-    }
-  }
+  stepConvoy(w, dt);
   if (w.cool > 0) {
     w.cool = Math.max(0, w.cool - dt);
     if (!w.cool) {
+      delete w.convoy;
       const alive = g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).length;
       for (let i = alive; i < 2; i++) {
         const side = g.actors.some((a) => a.tag === 'escort' && a.hp > 0 && a.escortSide === -1) ? 1 : -1;
         const position = escortSlot(w, side);
-        spawnAt('escort', 'escort', position.x, position.z, 'escort').escortSide = side;
+        const guard = spawnAt('escort', 'escort', position.x, position.z, 'escort');
+        guard.escortSide = side;
+        guard.angle = w.angle;
       }
     }
   }
 }
 function stepActors(dt) {
+  for (const actor of game.actors) {
+    const before = { x: actor.x, z: actor.z, yaw: actor.angle };
+    stepActor(actor, dt);
+    updatePedestrianTurn(actor, before, dt);
+    if (!game.health) return;
+  }
+}
+function stepActor(a, dt) {
   const g = game;
-  for (const a of g.actors) {
-    a.walk = false;
-    if (a.hp <= 0) continue;
-    a.cd = Math.max(0, a.cd - dt);
-    if (a.stagger > 0) {
-      a.stagger -= dt;
-      continue;
+  a.walk = false;
+  if (a.hp <= 0) return;
+  a.cd = Math.max(0, a.cd - dt);
+  if (a.stagger > 0) {
+    a.stagger -= dt;
+    return;
+  }
+  if (a.windup > 0) {
+    a.angle = Math.atan2(wrapped(g.x - a.x), wrapped(g.z - a.z));
+    a.windup -= dt;
+    if (a.windup <= 0 && distance(a, g) < 3.15 && g.air < 1.35 && visiblePath(a, g)) {
+      hitPlayer(a.kind === 'regent' ? 16 : 8, a);
+      if (!g.health) return;
     }
-    if (a.windup > 0) {
-      a.windup -= dt;
-      if (a.windup <= 0 && distance(a, g) < 3.15 && g.air < 1.35 && visiblePath(a, g)) {
-        hitPlayer(a.kind === 'regent' ? 16 : 8, a);
-        if (!g.health) return;
+    return;
+  }
+  if (a.team === 'civilian') {
+    wander(a, dt);
+    return;
+  }
+  if (a.team === 'escort') {
+    followWagon(a, dt);
+    return;
+  }
+  if (!['friend', 'hostile'].includes(a.team)) {
+    if (distance(a, g) < 4.2) a.angle = Math.atan2(wrapped(g.x - a.x), wrapped(g.z - a.z));
+    return;
+  }
+  let target = a.team === 'hostile' && distance(a, g) < (a.tag === 'first' ? 52 : 26) ? g : null;
+  for (const b of g.actors) {
+    if (
+      b.hp > 0 &&
+      b.team === (a.team === 'friend' ? 'hostile' : 'friend') &&
+      distance(a, b) < 14 &&
+      (!target || distance(a, b) < distance(a, target))
+    )
+      target = b;
+  }
+  if (target) {
+    const d = distance(a, target);
+    if (d > 2.05 || !visiblePath(a, target)) {
+      const pace = a.team === 'friend' ? 4.3 : a.tag === 'escort' && g.wagon.convoy?.alarm ? 3.84 : 2.45;
+      advance(a, target, pace, dt);
+    } else {
+      a.angle = Math.atan2(wrapped(target.x - a.x), wrapped(target.z - a.z));
+      if (!a.cd) {
+        a.cd = 1.5 + Math.random() * 0.6;
+        if (target === g) {
+          a.windup = a.kind === 'regent' ? 0.72 : 0.54;
+          if (!g.health) return;
+        } else hurtActor(target, a.team === 'friend' ? 17 : 12, false);
       }
-      continue;
     }
-    if (a.team === 'civilian') {
-      wander(a, dt);
-      continue;
+  } else if (a.team === 'friend' && g.order !== 'hold') {
+    let t = g;
+    if (g.order === 'raid' && g.raid >= 0) {
+      const [x, z] = CENTERS[g.raid];
+      t = point(x + ((a.id % 3) - 1) * 2, z + 2);
     }
-    if (a.team === 'escort') {
-      followWagon(a, dt);
-      continue;
-    }
-    if (!['friend', 'hostile'].includes(a.team)) continue;
-    let target = a.team === 'hostile' && distance(a, g) < (a.tag === 'first' ? 52 : 26) ? g : null;
-    for (const b of g.actors) {
-      if (
-        b.hp > 0 &&
-        b.team === (a.team === 'friend' ? 'hostile' : 'friend') &&
-        distance(a, b) < 14 &&
-        (!target || distance(a, b) < distance(a, target))
-      )
-        target = b;
-    }
-    if (target) {
-      const d = distance(a, target);
-      if (d > 2.05 || !visiblePath(a, target)) advance(a, target, a.team === 'friend' ? 4.3 : 2.45, dt);
-      else {
-        a.angle = Math.atan2(wrapped(target.x - a.x), wrapped(target.z - a.z));
-        if (!a.cd) {
-          a.cd = 1.5 + Math.random() * 0.6;
-          if (target === g) {
-            a.windup = a.kind === 'regent' ? 0.72 : 0.54;
-            if (!g.health) return;
-          } else hurtActor(target, a.team === 'friend' ? 17 : 12, false);
-        }
-      }
-    } else if (a.team === 'friend' && g.order !== 'hold') {
-      let t = g;
-      if (g.order === 'raid' && g.raid >= 0) {
-        const [x, z] = CENTERS[g.raid];
-        t = point(x + ((a.id % 3) - 1) * 2, z + 2);
-      }
-      if (distance(a, t) > (t === g ? 3.4 : 1.3)) advance(a, t, 5.4, dt);
-    }
+    if (distance(a, t) > (t === g ? 3.4 : 1.3)) advance(a, t, 5.4, dt);
   }
 }
 function campaignTick(dt) {
@@ -1325,6 +1456,7 @@ function tickGuard(dt) {
 }
 function step(dt) {
   if (game.delivery) return deliveryTick(dt);
+  game.riposteLeft = Math.max(0, (game.riposteLeft || 0) - dt);
   if (game.dungeon) return dungeonTick(dt);
   if (game.inside) return roomTick(dt);
   if (!realmVoice.active && gameTime > Math.max(7, subtitleUntil + 2)) {
@@ -1360,7 +1492,9 @@ function step(dt) {
   g.stamina = clamp(g.stamina + dt * (sprint ? -6 : block ? 2.5 : 14), 0, 100);
   let bob = 0;
   if (len) {
-    const speed = g.leg === 'lost' ? 1.25 : g.leg === 'chair' ? 3.4 : sprint ? 9 : block ? 2.8 : 5.4,
+    const speed =
+        (g.webbed > 0 ? 0.47 : 1) *
+        (g.leg === 'lost' ? 1.25 : g.leg === 'chair' ? 3.4 : sprint ? 9 : block ? 2.8 : 5.4),
       delta = (speed * dt) / (len * (1 + 0.41 * creekDepth(g.x, g.z)));
     move(
       g,
@@ -1382,7 +1516,7 @@ function step(dt) {
     g.vy = 0;
   }
   if (g.air <= 0) g.air = g.vy = 0;
-  swing = Math.max(0, swing - dt * (g.heavy ? 1.35 : 2));
+  swing = Math.max(0, swing - dt * (g.weapon === 'bow' && hasTalent('quiver') ? 3 : g.heavy ? 1.35 : 2));
   flash = Math.max(0, flash - dt);
   $('hurt').style.opacity = flash;
   if (g.bleed) {
@@ -1395,8 +1529,26 @@ function step(dt) {
   wagonTick(dt);
   stepActors(dt);
   if (g.health > 0) {
+    fieldQuestTick(dt);
+    huntTick(dt);
+    if (g.health <= 0) return bob;
+    dragonTick(dt);
+    if (g.health <= 0) return bob;
     campaignTick(dt);
     storyTick();
+    const ledger = [
+      g.stage,
+      g.story.phase,
+      g.story.clues.length,
+      g.story.branch,
+      g.story.herbs,
+      g.story.aid,
+      g.story.dairyStamps?.length,
+    ].join('/');
+    if (g.storyLedger !== ledger) {
+      g.storyLedger = ledger;
+      trainingMilestones();
+    }
   }
   return bob;
 }
@@ -1430,13 +1582,13 @@ function loop(now) {
   world.display(game, gameTime, swing, prefs.motion ? bob : 0, navigationGoal().target);
   frame = requestAnimationFrame(loop);
 }
-function selectEntry(load, post = false) {
+function selectEntry(load, post = false, explore = false) {
   if (editionBoot.failed) {
     location.reload();
     return;
   }
   if (world) {
-    start(load, post);
+    start(load, post, explore);
     return;
   }
   const loading = $('entry-loading');
@@ -1446,7 +1598,7 @@ function selectEntry(load, post = false) {
   loading.hidden = false;
   setTimeout(() => {
     try {
-      start(load, post);
+      start(load, post, explore);
     } finally {
       loading.hidden = true;
     }
@@ -1455,8 +1607,10 @@ function selectEntry(load, post = false) {
 editionBoot.ready();
 $('begin').onclick = () => selectEntry(false);
 $('post-race').onclick = () => selectEntry(false, true);
+$('explore-entry').onclick = () => selectEntry(false, false, true);
 $('post-bell').onclick = postBell;
 $('post-view').onclick = cyclePostView;
+$('rank-key').onclick = trainingDialog;
 $('hero-view').onclick = changeHeroView;
 $('resume').onclick = () => selectEntry(true);
 $('pause').onclick = pauseGame;
@@ -1480,6 +1634,7 @@ document.addEventListener('keydown', (e) => {
     'KeyV',
     'KeyM',
     'KeyK',
+    'KeyP',
     'Escape',
     'Space',
     'ShiftLeft',
@@ -1507,15 +1662,17 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyT') changeHeroView();
   if (e.code === 'KeyJ') journal();
+  if (e.code === 'KeyP') trainingDialog();
   if (e.code === 'Digit1' || e.code === 'Digit2') {
     game.weapon = e.code === 'Digit1' || (e.code === 'Digit2' && game.weapon === 'bow') ? 'sword' : 'bow';
     game.blockTime = 0;
     drawHud();
     notify(game.weapon === 'bow' ? 'Охотничий лук' : 'Дорожный меч', 1);
   }
-  if (e.code === 'KeyC' && game.stamina >= 24 && game.leg !== 'lost' && game.leg !== 'chair') {
-    game.evade = 0.29;
-    game.stamina -= 24;
+  const evadeCost = hasTalent('stride') ? 15 : 24;
+  if (e.code === 'KeyC' && game.stamina >= evadeCost && game.leg !== 'lost' && game.leg !== 'chair') {
+    game.evade = hasTalent('stride') ? 0.39 : 0.29;
+    game.stamina -= evadeCost;
   }
   if (e.code === 'KeyG' && game.weapon === 'sword') attack(true);
   if (e.code === 'KeyF') attack();
@@ -1645,18 +1802,22 @@ function arrowTick(dt) {
       g.arrow = null;
       return;
     }
-    const foe = g.actors.find(
-      (v) =>
-        ['hostile', 'escort', 'resident'].includes(v.team) &&
-        v.hp > 0 &&
-        distance(v, a) < 0.54 &&
-        Math.abs(a.y - ground(v.x, v.z) - 1.18) < 1.22,
-    );
+    const foe =
+      dragonArrowHit(a) ||
+      huntArrowHit(a) ||
+      convoyArrowHit(a) ||
+      g.actors.find(
+        (v) =>
+          ['hostile', 'escort', 'resident'].includes(v.team) &&
+          v.hp > 0 &&
+          distance(v, a) < 0.54 &&
+          Math.abs(a.y - ground(v.x, v.z) - 1.18) < 1.22,
+      );
     if (foe) {
       if (foe.team === 'escort')
         g.actors.filter((v) => v.tag === 'escort' && v.hp > 0).forEach((v) => (v.team = 'hostile'));
       foe.team = 'hostile';
-      hurtActor(foe, 33 + g.upgrade * 6 + (a.y > ground(foe.x, foe.z) + 1.74 ? 17 : 0), true);
+      hurtActor(foe, 33 + g.upgrade * 6 + (a.y > ground(foe.x, foe.z) + 1.74 ? 17 : 0), true, 'arrow');
       g.arrow = null;
       return;
     }

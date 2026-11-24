@@ -680,6 +680,8 @@ function poseCharacter(actor, state, t, rate = 1) {
   if (!mixer) return;
   const isLoop = !['death', 'slash', 'slashBack', 'stagger', 'heavy'].includes(state);
   if (state !== u.state) {
+    const moving = (name) => name === 'walk' || name === 'run';
+    const oldPhase = moving(state) && moving(u.state) ? u.action.time / u.action.getClip().duration : null;
     const next = mixer.clipAction(animationFor(u.actorStyle.sex, state));
     next.reset().setLoop(isLoop ? THREE.LoopRepeat : THREE.LoopOnce, isLoop ? Infinity : 1);
     next.clampWhenFinished = !isLoop;
@@ -694,12 +696,131 @@ function poseCharacter(actor, state, t, rate = 1) {
     u.action = next;
     u.state = state;
     if (isLoop && u.phase !== undefined && state !== 'drive')
-      next.time = (u.phase * 0.103) % next.getClip().duration;
+      next.time =
+        oldPhase === null ? (u.phase * 0.103) % next.getClip().duration : oldPhase * next.getClip().duration;
   }
   u.action.timeScale = rate;
-  const dt = u.previousTime === undefined ? 0 : Math.min(0.12, Math.max(0, t - u.previousTime));
+  // The main loop can simulate 180 ms between renders. Consume the same time as the actor's feet.
+  const dt = u.previousTime === undefined ? 0 : Math.min(0.18, Math.max(0, t - u.previousTime));
   u.previousTime = t;
   mixer.update(dt);
+}
+function poseTwoBoneChain(upper, lower, tip, goal, hint) {
+  const p = (b) => b.getWorldPosition(new THREE.Vector3());
+  const a = p(upper),
+    b = p(lower),
+    h = p(tip),
+    l1 = a.distanceTo(b),
+    l2 = b.distanceTo(h);
+  const axis = goal.clone().sub(a),
+    distance = clamp(axis.length(), Math.abs(l1 - l2) + 0.001, l1 + l2 - 0.001);
+  axis.normalize();
+  const pole = hint.clone().sub(a);
+  pole.addScaledVector(axis, -pole.dot(axis)).normalize();
+  const along = (l1 * l1 - l2 * l2 + distance * distance) / (2 * distance);
+  const elbow = a
+    .clone()
+    .addScaledVector(axis, along)
+    .addScaledVector(pole, Math.sqrt(Math.max(0, l1 * l1 - along * along)));
+  function rotate(bone, child, toward) {
+    const at = p(bone),
+      old = p(child).sub(at).normalize(),
+      newDir = toward.clone().sub(at).normalize();
+    const q = new THREE.Quaternion()
+      .setFromUnitVectors(old, newDir)
+      .multiply(bone.getWorldQuaternion(new THREE.Quaternion()));
+    bone.quaternion.copy(bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
+    bone.updateWorldMatrix(false, true);
+  }
+  rotate(upper, lower, elbow);
+  rotate(lower, tip, goal);
+}
+function plantTurnFeet(actor, rate, t) {
+  const u = actor.userData,
+    sk = u.skeleton;
+  actor.updateWorldMatrix(true, true);
+  const sides = ['l', 'r'],
+    ankles = sides.map((side) => sk.getBoneByName('foot_' + side));
+  if (ankles.some((b) => !b)) return;
+  const desired = ankles.map((b) => b.getWorldPosition(new THREE.Vector3()));
+  if (!u.turnFeet || t - u.turnFeet.last > 0.2)
+    u.turnFeet = { feet: desired.map((p) => ({ anchor: p.clone() })), last: t };
+  const step = u.turnFeet;
+  step.last = t;
+  const error = step.feet.map((f, i) => f.anchor.distanceTo(desired[i]));
+  if (!step.feet.some((f) => f.end) && Math.max(...error) > 0.085) {
+    const i = error[0] > error[1] ? 0 : 1,
+      f = step.feet[i];
+    f.start = t;
+    f.from = f.anchor.clone();
+    const delta = desired[i].clone().sub(actor.position);
+    delta.applyAxisAngle(new THREE.Vector3(0, 1, 0), clamp(rate * 0.1, -0.29, 0.29));
+    f.end = actor.position.clone().add(delta);
+  }
+  for (const [i, f] of step.feet.entries()) {
+    const side = sides[i],
+      tip = ankles[i],
+      upper = sk.getBoneByName('thigh_' + side),
+      lower = sk.getBoneByName('calf_' + side);
+    if (!upper || !lower) continue;
+    const goal = f.anchor.clone(),
+      sole = tip.getWorldQuaternion(new THREE.Quaternion());
+    if (f.end) {
+      const k = Math.min(1, (t - f.start) / 0.175),
+        ease = k * k * (3 - 2 * k);
+      goal.lerpVectors(f.from, f.end, ease);
+      goal.y += Math.sin(Math.PI * k) * 0.065;
+      if (k === 1) {
+        f.anchor.copy(f.end);
+        f.end = null;
+      }
+    }
+    for (const b of [upper, lower, tip]) u.turnBones.push([b, b.quaternion.clone()]);
+    const hint = actor.localToWorld(new THREE.Vector3(i ? 0.16 : -0.16, 0.46, 0.54));
+    poseTwoBoneChain(upper, lower, tip, goal, hint);
+    tip.quaternion.copy(lower.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(sole));
+  }
+}
+// Preserve the loaded ball of the boot in world space. Keep the clip's heel roll and swing arc.
+function plantTravelFeet(actor, t) {
+  const u = actor.userData;
+  if (!u.strideFeet) {
+    u.strideFeet = ['l', 'r'].map((side) => ({
+      upper: u.skeleton.getBoneByName('thigh_' + side),
+      lower: u.skeleton.getBoneByName('calf_' + side),
+      ankle: u.skeleton.getBoneByName('foot_' + side),
+      toe: u.skeleton.getBoneByName('ball_' + side),
+      side: side === 'l' ? -1 : 1,
+      offset: new THREE.Vector3(),
+      anchor: new THREE.Vector3(),
+    }));
+  }
+  const dt = t - (u.lastStrideTime ?? t);
+  u.lastStrideTime = t;
+  for (const f of u.strideFeet) {
+    const toe = f.toe.getWorldPosition(new THREE.Vector3());
+    const surface = walkingSurface(toe.x, toe.z),
+      height = toe.y - surface;
+    if (dt > 0.16 || (f.planted && f.anchor.distanceTo(toe) > 0.27)) {
+      f.planted = false;
+      f.offset.set(0, 0, 0);
+    }
+    if (f.planted && height > 0.057) f.planted = false;
+    if (!f.planted && height < 0.039) {
+      f.planted = true;
+      f.anchor.copy(toe).add(f.offset);
+      f.anchor.y = surface + 0.026;
+    }
+    if (f.planted) f.offset.subVectors(f.anchor, toe).clampLength(0, 0.14);
+    else f.offset.multiplyScalar(Math.exp(-Math.max(0, dt) * 22));
+    if (f.offset.lengthSq() < 0.000003) continue;
+    const goal = f.ankle.getWorldPosition(new THREE.Vector3()).add(f.offset);
+    const sole = f.ankle.getWorldQuaternion(new THREE.Quaternion());
+    for (const b of [f.upper, f.lower, f.ankle]) u.turnBones.push([b, b.quaternion.clone()]);
+    const pole = actor.localToWorld(new THREE.Vector3(f.side * 0.15, 0.49, 0.58));
+    poseTwoBoneChain(f.upper, f.lower, f.ankle, goal, pole);
+    f.ankle.quaternion.copy(f.lower.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(sole));
+  }
 }
 function animateCastActor(m, a, t, fellBeforeLoad) {
   const u = m.userData;
@@ -727,9 +848,40 @@ function animateCastActor(m, a, t, fellBeforeLoad) {
   } else if (u.strikeUntil > t) {
     state = u.counter % 2 ? 'slash' : 'slashBack';
     rate = 1.35;
-  } else if (a.walk) {
-    state = a.team === 'hostile' || a.team === 'friend' ? 'run' : 'walk';
-    rate = a.team === 'escort' && Number.isFinite(a.gaitSpeed) ? clamp(a.gaitSpeed / 1.45, 0.58, 1.7) : 1.08;
+  } else if ((a.gaitSpeed || 0) > 0.13 || a.walk) {
+    const speed = a.gaitSpeed ?? 1.45;
+    state = speed > (u.state === 'run' ? 2.24 : 2.68) ? 'run' : 'walk';
+    // Native toe travel measured from the two supplied clips while the sole is loaded.
+    const female = u.actorStyle.sex === 'Female';
+    const groundSpeed = state === 'run' ? (female ? 5.78 : 6.0) : female ? 0.984 : 1.008;
+    rate = clamp(speed / groundSpeed, 0.39, state === 'run' ? 1.55 : 2.1);
+  }
+  if (u.turnBones) {
+    for (const [bone, q] of u.turnBones) bone.quaternion.copy(q);
+    u.turnBones.length = 0;
   }
   poseCharacter(m, state, t, rate);
+  if (u.skeleton) {
+    u.turnBones ||= [];
+    const pivot = (a.gaitSpeed || 0) < 0.26 && Math.abs(a.turnRate || 0) > 0.46 && !(a.stagger > 0);
+    const travelling = state === 'walk' || state === 'run' || state === 'block' || u.strideFeet;
+    if (!pivot && travelling && m.position.distanceToSquared(world.camera.position) < 22 ** 2)
+      plantTravelFeet(m, t);
+    else if (u.strideFeet) delete u.strideFeet;
+    if (pivot) plantTurnFeet(m, a.turnRate, t);
+    else if (u.turnFeet) delete u.turnFeet;
+    const difference = clamp(angles((a.lookYaw ?? a.angle) - a.angle), -0.68, 0.68);
+    for (const [name, factor] of [
+      ['spine_02', 0.29],
+      ['spine_03', 0.28],
+      ['Head', 0.43],
+    ]) {
+      const bone = u.skeleton.getBoneByName(name);
+      if (!bone) continue;
+      u.turnBones.push([bone, bone.quaternion.clone()]);
+      bone.rotateY(difference * factor);
+      if (name === 'spine_02')
+        bone.rotateZ(clamp(-(a.turnRate || 0) * (a.gaitSpeed || 0) * 0.015, -0.095, 0.095));
+    }
+  }
 }

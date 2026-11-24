@@ -450,7 +450,7 @@ function setDeliveryCamera(realm, s, t) {
     cz = Math.cos(angle),
     dx = -back * sx + shoulder * cz,
     dz = -back * cz - shoulder * sx;
-  const roadHeight = ground(w.x, w.z);
+  const roadHeight = walkingSurface(w.x, w.z);
   const shake = prefs.motion && d.shock > 1.2 ? 0.09 * Math.sin(t * 33) : 0;
   if (d.seated) {
     const bounce = prefs.motion

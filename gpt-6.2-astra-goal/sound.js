@@ -47,6 +47,12 @@ function scoreScene(now) {
     return 'battle';
   if (game.inside || game.health <= 0) return 'mill';
   if (!$('dialog').open) {
+    if (
+      (game.dragon?.engaged && game.dragon.hp > 0) ||
+      Object.values(game.hunts || {}).some((m) => m.hp > 0 && m.engaged) ||
+      (game.wagon?.convoy?.alarm && distance(game, game.wagon) < 21)
+    )
+      scoreLastDanger = now;
     if (game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(game, a) < 17))
       scoreLastDanger = now;
     if (game.wagon && distance(game, game.wagon) < 10) scoreLastFair = now;

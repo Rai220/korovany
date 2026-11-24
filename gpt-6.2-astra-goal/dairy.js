@@ -20,6 +20,8 @@ function cowSound(signal) {
 }
 function speakCow() {
   if (game.inside) return notify('Возница остался на тракте.');
+  if (game.wagon.convoy?.alarm && game.story.phase !== 'escort')
+    return notify('Под обстрелом возница не остановится. Догоните задний борт.');
   const cow = bovineOffice(),
     d = distance(game, cow);
   if (d > 6) {
@@ -160,6 +162,7 @@ function certifyCow() {
 }
 function claimCargo() {
   const g = game;
+  if (g.wagon.cool > 0) return false;
   g.coins += 42;
   g.bandages++;
   g.robbed++;

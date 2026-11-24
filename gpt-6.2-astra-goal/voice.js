@@ -93,11 +93,16 @@ const realmVoice = (() => {
     .replace(/[^а-яa-z0-9]+/g, ' ')
     .trim();
   const totalSeconds = (playlist) => playlist.reduce((sum, take) => sum + take.seconds, 0);
-  for (const [speaker, text, file, seconds] of takes) {
-    if (!cast.has(speaker)) cast.set(speaker, []);
-    cast.get(speaker).push({ key: normalize(text), file, seconds });
+  function register(entries) {
+    for (const [speaker, text, url, seconds] of entries) {
+      const key = normalize(text);
+      if (!cast.has(speaker)) cast.set(speaker, []);
+      const list = cast.get(speaker);
+      if (!list.some((registered) => registered.key === key)) list.push({ key, url, seconds });
+      list.sort((a, b) => b.key.length - a.key.length);
+    }
   }
-  for (const entries of cast.values()) entries.sort((a, b) => b.key.length - a.key.length);
+  register(takes.map(([speaker, text, file, seconds]) => [speaker, text, './assets/voice/' + file + '.mp3', seconds]));
 
   // One reusable media element also preserves the playback permission granted by a touch on iOS.
   const player = new Audio();
@@ -159,7 +164,7 @@ const realmVoice = (() => {
         return;
       }
       const take = playlist[next++];
-      player.src = './assets/voice/' + take.file + '.mp3' + soundRevision;
+      player.src = take.url + soundRevision;
       player.volume = volume();
       player.muted = false;
       player.onended = advance;
@@ -190,7 +195,7 @@ const realmVoice = (() => {
   });
   window.addEventListener('pagehide', stop);
   return {
-    play, stop, refresh, unlock,
+    play, stop, refresh, unlock, register,
     get active() { return speaking; },
     get speaker() { return who; },
     duration(speaker, text) { return totalSeconds(resolve(speaker, text)); },
