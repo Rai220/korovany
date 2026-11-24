@@ -29,46 +29,60 @@ module.exports = async (browser) => {
         if ($('dialog').open) closeModal();
         realmVoice.stop();
         scoreStop();
-        // The same six substeps as a one-metre move. A clear footprint can still be a cliff.
-        const slopeEdges = new Map();
-        const stepClear = (x, z, dx, dz) => {
-          const key = ((z + 143) * 287 + x + 143) * 4 + (dx ? (dx < 0 ? 2 : 3) : dz < 0 ? 0 : 1);
-          if (slopeEdges.has(key)) return slopeEdges.get(key);
-          let ok = true;
-          if (Math.max(rockUplift(x, z), rockUplift(x + dx, z + dz)) >= 0.35) {
-            for (let i = 0; i < 6 && ok; i++)
-              ok = canClimbStep(
-                x + (dx * i) / 6,
-                z + (dz * i) / 6,
-                x + (dx * (i + 1)) / 6,
-                z + (dz * (i + 1)) / 6,
-              );
-          }
-          slopeEdges.set(key, ok);
-          return ok;
-        };
         window.expWalk = (id) => {
           const goal = fieldPoint(id),
-            radius = bodyRadius(game),
-            close = (x, z) => livingFree(x, z, radius + 0.08, game) && Math.hypot(x - 95, z - 120) > 16.6;
+            margin = bodyRadius(game) + 0.08;
+          const clear = (x, z) => livingFree(x, z, margin, game) && Math.hypot(x - 95, z - 120) > 16.6;
+          // Replay move()'s arithmetic at each footprint, including the fractional endpoint left by the previous step.
+          const trace = (x, z, tx, tz) => {
+            const steps = Math.max(1, Math.ceil(Math.hypot(tx - x, tz - z) / 0.18));
+            const dx = (tx - x) / steps,
+              dz = (tz - z) / steps;
+            for (let i = 0; i < steps; i++) {
+              const nx = x + dx,
+                nz = z + dz;
+              if (!canClimbStep(x, z, nx, nz) || !clear(nx, nz)) return null;
+              x = wrapped(nx);
+              z = wrapped(nz);
+            }
+            return [x, z];
+          };
           const W = 287,
             idx = (x, z) => (z + 143) * W + x + 143,
             xx = (k) => (k % W) - 143,
             zz = (k) => Math.floor(k / W) - 143;
           const sx = Math.round(game.x),
             sz = Math.round(game.z),
-            root = idx(sx, sz),
-            prev = new Int32Array(W * W).fill(-2),
-            q = new Int32Array(W * W);
-          prev[root] = -1;
-          q[0] = root;
-          let tail = 1,
+            gx = Math.round(goal.x),
+            gz = Math.round(goal.z);
+          const root = idx(sx, sz),
+            first = trace(game.x, game.z, sx, sz);
+          if (!first) throw Error('Cannot reach walking grid: ' + id + ' ' + [game.x, game.z, sx, sz]);
+          const prev = new Int32Array(W * W).fill(-2);
+          const reachedX = new Float64Array(W * W),
+            reachedZ = new Float64Array(W * W);
+          // Prefer vertices near the destination. Every other reachable vertex stays in the queue for detours.
+          const buckets = Array.from({ length: 2 * W + 1 }, () => []);
+          let priority = buckets.length,
             end = -1;
-          for (let i = 0; i < tail && end < 0; i++) {
-            const k = q[i],
+          const enqueue = (k, tx, tz, point, parent) => {
+            prev[k] = parent;
+            reachedX[k] = point[0];
+            reachedZ[k] = point[1];
+            const score = Math.abs(tx - gx) + Math.abs(tz - gz);
+            buckets[score].push(k);
+            priority = Math.min(priority, score);
+          };
+          enqueue(root, sx, sz, first, -1);
+          while (priority < buckets.length) {
+            if (!buckets[priority].length) {
+              priority++;
+              continue;
+            }
+            const k = buckets[priority].pop(),
               x = xx(k),
               z = zz(k);
-            if (Math.hypot(x - goal.x, z - goal.z) < 1.24 && close(x, z)) {
+            if (Math.hypot(x - goal.x, z - goal.z) < 1.24) {
               end = k;
               break;
             }
@@ -79,21 +93,12 @@ module.exports = async (browser) => {
               [-1, 0],
             ]) {
               const a = x + dx,
-                b = z + dz,
-                n = idx(a, b);
-              if (
-                a < -143 ||
-                a > 143 ||
-                b < -143 ||
-                b > 143 ||
-                prev[n] !== -2 ||
-                !close(a, b) ||
-                !close(x + dx * 0.5, z + dz * 0.5) ||
-                !stepClear(x, z, dx, dz)
-              )
-                continue;
-              prev[n] = k;
-              q[tail++] = n;
+                b = z + dz;
+              if (a < -143 || a > 143 || b < -143 || b > 143) continue;
+              const n = idx(a, b);
+              if (prev[n] !== -2) continue;
+              const reached = trace(reachedX[k], reachedZ[k], a, b);
+              if (reached) enqueue(n, a, b, reached, k);
             }
           }
           if (end < 0) throw Error('No walking route: ' + id + ' ' + [sx, sz]);
@@ -103,7 +108,7 @@ module.exports = async (browser) => {
           let dist = 0;
           for (const [x, z] of route) {
             dist += move(game, x - game.x, z - game.z);
-            if (Math.hypot(x - game.x, z - game.z) > 0.19)
+            if (Math.hypot(x - game.x, z - game.z) > 1e-7)
               throw Error('Collision ' + id + ': ' + [x, z, game.x, game.z]);
             fieldQuestTick(0.56);
           }
