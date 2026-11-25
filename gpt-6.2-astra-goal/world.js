@@ -397,10 +397,12 @@ function upliftSurvey() {
         const lateral =
           fraction * (fraction < 0 ? lee : wind) * (1 + 0.19 * Math.sin(seed)) +
           0.93 * Math.sin(seed + j * 0.53) * shoulder;
-        const along = shoulder * (2.15 * Math.sin(seed - 0.813 * j) + 0.68 * Math.cos(seed * 1.63 + 0.48 * j));
+        const along =
+          shoulder * (2.15 * Math.sin(seed - 0.813 * j) + 0.68 * Math.cos(seed * 1.63 + 0.48 * j));
         const elev = Math.max(
           0,
-          h * (profiles[j] + shoulder * (0.12 * Math.cos(seed * 0.91 + j * 0.71) + 0.052 * Math.sin(seed + j))),
+          h *
+            (profiles[j] + shoulder * (0.12 * Math.cos(seed * 0.91 + j * 0.71) + 0.052 * Math.sin(seed + j))),
         );
         return [x + nx * lateral + nz * along, z + nz * lateral - nx * along, elev];
       });
@@ -433,7 +435,8 @@ function upliftSurvey() {
       const k = (z + WORLD_LIMIT) * stride + x + WORLD_LIMIT;
       const uplands = x > 5 && z > 8 && x < 135 && z < 135,
         old = uplands ? surveyedGround(x, z) : 0;
-      if (height[k] === 0 && old < 7) continue;
+      const radar = alpineFloor[k] * 0.25;
+      if (height[k] === 0 && old < 7 && radar === 0) continue;
       const road = Math.min(Math.abs(Math.abs(x) - 50), Math.abs(Math.abs(z) - 50));
       let terrace = Infinity;
       for (const [west, east, north, south] of settlementPads)
@@ -465,7 +468,8 @@ function upliftSurvey() {
         ]) {
           const axial = z - cz,
             cross = x - cx - heading * axial - 0.8 * Math.sin(axial * 0.39);
-          const cut = (1 - terrainFade(0, 3.25, Math.abs(cross))) * (1 - terrainFade(4, reach, Math.abs(axial)));
+          const cut =
+            (1 - terrainFade(0, 3.25, Math.abs(cross))) * (1 - terrainFade(4, reach, Math.abs(axial)));
           height[k] -= Math.max(0, old + height[k] - 11) * rate * cut;
         }
         const lifted = old + height[k],
@@ -473,6 +477,27 @@ function upliftSurvey() {
           f = bed - Math.floor(bed);
         height[k] += exposure * terrainFade(9, 18, lifted) * 3.75 * (terrainFade(0.5, 0.93, f) - f);
       }
+      // In the high country, the branching ridges, hollow cirques and asymmetric spurs come from
+      // measured alpine elevations. Road cuttings and the surveyed floors of settlements meet them below.
+      if (radar > 0) {
+        const blend = 0.89 * terrainFade(0, 8, radar);
+        const oldFloor = uplands ? old : surveyedGround(x, z);
+        const tooth = Math.sin(x * 0.91 - z * 0.34) + 0.6 * Math.cos(z * 0.81 + x * 0.41);
+        const crags = terrainFade(19, 38, radar) * (1.65 * tooth + 0.7 * Math.sin(x * 0.32 + z * 0.87));
+        height[k] += (radar + crags - oldFloor - height[k]) * blend;
+      }
+      // The four roads encircle a settled river basin. A rocky survey compressed into this
+      // space used to make isolated, house-sized earthen mounds beside passing wagons.
+      // Preserve the full alpine relief only along the two continuous ridges beyond the fort.
+      const mountains = terrainFade(54, 87, x) * terrainFade(55, 83, z);
+      const outskirts = terrainFade(82, 121, Math.max(Math.abs(x), Math.abs(z)));
+      const insideRing = (1 - terrainFade(40, 60, Math.abs(x))) * (1 - terrainFade(40, 60, Math.abs(z)));
+      const scale = 0.18 + 0.28 * outskirts - 0.095 * insideRing;
+      const floor = uplands ? old : surveyedGround(x, z);
+      const aboveFloodplain = Math.max(0, floor + height[k] - 2.4);
+      height[k] -= (1 - mountains) * (1 - scale) * aboveFloodplain;
+      // Exposed arêtes rise beyond both saddles; the lowlands and the caravan basin retain their open horizon.
+      height[k] += mountains * terrainFade(13, 29, aboveFloodplain) * aboveFloodplain * 0.36;
       height[k] *= mask;
     }
   mountainSurvey = height;
@@ -624,6 +649,7 @@ class RealmGeometry {
     return (((i % cells) + cells) % cells) * cells + (((j % cells) + cells) % cells);
   }
   free(x, z, r = 0.34) {
+    if (this.roadsideEnding && roadsideBlocked(this.roadsideEnding, x, z, r)) return false;
     for (let i = Math.floor((x - r) / 12); i <= Math.floor((x + r) / 12); i++)
       for (let j = Math.floor((z - r) / 12); j <= Math.floor((z + r) / 12); j++) {
         const cell = this.obstacleCells.get(this.cellKey(i, j));
@@ -681,6 +707,7 @@ class RealmGeometry {
       }
     }
     this.dressSettlements();
+    placeMarchEntrance(this);
     this.pastures();
     for (const b of this.buckets.values()) {
       const m = new THREE.InstancedMesh(b.geo, b.mat, b.items.length);
@@ -735,36 +762,33 @@ class RealmGeometry {
     const color = dark ? 0x585956 : 0x969384,
       roof = dark ? 0x43494a : 0x545e61;
     const tower = (a, b, r, h) => {
-      this.put(this.log, color, a, h / 2, b, r, h, r);
-      this.bound(a, b, r * 1.5, r * 1.5);
-      this.put(this.log, color, a, h - 0.3, b, r * 1.14, 0.9, r * 1.14);
-      if (dark) {
-        for (let i = 0; i < 7; i++) {
-          if ((i + Math.round(a + b)) % 5 === 0) continue;
-          const direction = (i * Math.PI * 2) / 7;
-          this.block(
-            a + r * Math.sin(direction),
-            h + 0.32,
-            b + r * Math.cos(direction),
-            0.63,
-            0.85,
-            0.55,
-            color,
-            direction,
-          );
+      const tall = h > 7;
+      const wall = dark ? 0x585956 : 0x969384;
+      // Battered lower courses widen the foundation. The upper floor projects on oak or dressed stone.
+      this.block(a, h * 0.46, b, r * 1.88, h * 0.92, r * 1.88, wall);
+      this.block(a, 0.44, b, r * 2.06, 0.88, r * 2.06, wall);
+      this.bound(a, b, r * 1.88, r * 1.88);
+      this.block(a, h - 0.45, b, r * 2.06, 0.45, r * 2.06, dark ? 0x6f5239 : wall);
+      this.block(a, h - 0.03, b, r * 2.18, 0.43, r * 2.18, wall);
+      if (dark && (tall || a < x)) {
+        const top = h + 1.29;
+        this.block(a, h + 0.58, b, r * 2.13, 1.26, r * 2.13, 0x6f5239);
+        for (const side of [-1, 1]) {
+          for (const k of [-0.7, 0, 0.7]) {
+            this.block(a + k * r, h + 0.63, b + side * r * 1.071, 0.34, 0.61, 0.06, 0x393733);
+            this.block(a + side * r * 1.071, h + 0.63, b + k * r, 0.06, 0.61, 0.34, 0x393733);
+          }
+          this.block(a, top + 0.53, b + side * r * 0.57, r * 2.58, 0.19, r * 1.47, roof, 0, 0, side * 0.58);
         }
-      } else
-        for (let j = 0; j < 8; j++)
-          this.block(
-            a + Math.sin(j * 0.785) * r,
-            h + 0.36,
-            b + Math.cos(j * 0.785) * r,
-            0.64,
-            0.78,
-            0.64,
-            color,
-          );
-      this.block(a, h * 0.7, b + r * 0.94, 0.42, 1.35, 0.13, 0x3a3d37);
+      } else {
+        for (const side of [-1, 1])
+          for (let k = -1; k <= 1; k++) {
+            this.block(a + k * r * 0.85, h + 0.38, b + side * r, 0.58, 0.8, 0.48, wall);
+            if (k === 0) this.block(a + side * r, h + 0.38, b, 0.5, 0.8, 0.65, wall);
+          }
+      }
+      this.block(a, h * 0.56, b + r * 0.947, 0.2, 1.3, 0.052, 0x3a3d37);
+      this.block(a, h * 0.53, b + r * 0.95, 0.56, 0.16, 0.06, 0x3a3d37);
     };
     for (const a of [-12, 12]) {
       tower(x + a, z - 15, 2.55, 8);
@@ -821,6 +845,8 @@ class RealmGeometry {
     this.scene.add(this.marker);
   }
   display(s, t, attackAnim, bob, target) {
+    drawRoadLamp(this, s);
+    if (s.march) return renderMarch(this, s, t, attackAnim, bob);
     if (s.dungeon) {
       renderDungeon(this, s, t, attackAnim, bob);
       return;
@@ -833,13 +859,13 @@ class RealmGeometry {
     if (this.camera.parent !== this.scene) this.scene.add(this.camera);
     const c = this.camera;
     this.placeScenery(s.x, s.z);
+    drawOathRoadside(this, s, t);
     c.position.set(
       s.x,
       walkingSurface(s.x, s.z) + (s.leg === 'lost' ? 0.78 : s.leg === 'chair' ? 1.32 : 1.71) + s.air + bob,
       s.z,
     );
     c.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
-    this.skyMesh.position.copy(c.position);
     this.chair.visible = s.leg === 'chair';
     if (this.chair.visible) {
       this.chair.position.set(s.x, walkingSurface(s.x, s.z), s.z);
@@ -848,6 +874,8 @@ class RealmGeometry {
     }
     s.actors.forEach((a) => {
       let m = this.actors.get(a.id);
+      const range = distance(a, s);
+      if (!m && range >= 85) return;
       if (!m) {
         m = this.person(a.kind, a.tag);
         m.userData.groundShadow = footShade();
@@ -858,7 +886,6 @@ class RealmGeometry {
       if (a.hp <= 0 && m.userData.fellAt == null) m.userData.fellAt = t;
       const fall = a.hp <= 0 ? Math.min(1, (t - m.userData.fellAt) * 3) : 0;
       m.position.set(nearest(a.x, s.x), walkingSurface(a.x, a.z), nearest(a.z, s.z));
-      const range = distance(a, s);
       m.visible = range < 85;
       const contact = m.userData.groundShadow;
       contact.visible = range < 30;
@@ -896,6 +923,7 @@ class RealmGeometry {
     this.animateDetails(s, t, attackAnim, bob);
     if (typeof frameHeroCamera === 'function') frameHeroCamera(this, s, t, attackAnim);
     if (s.delivery) setDeliveryCamera(this, s, t);
+    this.skyMesh.position.copy(c.position);
     updateFieldEffects(this, s, t);
     this.updateRiverMirror(s, t, c);
     drawExploration(this,s,t);

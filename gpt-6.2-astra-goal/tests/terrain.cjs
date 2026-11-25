@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 module.exports = async function checkCountry(browser) {
   const page = await browser.newPage({ viewport: { width: 900, height: 570 } }),
     errors = [];
+  page.setDefaultTimeout(120000);
   try {
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => {
@@ -37,6 +38,7 @@ module.exports = async function checkCountry(browser) {
         footing = 0,
         unchanged = 0,
         highest = -Infinity,
+        basin = -Infinity,
         cliff = null;
       for (let i = -144; i < 144; i += 0.5) {
         for (const fixed of [-50, 50])
@@ -66,6 +68,7 @@ module.exports = async function checkCountry(browser) {
           if (Math.abs(rise) > 0.23) footing = Math.max(footing, Math.abs(walkingSurface(x, z) - trueHeight));
           else if (!rise) unchanged++;
           highest = Math.max(highest, trueHeight);
+          if (Math.abs(x) < 45 && Math.abs(z) < 45) basin = Math.max(basin, trueHeight);
           if (
             !cliff &&
             rise > 4 &&
@@ -152,6 +155,7 @@ module.exports = async function checkCountry(browser) {
         seam,
         footing,
         highest,
+        basin,
         roll,
         checkedSites: checkpoints.length,
         missed,
@@ -166,6 +170,7 @@ module.exports = async function checkCountry(browser) {
     assert.ok(result.seam < 0.002);
     assert.ok(result.footing < 0.001);
     assert.ok(result.highest > 38);
+    assert.ok(result.basin < 6, 'An isolated summit returned beside the inner convoy roads');
     assert.deepEqual(result.missed, []);
     assert.ok(result.roll.every((n) => n < 0.06));
     assert.ok(result.wall && result.wall.up < 0.2 && result.wall.down > 0.4);

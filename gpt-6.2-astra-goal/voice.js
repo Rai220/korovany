@@ -195,9 +195,25 @@ const realmVoice = (() => {
   });
   window.addEventListener('pagehide', stop);
   return {
-    play, stop, refresh, unlock, register,
-    get active() { return speaking; },
-    get speaker() { return who; },
-    duration(speaker, text) { return totalSeconds(resolve(speaker, text)); },
+    play,
+    stop,
+    refresh,
+    unlock,
+    register,
+    get active() {
+      return speaking;
+    },
+    get speaker() {
+      return who;
+    },
+    get words() {
+      return words;
+    },
+    get playhead() {
+      return player.currentTime || 0;
+    },
+    duration(speaker, text) {
+      return totalSeconds(resolve(speaker, text));
+    },
   };
 })();

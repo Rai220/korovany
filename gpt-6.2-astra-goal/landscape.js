@@ -119,126 +119,6 @@ function geometry(positions, uvs, indices) {
   geo.computeVertexNormals();
   return geo;
 }
-// Several kilometres of skyline in perspective. Each azimuth has its own saddle, face direction and snow line.
-function distantMountains(layer, fogColor) {
-  const profile = [
-    [0, 18],
-    [9, 14],
-    [18, 22],
-    [24, 30],
-    [30, 22],
-    [35, 40],
-    [38, 34],
-    [41, 39],
-    [49, 25],
-    [58, 16],
-    [69, 14],
-    [79, 20],
-    [86, 16],
-    [94, 34],
-    [100, 29],
-    [109, 44],
-    [115, 37],
-    [121, 49],
-    [126, 35],
-    [137, 23],
-    [150, 25],
-    [161, 16],
-    [168, 21],
-    [178, 30],
-    [187, 24],
-    [193, 39],
-    [198, 35],
-    [206, 45],
-    [214, 24],
-    [223, 26],
-    [238, 16],
-    [249, 18],
-    [260, 29],
-    [266, 26],
-    [274, 34],
-    [281, 29],
-    [291, 44],
-    [298, 35],
-    [304, 39],
-    [317, 23],
-    [331, 25],
-    [341, 17],
-    [349, 22],
-    [360, 18],
-  ];
-  const rows = 11,
-    n = 384,
-    p = [],
-    uv = [],
-    ix = [],
-    colors = [],
-    ao = [];
-  for (let i = 0; i <= n; i++) {
-    const theta = ((i % n) * Math.PI * 2) / n,
-      deg = (((i % n) * 360) / n + layer * 24) % 360;
-    const point = profile.findIndex((r, j) => j < profile.length - 1 && deg >= r[0] && deg < profile[j + 1][0]);
-    const [left, a] = profile[point],
-      [right, b] = profile[point + 1],
-      t = (deg - left) / (right - left);
-    const jitter = (Math.sin(theta * 39 + layer) * 0.56 + Math.sin(theta * 73 + layer * 3) * 0.44) * 1.77;
-    const peak = (a + (b - a) * t + jitter) * (layer ? 0.73 : 1.10);
-    for (let j = 0; j < rows; j++) {
-      const u = Math.max(0, (j - 1) / (rows - 2)),
-        h = j ? -16 + (peak + 16) * u : -218,
-        channel = Math.sin(theta * 36 + layer * 2 + j * 0.73) + 0.48 * Math.sin(theta * 59 + j * 0.2);
-      const radius =
-        (layer ? 202 : 250) +
-        u * (layer ? 42 : 52) +
-        5.6 * Math.sin(theta * 5 + layer * 2) +
-        Math.sin(Math.PI * u) * channel * 4.6;
-      p.push(Math.sin(theta) * radius, h + Math.sin(Math.PI * u) * channel * 2.2, Math.cos(theta) * radius);
-      uv.push(i / n, u);
-      ao.push(channel);
-      if (i && j) {
-        const k = i * rows + j;
-        ix.push(k - rows - 1, k - rows, k, k - rows - 1, k, k - 1);
-      }
-    }
-  }
-  const geo = geometry(p, uv, ix),
-    normals = geo.attributes.normal;
-  const night = new THREE.Color(layer ? 0x83949b : 0x9aa9b8),
-    sun = new THREE.Color(layer ? 0xa7b2ad : 0xb7c4c7),
-    snow = new THREE.Color(0xd2d8d3);
-  for (let i = 0; i < normals.count; i++) {
-    const y = p[i * 3 + 1],
-      lit = 0.47 + 0.3 * normals.getX(i) - 0.08 * normals.getZ(i) + 0.12 * normals.getY(i) + 0.09 * ao[i];
-    const c = night.clone().lerp(sun, Math.max(0, Math.min(1, lit)));
-    if (!layer) c.lerp(snow, terrainFade(30, 54, y) * terrainFade(0.12, 0.93, lit) * 0.83);
-    colors.push(c.r, c.g, c.b);
-  }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  const mesh = new THREE.Mesh(
-    geo,
-    new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      side: THREE.DoubleSide,
-      fog: false,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  mesh.material.onBeforeCompile = (shader) => {
-    shader.uniforms.foothillHaze = { value: fogColor };
-    shader.vertexShader = 'varying float ridgeHeight;\n' + shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      '#include <begin_vertex>\nridgeHeight = position.y;',
-    );
-    shader.fragmentShader = 'varying float ridgeHeight; uniform vec3 foothillHaze;\n' + shader.fragmentShader.replace(
-      '#include <color_fragment>',
-      '#include <color_fragment>\ndiffuseColor.rgb=mix(foothillHaze,diffuseColor.rgb,.53*smoothstep(-4.,44.,ridgeHeight));',
-    );
-  };
-  mesh.renderOrder = -12 + layer;
-  mesh.frustumCulled = false;
-  return mesh;
-}
 class FrontierLandscape extends RealmGeometry {
   prepareMaterials() {
     this.materialFamilies = new Map();
@@ -275,48 +155,18 @@ class FrontierLandscape extends RealmGeometry {
   }
   sky() {
     const geo = new THREE.SphereGeometry(325, 64, 28);
-    const mat = new THREE.MeshBasicMaterial({
-      map: texture('sky'),
-      color: 0xfffcf3,
-      side: THREE.BackSide,
-      fog: false,
-      toneMapped: false,
-      depthWrite: false,
-    });
     this.horizonHaze = { value: 0 };
-    mat.onBeforeCompile = (shader) => {
-      shader.uniforms.horizonColor = { value: this.scene.fog.color };
-      shader.uniforms.horizonHaze = this.horizonHaze;
-      shader.vertexShader =
-        'varying float skyAltitude;\n' +
-        shader.vertexShader.replace(
-          '#include <begin_vertex>',
-          '#include <begin_vertex>\nskyAltitude=normalize(position).y;',
-        );
-      shader.fragmentShader =
-        'varying float skyAltitude;uniform vec3 horizonColor;uniform float horizonHaze;\n' +
-        shader.fragmentShader.replace(
-          '#include <map_fragment>',
-          '#include <map_fragment>\nfloat airColumn=1.-smoothstep(-.035,.265,skyAltitude); diffuseColor.rgb=mix(diffuseColor.rgb,horizonColor,airColumn*horizonHaze);',
-        );
-    };
-    // The playable ridges sit in front of two distant ranges and the photographed sky.
-    const uv = geo.attributes.uv;
-    for (let i = 0; i < uv.count; i++)
-      uv.setY(i, Math.min(1, Math.max(0, 0.593 + Math.max(-0.026,uv.getY(i) - 0.5) * 0.795)));
+    const mat = createCountrySky(this, true);
     this.skyMesh = new THREE.Mesh(geo, mat);
     this.skyMesh.rotation.y = 1.18;
-    this.skyMesh.renderOrder=-16;
-    for (const layer of [0, 1]) this.skyMesh.add(distantMountains(layer, this.scene.fog.color));
+    this.skyMesh.renderOrder = -16;
     this.scene.add(this.skyMesh);
-    const env = texture('sky').clone();
-    env.mapping = THREE.EquirectangularReflectionMapping;
-    const sky = texture('sky');
-    this.environmentSource = sky;
-    this.environmentMap = env;
+    this.environmentSource = texture('sky');
   }
   terrain() {
-    const g = new THREE.PlaneGeometry(PERIOD, PERIOD, 164, 180);
+    const xSteps = 192,
+      zSteps = 210;
+    const g = new THREE.PlaneGeometry(PERIOD, PERIOD, xSteps, zSteps);
     g.rotateX(-Math.PI / 2);
     const p = g.attributes.position,
       colors = [],
@@ -329,8 +179,8 @@ class FrontierLandscape extends RealmGeometry {
           Math.sign(gridZ) *
           (abs < 28.8 ? abs * 0.3 : 8.64 + ((abs - 28.8) * (WORLD_LIMIT - 8.64)) / (WORLD_LIMIT - 28.8));
       p.setZ(i, z);
-      surveyedHeights[i]=surveyedGround(x,z)-creekDepth(x,z);
-      p.setY(i, surveyedHeights[i]+rockUplift(x,z));
+      surveyedHeights[i] = surveyedGround(x, z) - creekDepth(x, z);
+      p.setY(i, surveyedHeights[i] + rockUplift(x, z));
       const tint = new THREE.Color([0xf4f1df, 0xf8ece0, 0xdadfcd, 0xe3dfea][zoneAt(x, z)]);
       tint.lerp(new THREE.Color(0xeae8da), rimBlend(x, z));
       tint.multiplyScalar(0.96 + 0.08 * Math.sin(((x * 14 + z * 9) * Math.PI) / WORLD_LIMIT));
@@ -338,8 +188,8 @@ class FrontierLandscape extends RealmGeometry {
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
-    this.landGrid = { positions: p, surveyedHeights, xSteps: 164, zSteps: 180 };
-    playableHeightGrid=this.landGrid;
+    this.landGrid = { positions: p, surveyedHeights, xSteps, zSteps };
+    playableHeightGrid = this.landGrid;
     const mat = new THREE.MeshStandardMaterial({
       map: texture('soil'),
       normalMap: texture('land-normal'),
@@ -347,7 +197,7 @@ class FrontierLandscape extends RealmGeometry {
       envMapIntensity: 0.43,
       vertexColors: true,
     });
-    const outcrop=texture('outcrop-atlas',mountainImages);
+    const outcrop = texture('outcrop-atlas', mountainImages);
     outcrop.colorSpace = THREE.NoColorSpace;
     // The two atlas halves encode different data. Never let a wrapping derivative sample the other half.
     outcrop.generateMipmaps = false;
@@ -356,19 +206,19 @@ class FrontierLandscape extends RealmGeometry {
     outcrop.anisotropy = 1;
     outcrop.needsUpdate = true;
     mat.onBeforeCompile = (shader) => {
-      shader.uniforms.outcrop={value:outcrop};
+      shader.uniforms.outcrop = { value: outcrop };
       shader.uniforms.landShadow = { value: this.landShadow };
       shader.uniforms.trackMap = { value: texture('road') };
       for (const name of ['meadow', 'scree', 'moss', 'cobbles', 'grit'])
         shader.uniforms[name] = { value: texture(name) };
       shader.vertexShader =
-        'varying vec3 terrainPoint;\n' +
+        'varying vec3 terrainPoint;varying vec3 terrainAxis;\n' +
         shader.vertexShader.replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\nterrainPoint=position;',
+          '#include <begin_vertex>\nterrainPoint=position;terrainAxis=normal;',
         );
       shader.fragmentShader =
-        'uniform sampler2D trackMap,meadow,scree,moss,cobbles,grit,landShadow,outcrop;varying vec3 terrainPoint;\n' +
+        'uniform sampler2D trackMap,meadow,scree,moss,cobbles,grit,landShadow,outcrop;varying vec3 terrainPoint;varying vec3 terrainAxis;\n' +
         shader.fragmentShader.replace(
           '#include <map_fragment>',
           `
@@ -406,7 +256,7 @@ class FrontierLandscape extends RealmGeometry {
       wild=mix(wild,bedrock*mix(vec3(.84,.87,.89),vec3(1.11,1.08,1.01),.5+.5*bedding),cliff*.93);
       // Exposed gneiss has broad bedding planes. Old snow persists on the shelves and inside high clefts.
       float altitude=terrainPoint.y,upper=smoothstep(12.,30.,altitude);
-      vec3 upAxis=normalize(cross(dFdx(terrainPoint),dFdy(terrainPoint)));upAxis*=sign(upAxis.y);
+      vec3 upAxis=normalize(terrainAxis);
       vec2 faultUV=landAxis.y>.80?pos*.194:(landAxis.x>landAxis.z?terrainPoint.zy:terrainPoint.xy)*vec2(.185,.171);
       faultUV+=vec2(.039*sin(dot(pos,vec2(.053,.17))),.044*sin(pos.y*.13));
       vec2 localFace=fract(faultUV)*.997+.0015;
@@ -417,7 +267,8 @@ class FrontierLandscape extends RealmGeometry {
       float rockFace=max(upper,cliff*smoothstep(5.,18.,altitude));
       wild=mix(wild,schist,rockFace*.96);
       float grainSnow=texture2D(grit,pos*.169).r+.27*sin(pos.x*.54+pos.y*.41);
-      float snow=smoothstep(27.,39.,altitude+4.5*upAxis.z+3.1*grainSnow)*smoothstep(.17,.79,upAxis.y+.19*grainSnow);
+      float snow=smoothstep(26.,41.,altitude+3.8*upAxis.z+4.5*grainSnow)*smoothstep(.23,.82,upAxis.y+.19*grainSnow);
+      snow*=.61+.39*smoothstep(.08,.36,gneiss.r+.08*sin(pos.x*.43+pos.y*.71));
       wild=mix(wild,vec3(.67,.77,.81)*(.91+.13*grainSnow),snow*.94);
       vec3 survey=texture2D(landShadow,pos/288.+.5).rgb;
       vec3 worn=mix(mix(gravel,packedDirt,.48),cobble,survey.b);
@@ -494,6 +345,11 @@ class FrontierLandscape extends RealmGeometry {
     });
     water.onBeforeCompile = (shader) => {
       shader.uniforms.riverTime = this.waterTime;
+      shader.uniforms.sunRay = this.airUniforms.lightDirection;
+      shader.uniforms.sunWash = this.airUniforms.waterLight;
+      shader.uniforms.skyWash = this.airUniforms.waterAmbient;
+      shader.uniforms.cloudCover = this.airUniforms.wet;
+      shader.uniforms.riverHorizon = this.airUniforms.horizon;
       shader.uniforms.riverImage = { value: mirror.image.texture };
       shader.uniforms.riverProject = mirror.project;
       shader.uniforms.mirrorActive = mirror.active;
@@ -505,7 +361,7 @@ class FrontierLandscape extends RealmGeometry {
           '#include <begin_vertex>\n waterLocal=position;waterWorld=(modelMatrix*vec4(position,1.)).xyz;',
         );
       shader.fragmentShader =
-        'uniform float riverTime,mirrorActive; uniform sampler2D riverSky,riverImage;uniform mat4 riverProject; varying vec3 waterLocal; varying vec3 waterWorld;\n' +
+        'uniform float riverTime,mirrorActive,cloudCover; uniform vec3 sunRay,sunWash,skyWash,riverHorizon; uniform sampler2D riverSky,riverImage;uniform mat4 riverProject; varying vec3 waterLocal; varying vec3 waterWorld;\n' +
         shader.fragmentShader.replace(
           '#include <color_fragment>',
           `#include <color_fragment>
@@ -516,7 +372,10 @@ class FrontierLandscape extends RealmGeometry {
         float ripple=sin(p.x*2.54+p.y*9.2-t*2.36+sin(p.x*.94+t*.31))+
                      .38*sin(p.x*6.1-p.y*15.4+t*3.14)+.21*sin(p.y*21.+p.x*4.-t*3.3);
         float drift=sin(p.x*.71-p.y*1.8-t*.66)+.43*sin(p.y*2.1+p.x*1.7+t*.34);
-        vec3 n=normalize(vec3(.064*ripple,1., .093*drift+.043*cos(p.y*8.1-t*1.5)));
+        float wave=sin(p.x*1.38+p.y*3.5-t*1.5+.7*sin(p.x*.23));
+        vec2 eddy=fract(p*2.7+vec2(floor(p.y*2.7)*.337,0.))-.5;
+        float rainRing=sin(length(eddy)*41.-t*8.2+floor(p.x*2.7)*1.7)*exp(-length(eddy)*4.2)*cloudCover;
+        vec3 n=normalize(vec3(.061*ripple+.041*wave+.12*rainRing*eddy.x,1.,.104*drift+.058*cos(p.y*8.1-t*1.5)+.14*rainRing*eddy.y));
         vec3 viewDir=normalize(cameraPosition-waterWorld),ray=reflect(-viewDir,n);
         float fresnel=.075+.49*pow(1.-max(dot(viewDir,n),0.),3.);
         vec2 pano=vec2(atan(ray.z,ray.x)*.159155+.5+.1878,.513+asin(clamp(ray.y,-1.,1.))*.31831);
@@ -524,16 +383,18 @@ class FrontierLandscape extends RealmGeometry {
         vec3 depth=mix(vec3(.020,.132,.143),vec3(.097,.219,.169),smoothstep(.25,1.,bank));
         vec4 mirrored=riverProject*vec4(waterWorld,1.);
         vec2 imageUV=.5+.5*mirrored.xy/max(.001,mirrored.w);
-        vec3 panorama=sky*vec3(.55,.63,.61)+.014;
+        vec3 panorama=mix(riverHorizon,sky*skyWash,.34+.31*ray.y);depth*=skyWash;
         vec2 bend=vec2(ripple*.0028,drift*.0036)/max(.45,abs(viewDir.y));
         float available=mirrorActive*step(0.,min(imageUV.x,imageUV.y))*step(max(imageUV.x,imageUV.y),1.)*step(0.,mirrored.w);
         vec3 reflection=mix(panorama,texture2D(riverImage,clamp(imageUV+bend,.005,.995)).rgb,available);
         vec3 river=mix(depth,reflection,mix(fresnel,.22+.66*pow(1.-max(dot(viewDir,n),0.),2.),available));
-        float spec=pow(max(dot(reflect(-viewDir,n),normalize(vec3(-.66,.56,-.50))),0.),91.);
+        float spec=pow(max(dot(reflect(-viewDir,n),sunRay),0.),91.);
         float sheen=smoothstep(1.02,1.59,ripple)*(.28+.6*fresnel);
-        river+=vec3(.055,.069,.065)*sheen+vec3(.96,.70,.36)*spec*.69;
+        river+=vec3(.035,.057,.051)*skyWash*sheen+sunWash*spec*(1.-.74*cloudCover);
+        float turbulence=smoothstep(.63,1.,bank)*smoothstep(.16,.79,drift)*(.38+.62*smoothstep(.2,1.5,ripple));
+        river+=skyWash*vec3(.10,.15,.135)*turbulence;
         float edge=1.-smoothstep(.011,.061,abs(bank-(.80+.045*sin(p.x*3.+t*.4)+.025*ripple)));
-        river=mix(river,vec3(.54,.67,.58),edge*(.25+.36*smoothstep(-.4,.75,drift)));
+        river=mix(river,vec3(.54,.67,.58)*skyWash,edge*(.25+.36*smoothstep(-.4,.75,drift)));
         diffuseColor.rgb=river;diffuseColor.a=.94-.38*smoothstep(.35,.89,bank);`,
         );
     };
@@ -1035,10 +896,6 @@ class FrontierLandscape extends RealmGeometry {
     );
     this.birds.rotation.y = t * 0.04;
     this.birds.children.forEach((b, i) => (b.scale.y = 0.8 + Math.sin(t * 4 + i * 0.7) * 0.7));
-    if (this.environmentSource.image && !this.scene.environment) {
-      this.environmentMap.image = this.environmentSource.image;
-      this.environmentMap.needsUpdate = true;
-      this.scene.environment = this.environmentMap;
-    }
+
   }
 }

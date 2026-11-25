@@ -38,3 +38,23 @@
 ### Горная порода
 
 Верхняя половина атласа в `mountains.js` содержит цвет фотограмметрической съёмки Rock Face 03 с добавленной микротенью, нижняя — карту нормалей OpenGL. Обе карты используют один текстурный модуль GPU. Съёмку выполнил Dario Barresi, обработку — Rico Cilliers. Материал переведён в WebP и встроен для работы с локального диска. [Rock Face 03, Poly Haven](https://polyhaven.com/a/rock_face_03) · [CC0](https://polyhaven.com/license)
+
+### Свет и звёздное небо
+
+Для меняющегося небосвода из HDR-панорам выделены верхние полусферы. Ночные экспозиции сохраняют структуру Млечного Пути. Положение солнца и луны, цвет сумерек, осадки, ленты полярного сияния, речная дымка и свет из окон рассчитываются игрой. Панорамы загружаются из локального файла `firmament.js`.
+
+| Экспозиция | Авторы | Права |
+| --- | --- | --- |
+| [Kloppenheim 06 (Pure Sky)](https://polyhaven.com/a/kloppenheim_06_puresky) | Greg Zaal, Jarod Guest | [CC0](https://polyhaven.com/license) |
+| [Kloofendal Overcast (Pure Sky)](https://polyhaven.com/a/kloofendal_overcast_puresky) | Greg Zaal | [CC0](https://polyhaven.com/license) |
+| [Rogland Clear Night](https://polyhaven.com/a/rogland_clear_night) | Greg Zaal | [CC0](https://polyhaven.com/license) |
+
+### Высоты альпийских водоразделов
+
+Для `surveys.js` использована ячейка N45E007 массива Terrain Tiles. Вырезки из района Гран-Парадизо и Гриволы повёрнуты, масштабированы и совмещены с игровыми перевалами. Для дальних хребтов измерены 425 круговых сечений на расстояниях от 1,1 до 18,5 км. По каждому видимому направлению сохранены дальность, уклон и высота породы, чтобы солнце в игре освещало грани с нужной стороны. [Terrain Tiles, Mapzen](https://registry.opendata.aws/terrain-tiles/) · [Источники и условия](https://github.com/tilezen/joerd/blob/master/docs/attribution.md)
+
+Europe terrain data produced using Copernicus data and information funded by the European Union — EU-DEM layers. SRTM data courtesy of the U.S. Geological Survey.
+
+### Памятное место у западной арки
+
+Доска с выпиской, ручная тележка, флагшток и два караульных фонаря построены для игры. Письма и подписи нарисованы на холсте в браузере. Деревянные детали и ткань используют материалы из списка выше. После исхода вахты фонарь освещает дорогу из общего набора поселковых огней.

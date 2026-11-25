@@ -1,0 +1,177 @@
+.oath-page,
+.oath-journal {
+  color: var(--ink, #e8dfc9);
+}
+#dialog:has(.oath-page) {
+  width: min(625px, 94vw);
+}
+#dialog:has(.oath-talk) {
+  width: min(775px, 94vw);
+  max-height: 91dvh;
+}
+.oath-page {
+  display: grid;
+  gap: 1.25rem;
+}
+.oath-talk {
+  grid-template-columns: minmax(125px, 0.68fr) minmax(0, 1.35fr);
+  align-items: start;
+}
+.oath-talk #portrait-stage {
+  width: 100%;
+  min-width: 0;
+  height: clamp(235px, 37vh, 345px);
+  overflow: hidden;
+  border: 1px solid #6b6e61;
+  border-radius: 3px;
+  background: radial-gradient(ellipse at 55% 32%, #586057, #1c292a 70%, #10191b);
+}
+.oath-talk #portrait-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.oath-reading {
+  min-width: 0;
+}
+.oath-reading > p,
+.oath-exhibit p,
+.oath-note p,
+.oath-flow p,
+.oath-journal > p {
+  margin: 0.45rem 0 1rem;
+  line-height: 1.5;
+}
+.oath-speaker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  color: #efcf88;
+}
+.oath-speaker strong {
+  font-size: 1.12rem;
+}
+.oath-spoken {
+  color: #f8ebce;
+}
+.oath-actions {
+  display: grid;
+  gap: 0.48rem;
+  margin-top: 1rem;
+}
+.oath-actions .action {
+  margin: 0;
+  min-height: 39px;
+  width: 100%;
+  text-align: left;
+  line-height: 1.34;
+  white-space: normal;
+}
+.oath-exhibit {
+  position: relative;
+  min-height: 84px;
+  padding: 1rem 1.25rem 1rem 1.4rem;
+  margin: 0.85rem 0;
+  color: #322b25;
+  background: #dccea7;
+  border: 1px solid #c6b27f;
+  border-left: 5px solid #847457;
+  box-shadow:
+    inset 0 0 30px #82652d24,
+    0 4px 14px #0003;
+}
+.oath-exhibit.copper {
+  background: linear-gradient(105deg, #ad8d67, #d0aa7a 48%, #af9572);
+  border-color: #ac906d;
+}
+.oath-exhibit.register {
+  background: repeating-linear-gradient(0deg, transparent, transparent 25px, #a796714d 26px), #e2d6b8;
+}
+.oath-exhibit > b {
+  font:
+    700 1.1rem/1.3 Georgia,
+    serif;
+  color: #342821;
+}
+.oath-exhibit > p {
+  color: #3c3027;
+  margin: 0.45rem 0 0;
+  font-family: Georgia, serif;
+}
+.oath-stamp {
+  color: #634c3f;
+  font:
+    700 0.76rem/1.3 ui-monospace,
+    monospace;
+  letter-spacing: 0.16em;
+  margin-bottom: 0.55rem;
+}
+.oath-flow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #546969;
+  border: 1px solid #546969;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.oath-flow > span,
+.oath-flow > p {
+  background: #203233;
+  padding: 0.62rem 0.82rem;
+}
+.oath-flow b {
+  display: block;
+  color: #e9c285;
+}
+.oath-flow > p {
+  grid-column: 1/-1;
+  margin: 0;
+}
+.oath-note {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #81795d62;
+}
+.oath-note summary {
+  cursor: pointer;
+  color: #ddcba5;
+}
+.oath-note p {
+  margin: 0.5rem 0 0;
+  color: #c5c4b7;
+}
+.oath-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.oath-tracks button {
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: #e2d6b8;
+  border: 1px solid #767762;
+  border-radius: 3px;
+  background: #293630;
+}
+.oath-tracks button[aria-pressed='true'] {
+  border-color: #d5ad66;
+  color: #ffe0ac;
+}
+@media (max-width: 640px) {
+  .oath-talk {
+    display: block;
+  }
+  .oath-talk #portrait-stage {
+    min-height: 0;
+    height: 138px;
+    width: 100%;
+    aspect-ratio: auto;
+    margin-bottom: 0.65rem;
+  }
+  .oath-exhibit {
+    padding: 0.75rem 0.85rem;
+  }
+}

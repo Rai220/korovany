@@ -118,9 +118,10 @@ async function run(browser, url) {
       Object.assign(game, { x: 0, z: 0, inside: null, delivery: null });
       Object.assign(game.wagon, { x: 45, z: 0 });
     });
-    const cues = ['road', 'battle', 'fair', 'mill'];
+    const cues = ['road', 'battle', 'fair', 'mere', 'mill'];
     for (const cue of cues) {
       await page.evaluate((cue) => {
+        game.march = cue === 'mere' ? { x: 0, z: 174 } : null;
         game.inside = cue === 'mill' ? 'mill' : null;
         game.delivery = cue === 'fair' ? { gate: 1 } : null;
         game.actors = cue === 'battle' ? [{ x: 1, z: 1, hp: 20, team: 'hostile' }] : [];

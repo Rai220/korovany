@@ -176,7 +176,10 @@ function followWagon(a, dt) {
     if (speed > 0.075) {
       const length = Math.min(3.65, speed) * dt;
       const moved = move(a, (ux / speed) * length, (uz / speed) * length);
-      if (moved < length * 0.25 && error > 0.55) advance(a, slot, 2.3, dt);
+      if (moved < length * 0.25 && error > 0.55) {
+        // Only spend the untravelled distance on the detour within this simulation tick.
+        advance(a, slot, 2.3, dt * (1 - moved / length));
+      }
     }
   }
   const mx = wrapped(a.x - x),

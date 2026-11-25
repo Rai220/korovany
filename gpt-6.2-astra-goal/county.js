@@ -39,7 +39,7 @@ function trailFoliage(name, sway, threshold) {
     alphaTest: threshold,
     emissiveMap: texture(name),
     emissive: 0x8c9a81,
-    emissiveIntensity: 0.36,
+    emissiveIntensity: 0.032,
   });
   mat.onBeforeCompile = (s) => {
     s.uniforms.windClock = windClock;
@@ -56,13 +56,17 @@ function trailFoliage(name, sway, threshold) {
   };
   // Thin leaves transmit skylight, including when the paper-thin back face points toward the camera.
   const wind = mat.onBeforeCompile;
-  const fill = name.startsWith('fir') ? '.59' : '1.32';
+  const fill = name.startsWith('fir') ? '.51' : '.79';
   mat.onBeforeCompile = (shader) => {
     wind(shader);
+    shader.uniforms.leafBounce = countryLeafBounce;
+    shader.fragmentShader = 'uniform vec3 leafBounce;\n' + shader.fragmentShader;
     if (name.startsWith('fir')) fadeNearbyCrown(shader);
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <opaque_fragment>',
-      'outgoingLight=max(outgoingLight,diffuseColor.rgb*' + fill + ');\n#include <opaque_fragment>',
+      'outgoingLight=max(outgoingLight,diffuseColor.rgb*leafBounce*' +
+        fill +
+        ');\n#include <opaque_fragment>',
     );
   };
   mat.customProgramCacheKey = () => name + sway;

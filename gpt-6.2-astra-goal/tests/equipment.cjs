@@ -108,7 +108,8 @@ async function checkEquipment(
       const failures = [];
       let frames = 0,
         minShare = 1,
-        minPixels = Infinity;
+        minPixels = Infinity,
+        shoulderError = 0;
       for (const aspect of [0.59, 1.6, 2.36])
         for (const pitch of [0, -0.95, 0.87])
           for (const heavy of [false, true]) {
@@ -116,6 +117,12 @@ async function checkEquipment(
               paint(aspect, pitch, heavy, 1 - frame / 9);
               for (const item of [world.shield, world.weapon, world.leftArm.group, world.viewBody])
                 if (item) item.visible = false;
+              const socket = c.worldToLocal(
+                world.viewBody.userData.skeleton
+                  .getBoneByName('upperarm_r')
+                  .getWorldPosition(new THREE.Vector3()),
+              );
+              shoulderError = Math.max(shoulderError, socket.distanceTo(world.rightArm.upper.position));
               const image = silhouette(mask());
               if (!image.tethered || image.share < 0.96 || image.count < 15)
                 failures.push({ aspect, pitch, heavy, frame, ...image });
@@ -154,6 +161,7 @@ async function checkEquipment(
         frames,
         minShare,
         minPixels,
+        shoulderError,
         failures: failures.slice(0, 12),
         totalFailures: failures.length,
         lost,
@@ -163,6 +171,7 @@ async function checkEquipment(
     });
     console.log('Rendered sword arm and tunic', pictures);
     assert.equal(pictures.totalFailures, 0);
+    assert.ok(pictures.shoulderError < 0.001);
     assert.ok(pictures.lost < 0.005 && pictures.torso > 70 && pictures.gait > 0.04);
     await page.keyboard.down('r');
     const sweep = await page.evaluate(() => {

@@ -423,7 +423,8 @@ class Realm extends County {
     if (s.health <= 0 || s.delivery) return;
     const standing = !['lost', 'chair'].includes(s.leg);
     this.leftArm.bodyPitch = this.rightArm.bodyPitch = s.pitch * (standing ? 0.2 : 0.14);
-    if (standing && s.pitch < -0.31) {
+    this.leftArm.sockets = this.rightArm.sockets = null;
+    if (standing) {
       this.viewBodies ??= [];
       if (!this.viewBodies[s.side]) {
         this.viewBodies[s.side] = createViewBody(s.side);
@@ -431,8 +432,10 @@ class Realm extends County {
       }
       const body = (this.viewBody = this.viewBodies[s.side]);
       body.visible = true;
-      body.rotation.set(-s.pitch, Math.PI, 0, 'XYZ');
-      body.position.set(0, -1.71 - bob, 0.23).applyAxisAngle(this.rightArm.pitchAxis, -s.pitch);
+      // Looking up is primarily neck extension; the breastbone stays below the lens.
+      const torsoPitch = Math.min(s.pitch, 0.31);
+      body.rotation.set(-torsoPitch, Math.PI, 0, 'XYZ');
+      body.position.set(0, -1.71 - bob, -0.028).applyAxisAngle(this.rightArm.pitchAxis, -torsoPitch);
       const moving = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'].some((key) => keys.has(key));
       poseCharacter(
         body,
@@ -445,6 +448,15 @@ class Realm extends County {
             : 'idle',
         t,
       );
+      const sockets = (body.userData.sockets ||= {
+        right: new THREE.Vector3(),
+        left: new THREE.Vector3(),
+        r: body.userData.skeleton.getBoneByName('upperarm_r'),
+        l: body.userData.skeleton.getBoneByName('upperarm_l'),
+      });
+      this.camera.worldToLocal(sockets.r.getWorldPosition(sockets.right));
+      this.camera.worldToLocal(sockets.l.getWorldPosition(sockets.left));
+      this.leftArm.sockets = this.rightArm.sockets = sockets;
     }
     if (s.weapon !== this.drawnWeapon) {
       this.drawDepth = Math.min(1, this.drawDepth + dt * 6.4);
@@ -455,7 +467,9 @@ class Realm extends County {
     const holster = THREE.MathUtils.smootherstep(this.drawDepth, 0, 1);
     const bow = this.drawnWeapon === 'bow',
       blocking = !bow && s.weapon === 'sword' && s.blockTime > 0;
-    stepViewSpring(this.guardLift, blocking ? 1 : 0, blocking ? 10.8 : 9.5, dt);
+    const liftDelta = this.guardTarget === blocking ? dt : Math.min(dt, 1 / 60);
+    this.guardTarget = blocking;
+    stepViewSpring(this.guardLift, blocking ? 1 : 0, blocking ? 10.8 : 9.5, liftDelta);
     stepViewSpring(this.guardKick, 0, 18, dt);
     const lift = this.guardLift.value,
       kick = this.guardKick.value;
@@ -519,14 +533,20 @@ class Realm extends County {
       const rise = oneHand ? THREE.MathUtils.smoothstep(lift, 0.42, 1) : lift;
       const arc = Math.sin(Math.PI * rise);
       this.shield.position.set(
-        shieldHand * (width * 1.27 - rise * 0.175 + arc * 0.024),
-        -0.45 + rise * 0.315 + arc * 0.031 + kick * 0.046 + bob * 0.16 - holster * 0.25,
-        -0.335 - rise * 0.183 - arc * 0.045 + kick * 0.19 + holster * 0.115,
+        shieldHand * (width * 1.2 - rise * 0.156 + arc * 0.024),
+        -0.385 +
+          rise * 0.287 +
+          arc * 0.043 +
+          kick * 0.046 +
+          bob * 0.16 -
+          holster * 0.25 -
+          (oneHand ? (1 - rise) * 0.47 : 0),
+        -0.399 - rise * 0.152 - arc * 0.051 + kick * 0.19 + holster * 0.115,
       );
       this.shield.rotation.set(
-        0.64 - rise * 0.57 + arc * 0.09 + kick * 0.5 + holster * 0.43,
-        shieldHand * (1.02 - rise * 0.66 + arc * 0.15 + kick * 0.18),
-        shieldHand * (0.81 - rise * 0.7 + arc * 0.12 + kick * 0.38),
+        0.28 - rise * 0.22 + arc * 0.09 + kick * 0.5 + holster * 0.43,
+        shieldHand * (0.46 - rise * 0.11 + arc * 0.15 + kick * 0.18),
+        shieldHand * (0.51 - rise * 0.4 + arc * 0.12 + kick * 0.38),
       );
       this.leftArm.place(this.shield, shieldHand, rise);
     }

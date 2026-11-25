@@ -495,13 +495,14 @@ function storyTick() {
   if (gameTime > chapterUntil) $('chapter-toast').style.opacity = 0;
 }
 function journal(tab = game.journalTab || 'expeditions') {
-  if (!['expeditions', 'story', 'hunts'].includes(tab)) tab = game.journalTab || 'expeditions';
+  if (!['expeditions', 'story', 'hunts', 'oath'].includes(tab)) tab = game.journalTab || 'expeditions';
   game.journalTab = tab;
   const s = game.story,
     obj = goal();
   const tabs =
     '<nav class="journal-tabs" aria-label="Разделы дневника">' +
     [
+      ['oath', 'Озёрная марка'],
       ['expeditions', 'Экспедиции'],
       ['story', 'История'],
       ['hunts', 'Охота'],
@@ -528,11 +529,25 @@ function journal(tab = game.journalTab || 'expeditions') {
       : '');
   modal(
     'Полевой дневник',
-    tab === 'story' ? 'Соляной тракт' : tab === 'hunts' ? 'Охотничьи вести' : 'Записи путешественника',
-    tabs + (tab === 'story' ? story : tab === 'hunts' ? huntJournal() : fieldQuestJournal()),
+    tab === 'oath'
+      ? 'Колокол подо льдом'
+      : tab === 'story'
+        ? 'Соляной тракт'
+        : tab === 'hunts'
+          ? 'Охотничьи вести'
+          : 'Записи путешественника',
+    tabs +
+      (tab === 'oath'
+        ? oathJournal()
+        : tab === 'story'
+          ? story
+          : tab === 'hunts'
+            ? huntJournal()
+            : fieldQuestJournal()),
   );
   for (const b of document.querySelectorAll('[data-journal-tab]'))
     b.onclick = () => journal(b.dataset.journalTab);
+  if (tab === 'oath') bindOathJournal();
   if (tab === 'hunts') bindHuntJournal();
   if (tab === 'expeditions') bindFieldJournal();
 }

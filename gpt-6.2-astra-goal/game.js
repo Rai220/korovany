@@ -134,7 +134,7 @@ function newGame() {
     spawnAt('spy', 'hostile', x + 3, z + 18, 'intruder');
   }
 }
-function start(load, post = false, explore = false) {
+function start(load, post = false, explore = false, opening = false) {
   realmVoice.unlock();
   let saved = null;
   if (load) {
@@ -158,6 +158,9 @@ function start(load, post = false, explore = false) {
     return;
   }
   world.clearPeople();
+  world.handTime = undefined;
+  world.guardLift = { value: 0, speed: 0 };
+  world.guardKick = { value: 0, speed: 0 };
   if (saved) {
     game = saved;
     restoreTraining(game);
@@ -190,7 +193,7 @@ function start(load, post = false, explore = false) {
     game.journalTab = 'expeditions';
   }
   if (post) initializeDelivery();
-  else repairSpacing();
+  else if (!game.march) repairSpacing();
   world.teamLast = null;
   world.teamEnergy = 0;
   world.travelPhase = 0;
@@ -216,11 +219,12 @@ function start(load, post = false, explore = false) {
   applyGraphics();
   $('touch-order').hidden = game.side !== 2;
   notify(load ? 'Кампания загружена' : '', 2);
+  if (opening) beginPrologue();
   drawHud();
   frame = requestAnimationFrame(loop);
   if (post) postDispatch();
   else if (explore) journal('expeditions');
-  else capture();
+  else if (!opening) capture();
 }
 function valid(s) {
   return (
@@ -232,7 +236,10 @@ function valid(s) {
     ['origin', 'miller', 'trail', 'choice', 'escort', 'intercept', 'requisition', 'return', 'done'].includes(
       s.story.phase,
     ) &&
+    (!s.oathRoadGift || (s.oathRoadGift === s.oath?.ending && Object.hasOwn(roadLegacies, s.oathRoadGift))) &&
     validTraining(s.training) &&
+    (typeof validMarchSave !== 'function' || validMarchSave(s)) &&
+    (typeof validOath !== 'function' || validOath(s.oath)) &&
     validAdventureSave(s) &&
     validDungeonSave(s) &&
     (!s.inside || (houses[s.inside] && Number.isFinite(s.roomX) && Number.isFinite(s.roomZ))) &&
@@ -272,7 +279,13 @@ function valid(s) {
   );
 }
 function capture() {
-  if (matchMedia('(pointer: coarse)').matches || !active || $('dialog').open || document.pointerLockElement)
+  if (
+    prologue ||
+    matchMedia('(pointer: coarse)').matches ||
+    !active ||
+    $('dialog').open ||
+    document.pointerLockElement
+  )
     return;
   try {
     const result = world.renderer.domElement.requestPointerLock();
@@ -280,7 +293,7 @@ function capture() {
   } catch {}
 }
 function save() {
-  if (!active || game.health <= 0 || game.delivery) return;
+  if (!active || prologue || game.health <= 0 || game.delivery) return;
   try {
     game.writtenAt = Date.now();
     localStorage.setItem(saveKey(), JSON.stringify(game));
@@ -293,6 +306,7 @@ function save() {
   }
 }
 function menu() {
+  if (prologue) endPrologue(false);
   scoreStop();
   cancelAnimationFrame(frame);
   active = false;
@@ -315,6 +329,10 @@ const actions = (arr) =>
   arr.map(([id, s]) => '<button class="action" id="' + id + '">' + s + '</button>').join('');
 function pauseGame() {
   if (!active || game.health <= 0 || $('dialog').open) return;
+  if (prologue) {
+    if (!prologue.paused) pausePrologue();
+    return;
+  }
   if (game.delivery) {
     deliveryPause();
     return;
@@ -322,17 +340,24 @@ function pauseGame() {
   modal(
     'Кампания',
     'Привал',
-    actions([
-      ['back', 'Продолжить игру'],
-      ['abilities', 'Уровень и умения'],
-      ['record', 'Сохранить кампанию'],
-      ['travel', 'Открыть карту'],
-      ['pages', 'Полевой дневник'],
-      ['preferences', 'Настройки'],
-      ['control', 'Управление'],
-      ['toggle', 'Звук · ' + (soundOn ? 'включён' : 'выключен')],
-      ['leave', 'В главное меню'],
-    ]),
+    (typeof countryAlmanac === 'function'
+      ? '<p class="camp-clock">' + countryAlmanac(game).time + ' · ' + countryAlmanac(game).name + '</p>'
+      : '') +
+      actions([
+        ['back', 'Продолжить игру'],
+        ['wait-country', 'Подождать до смены света'],
+        ['abilities', 'Уровень и умения'],
+        ['record', 'Сохранить кампанию'],
+        ...(game.oathRoadGift === 'vigil'
+          ? [['road-lamp', game.lanternLit ? 'Погасить дорожный фонарь' : 'Зажечь дорожный фонарь']]
+          : []),
+        ['travel', 'Открыть карту'],
+        ['pages', 'Полевой дневник'],
+        ['preferences', 'Настройки'],
+        ['control', 'Управление'],
+        ['toggle', 'Звук · ' + (soundOn ? 'включён' : 'выключен')],
+        ['leave', 'В главное меню'],
+      ]),
   );
   $('back').onclick = () => {
     closeModal();
@@ -342,6 +367,8 @@ function pauseGame() {
     const ok = save();
     $('record').textContent = ok ? 'Кампания сохранена ✓' : 'Хранилище недоступно';
   };
+  if ($('road-lamp')) $('road-lamp').onclick = toggleRoadLamp;
+  $('wait-country').onclick = campWait;
   $('abilities').onclick = trainingDialog;
   $('travel').onclick = mapDialog;
   $('pages').onclick = journal;
@@ -445,6 +472,18 @@ function targetBearing(t) {
   return Math.abs(a) < 0.23 ? '↑' : Math.abs(a) > 2.5 ? '↓' : a > 0 ? '←' : '→';
 }
 function navigationGoal() {
+  if (game.march)
+    return (
+      (typeof marchNavigation === 'function' && marchNavigation()) ||
+      oathGoal() || { text: 'Исследуйте берег. M — карта, J — дневник.', target: null }
+    );
+  if (
+    !game.inside &&
+    !game.delivery &&
+    !game.dungeon &&
+    ((game.oath?.tracked && !game.oath.ending) || game.markMarch)
+  )
+    return { text: 'Пройдите в Озёрную марку через западную переправу', target: marchEntrance };
   if (game.markHall && !game.inside && houses[game.markHall]) {
     return { text: 'Найдите вход · ' + houses[game.markHall].name, target: houses[game.markHall].door };
   }
@@ -462,20 +501,29 @@ function drawHud() {
   $('compass-dir').textContent = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'][
     ((Math.round(-g.yaw / (Math.PI / 4)) % 8) + 8) % 8
   ];
-  if (g.dungeon) trailCompass({ yaw: g.yaw, ...dungeonPlayer() }, obj.target);
+  if (g.march) trailCompass({ yaw: g.yaw, ...g.march, march: true }, obj.target);
+  else if (g.dungeon) trailCompass({ yaw: g.yaw, ...dungeonPlayer() }, obj.target);
   else trailCompass(g, obj.target);
   $('side-label').textContent = sides[g.side].name;
-  $('area').textContent = g.dungeon
-    ? underways[g.dungeon].name
-    : g.inside
-      ? houses[g.inside].name
-      : lands[idx].name;
+  const calendar = typeof countryAlmanac === 'function' && countryAlmanac(g);
+  $('country-time').textContent = calendar ? calendar.time + ' · ' + calendar.name : '';
+  $('area').textContent = g.march
+    ? 'Озёрная марка'
+    : g.dungeon
+      ? underways[g.dungeon].name
+      : g.inside
+        ? houses[g.inside].name
+        : lands[idx].name;
   $('quest').textContent = obj.text;
-  $('direction').textContent = g.dungeon
-    ? 'M · План разведанных ходов'
-    : !g.inside && obj.target
-      ? targetBearing(obj.target) + '  До цели ' + Math.round(distance(g, obj.target)) + ' м'
-      : '';
+  $('direction').textContent = g.march
+    ? obj.target
+      ? Math.round(Math.hypot(obj.target.x - g.march.x, obj.target.z - g.march.z)) + ' м · M — карта'
+      : 'M · Карта долины'
+    : g.dungeon
+      ? 'M · План разведанных ходов'
+      : !g.inside && obj.target
+        ? targetBearing(obj.target) + '  До цели ' + Math.round(distance(g, obj.target)) + ' м'
+        : '';
   trainingHUD();
   $('hp').textContent = Math.ceil(g.health) + ' / ' + maxHealth();
   $('hpbar').style.width = (100 * g.health) / maxHealth() + '%';
@@ -498,8 +546,12 @@ function drawHud() {
   const item = interactable();
   $('interact').textContent = item ? 'E  ·  ' + item.label : '';
   const boss =
-    !g.inside && g.dragon?.engaged && g.dragon.hp > 0 && distance(g, g.dragon) < 30 ? g.dragon : null;
-  const foe = boss || (g.dungeon ? dungeonTarget(13, 0.42) : g.inside ? null : aimedEnemy(10, 0.25));
+    !g.inside && !g.march && g.dragon?.engaged && g.dragon.hp > 0 && distance(g, g.dragon) < 30
+      ? g.dragon
+      : null;
+  const foe = g.march
+    ? marchTarget(13, 0.42)
+    : boss || (g.dungeon ? dungeonTarget(13, 0.42) : g.inside ? null : aimedEnemy(10, 0.25));
   $('foe').hidden = !foe;
   $('foe').classList.toggle('warded', !!foe && requiredRank(foe) > heroLevel());
   $('foe').classList.toggle('boss', !!boss);
@@ -545,6 +597,11 @@ function drawHud() {
   return obj.target;
 }
 function mapDialog() {
+  if (game.march) {
+    modal('Пограничье', 'Озёрная марка', marchMap());
+    bindMarchMap();
+    return;
+  }
   if (game.dungeon) {
     dungeonMap();
     return;
@@ -580,6 +637,7 @@ function mapDialog() {
       .map((d, i) => pin((g.story.dairyStamps || []).includes(i) ? 'dairy-dot stamped' : 'dairy-dot', d))
       .join('') +
     fieldQuestMap() +
+    (typeof marchEntrance !== 'undefined' ? pin('lake-gate', marchEntrance) : '') +
     pin('hall-marker', houses.palace.door) +
     pin('hall-marker', houses.fort.door) +
     pin('wagon-dot', g.wagon) +
@@ -590,16 +648,25 @@ function mapDialog() {
     '</div><p class="map-legend"><span>● Герой</span><span>◇ Цель</span><span>■ Караван</span>' +
     (['trail', 'choice'].includes(g.story.phase) && !g.story.aid ? '<span>✧ Свидетель</span>' : '') +
     (g.story.herbs === 'seek' ? '<span>✚ Травы</span>' : '') +
-    '<span>♜ Крепость</span></p><div class="hall-routes"><button data-hall="palace">Затопленный склеп · ур. 2</button><button data-hall="fort">Шахты Чёрной жилы · ур. 3</button><button id="atlas-expeditions">Слухи и экспедиции</button></div><p id="map-note">' +
+    '<span>♜ Крепость</span><span>◆ Озёрная марка</span></p><div class="hall-routes"><button id="atlas-march">Западная переправа · Озёрная марка</button><button data-hall="palace">Затопленный склеп · ур. 2</button><button data-hall="fort">Шахты Чёрной жилы · ур. 3</button><button id="atlas-expeditions">Слухи и экспедиции</button></div><p id="map-note">' +
     goal().text +
     '</p>';
   modal('Пограничье', 'Карта мира', body);
+  $('atlas-march').onclick = () => {
+    g.markHall = null;
+    g.markMarch = true;
+    closeModal();
+    drawHud();
+    capture();
+  };
   $('atlas-expeditions').onclick = () => journal('expeditions');
   for (const el of document.querySelectorAll('[data-hall]')) {
     const id = el.dataset.hall;
     el.setAttribute('aria-pressed', String(id === g.markHall));
     el.title = id === g.markHall ? 'Снять метку с компаса' : 'Показать вход на компасе';
     el.onclick = () => {
+      g.markMarch = false;
+      if (g.oath) g.oath.tracked = false;
       g.markHall = g.markHall === id ? null : id;
       g.trackHunt = null;
       if (g.exploration) g.exploration.tracked = null;
@@ -683,6 +750,24 @@ function raidOrder() {
     };
 }
 function interactable() {
+  if (game.march) return marchAction();
+  if (
+    !game.inside &&
+    !game.dungeon &&
+    !game.delivery &&
+    game.oath?.ending &&
+    typeof oathRoadside !== 'undefined' &&
+    distance(game, oathRoadside) < 2.45
+  )
+    return { roadside: true, label: roadLegacies[game.oath.ending].title };
+  if (
+    !game.inside &&
+    !game.dungeon &&
+    !game.delivery &&
+    typeof marchEntrance !== 'undefined' &&
+    distance(game, marchEntrance) < 3.25
+  )
+    return { marchGate: true, label: 'Перейти в Озёрную марку' };
   if (game.dungeon) return dungeonAction();
   if (game.inside) {
     const a = roomAction();
@@ -742,6 +827,7 @@ function interactable() {
     )[0];
 }
 function interact() {
+  if (game.march) return marchInteract();
   if (game.dungeon) {
     dungeonInteract();
     return;
@@ -751,6 +837,11 @@ function interact() {
     return;
   }
   const it = interactable();
+  if (it?.roadside) return roadsideRecord();
+  if (it?.marchGate) {
+    game.markMarch = false;
+    return marchEnter();
+  }
   if (!it) {
     notify('Приблизьтесь к торговцу, союзнику или каравану');
     return;
@@ -961,7 +1052,7 @@ function wound() {
 }
 function hitPlayer(d, attacker) {
   if (game.evade > 0) return;
-  const player = game.dungeon ? dungeonPlayer() : game;
+  const player = game.march || (game.dungeon ? dungeonPlayer() : game);
   if (
     attacker &&
     game.blockTime > 0 &&
@@ -1006,6 +1097,7 @@ function hitPlayer(d, attacker) {
   if (g.hits % (hasTalent('bulwark') ? 6 : 4) === 0) wound();
 }
 function hurtActor(a, amount, byPlayer, type = 'melee') {
+  if (a.marchFoe) return marchHurt(a, amount, byPlayer, type);
   if (a.hp <= 0) return;
   if (a.tag === 'escort' && byPlayer) alarmConvoy();
   if (warded(a)) {
@@ -1104,6 +1196,7 @@ function attack(heavy = false) {
   if ((game?.inside && !game.dungeon) || game?.delivery) return;
   if (!active || $('dialog').open || game.health <= 0 || swing > 0) return;
   const g = game;
+  if (g.march) return marchAttack(heavy);
   if (g.blockTime > 0) {
     notify('Опустите щит для удара', 0.8);
     return;
@@ -1455,6 +1548,8 @@ function tickGuard(dt) {
   return block;
 }
 function step(dt) {
+  if (typeof advanceCountryClock === 'function') advanceCountryClock(game, dt);
+  if (game.march) return marchTick(dt);
   if (game.delivery) return deliveryTick(dt);
   game.riposteLeft = Math.max(0, (game.riposteLeft || 0) - dt);
   if (game.dungeon) return dungeonTick(dt);
@@ -1554,6 +1649,14 @@ function step(dt) {
 }
 function loop(now) {
   if (!active) return;
+  if (prologue) {
+    const elapsed = last ? Math.max(0, (now - last) / 1000) : 0;
+    last = now;
+    drawPrologue(document.hidden ? 0 : Math.min(elapsed, 1.5));
+    $('entry-loading').hidden = true;
+    frame = requestAnimationFrame(loop);
+    return;
+  }
   if ($('dialog').open && world.pausedFrame && !world.refreshFrame) {
     last = now;
     frame = requestAnimationFrame(loop);
@@ -1571,7 +1674,7 @@ function loop(now) {
     noticeTime -= dt;
     if (noticeTime <= 0) $('event').textContent = '';
   }
-  if (!game.inside && (lodTime -= dt) <= 0) {
+  if (!game.inside && !game.march && (lodTime -= dt) <= 0) {
     world.lod(game.x, game.z);
     lodTime = 0.32;
   }
@@ -1580,15 +1683,16 @@ function loop(now) {
     hudTime = 0.12;
   }
   world.display(game, gameTime, swing, prefs.motion ? bob : 0, navigationGoal().target);
+  $('entry-loading').hidden = true;
   frame = requestAnimationFrame(loop);
 }
-function selectEntry(load, post = false, explore = false) {
+function selectEntry(load, post = false, explore = false, opening = false) {
   if (editionBoot.failed) {
     location.reload();
     return;
   }
   if (world) {
-    start(load, post, explore);
+    start(load, post, explore, opening);
     return;
   }
   const loading = $('entry-loading');
@@ -1598,13 +1702,14 @@ function selectEntry(load, post = false, explore = false) {
   loading.hidden = false;
   setTimeout(() => {
     try {
-      start(load, post, explore);
+      start(load, post, explore, opening);
     } finally {
-      loading.hidden = true;
+      if (!active) loading.hidden = true;
     }
   }, 32);
 }
 editionBoot.ready();
+$('oath-begin').onclick = () => selectEntry(false, false, false, true);
 $('begin').onclick = () => selectEntry(false);
 $('post-race').onclick = () => selectEntry(false, true);
 $('explore-entry').onclick = () => selectEntry(false, false, true);
@@ -1617,6 +1722,18 @@ $('pause').onclick = pauseGame;
 $('map-key').onclick = mapDialog;
 document.addEventListener('keydown', (e) => {
   if (!active || $('dialog').open) return;
+  if (prologue) {
+    if (!e.repeat) {
+      if (e.code === 'Escape') offerLanding();
+      if (e.code === 'Space' && e.target.tagName !== 'BUTTON') {
+        e.preventDefault();
+        pausePrologue();
+      }
+      if (prologue.shot === quayShots.length - 1 && ['Digit1', 'Digit2'].includes(e.code))
+        landFromPrologue(e.code === 'Digit1' ? 'token' : 'rope');
+    }
+    return;
+  }
   const codes = [
     'KeyW',
     'KeyA',
@@ -1634,6 +1751,7 @@ document.addEventListener('keydown', (e) => {
     'KeyV',
     'KeyM',
     'KeyK',
+    'KeyL',
     'KeyP',
     'Escape',
     'Space',
@@ -1679,14 +1797,16 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') bandage();
   if (e.code === 'KeyE') interact();
   if (e.code === 'KeyK') save();
+  if (e.code === 'KeyL') toggleRoadLamp();
   if (e.code === 'KeyM') mapDialog();
-  if (e.code === 'KeyV') speakCow();
-  if (e.code === 'KeyQ') raidOrder();
+  if (e.code === 'KeyV') game.march ? notify('Обоз остался на Соляном тракте') : speakCow();
+  if (e.code === 'KeyQ')
+    game.march ? notify('Дружина ждёт приказов по ту сторону западной переправы') : raidOrder();
   if (e.code === 'Escape') pauseGame();
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
 $('view').addEventListener('mousedown', (e) => {
-  if (e.button === 0 && active && !$('dialog').open) {
+  if (e.button === 0 && active && !prologue && !$('dialog').open) {
     capture();
     if (!game.delivery) attack();
   }
@@ -1700,6 +1820,14 @@ document.addEventListener('mousemove', (e) => {
 });
 document.addEventListener('pointerlockchange', () => {
   const locked = !!document.pointerLockElement;
+  // A capture requested on landing or closing a conversation can complete after
+  // the player has already opened the map. Give its buttons the pointer back.
+  if (locked && (!active || prologue || $('dialog').open)) {
+    expectedUnlock = true;
+    lockBefore = true;
+    document.exitPointerLock();
+    return;
+  }
   if (lockBefore && !locked && !expectedUnlock && active && !$('dialog').open) pauseGame();
   if (!locked) expectedUnlock = false;
   lockBefore = locked;

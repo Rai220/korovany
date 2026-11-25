@@ -253,8 +253,8 @@ function draughtEar(head, cow, side) {
   const ear = joint(
     head,
     cow ? 'ox-ear' : 'horse-ear',
-    side * (cow ? 0.181 : 0.092),
-    cow ? 0.141 : 0.259,
+    side * (cow ? 0.181 : 0.079),
+    cow ? 0.145 : 0.279,
     cow ? -0.024 : 0.003,
   );
   const positions = [],
@@ -270,14 +270,14 @@ function draughtEar(head, cow, side) {
   for (let row = 0; row <= rows; row++) {
     const t = row / rows;
     const leaf = Math.sin(Math.PI * t) ** 0.8;
-    const width = cow ? 0.047 * (1 - t) + 0.061 * leaf : 0.026 * (1 - t) + 0.034 * leaf * (1 - 0.24 * t);
+    const width = cow ? 0.034 * (1 - t) + 0.046 * leaf : 0.021 * (1 - t) + 0.03 * leaf * (1 - 0.46 * t);
     const thickness = (cow ? 0.018 : 0.025) * (1 - t) + (cow ? 0.019 : 0.027) * leaf;
     for (let j = 0; j < sides; j++) {
       const a = (j * Math.PI * 2) / sides,
         u = Math.cos(a),
         face = Math.sin(a);
-      const x = cow ? 0.288 * t : 0.039 * t + 0.008 * leaf + width * u;
-      const y = cow ? 0.042 * leaf + 0.023 * t + width * u : 0.222 * t - width * u * 0.17;
+      const x = cow ? 0.221 * t : 0.032 * t + 0.003 * leaf + width * u;
+      const y = cow ? 0.036 * leaf - 0.036 * t + width * u : 0.201 * t - width * u * 0.17;
       const front = face > 0;
       // The lower half is tubular. The front opens into a cup and comes to a single narrow tip.
       const wall = front ? face * (1 - (cow ? 1.23 : 1.47) * leaf * face ** 2) : face;
@@ -315,7 +315,7 @@ function draughtEar(head, cow, side) {
   mesh.castShadow = mesh.receiveShadow = true;
   ear.add(mesh);
   ear.userData.side = side;
-  ear.userData.restYaw = cow ? 0 : side * 0.24;
+  ear.userData.restYaw = cow ? 0 : side * 0.38;
   return ear;
 }
 function draughtHorn(head, side) {

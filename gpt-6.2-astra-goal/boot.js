@@ -33,9 +33,10 @@ const editionBoot = (() => {
   document.addEventListener('error', onResource, true);
   function ready() {
     if (failed) return false;
-    el('start-label').textContent = 'Начать историю';
+    el('start-label').textContent = 'Дело пропавшего обоза';
     el('begin').disabled = false;
-    for (const id of ['post-race', 'explore-entry', 'resume', 'audio', 'settings']) el(id).disabled = false;
+    for (const id of ['oath-begin', 'post-race', 'explore-entry', 'resume', 'audio', 'settings'])
+      el(id).disabled = false;
     return true;
   }
   return {

@@ -5,7 +5,10 @@ const castSurfaces = new Map(),
   castCostumes = new Map(),
   castClips = new Map();
 function castValues(text, Type) {
-  const bytes = Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  if (typeof Uint8Array.fromBase64 === 'function') return new Type(Uint8Array.fromBase64(text).buffer);
+  const raw = atob(text),
+    bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return new Type(bytes.buffer);
 }
 function castImage(key, linear = false) {
@@ -23,6 +26,7 @@ function castImage(key, linear = false) {
 function castSurface(name, style) {
   const id = [name, style.palette, style.hairColor, style.closedHelm].join('/');
   if (castSurfaces.has(id)) return castSurfaces.get(id);
+  if (['indigo', 'peat', 'felt'].includes(name)) return wovenWool(name);
   const src = borderCast.mats[name];
   let mat;
   if (src) {
@@ -34,7 +38,13 @@ function castSurface(name, style) {
       roughnessMap: castImage(src.orm, true),
       metalnessMap: castImage(src.orm, true),
       normalScale: new THREE.Vector2(0.63, -0.63),
-      color: hair ? style.hairColor : 0xffffff,
+      color: hair
+        ? style.hairColor
+        : style.witness && name === 'MI_Peasant'
+          ? style.witness === 'vera'
+            ? 0xa2a49a
+            : 0x9c927e
+          : 0xffffff,
       roughness: name === 'MI_Eyes' ? 0.25 : 0.91,
       metalness: src.metal * 0.74,
       side: THREE.DoubleSide,
@@ -165,6 +175,7 @@ function castSurface(name, style) {
   return mat;
 }
 function roleCostume(kind, tag) {
+  if (kind === 'witness') return lakeWitnessStyle(tag);
   if (tag === 'carter') kind = 'merchant';
   if (tag === 'vigil') kind = 'vigil';
   if (tag === 'keeper') kind = 'keeper';
@@ -254,16 +265,16 @@ function combineCast(parts) {
     }
     geometry.setAttribute(name, new THREE.BufferAttribute(arr, size));
   }
-  const indices = [],
-    count = geometry.attributes.position.count;
-  let offset = 0;
+  const count = geometry.attributes.position.count;
+  const IndexType = count < 65536 ? Uint16Array : Uint32Array;
+  const indices = new IndexType(parts.reduce((total, part) => total + part.index.length, 0));
+  let vertexOffset = 0,
+    cursor = 0;
   for (const part of parts) {
-    for (const i of part.index) indices.push(i + offset);
-    offset += part.position.length / 3;
+    for (const index of part.index) indices[cursor++] = index + vertexOffset;
+    vertexOffset += part.position.length / 3;
   }
-  geometry.setIndex(
-    new THREE.BufferAttribute(count < 65536 ? new Uint16Array(indices) : new Uint32Array(indices), 1),
-  );
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   return geometry;
 }
 function castArmor(style, add) {
@@ -336,6 +347,7 @@ function castArmor(style, add) {
       ),
     );
   }
+  if (style.witness) tailorWitness(style, { piece, line, geometry, drop });
   if (style.plate) {
     const chest = 'spine_03';
     // Mail at the collar fills the curved opening above the museum breastplate.
@@ -602,7 +614,11 @@ function costumeGeometry(style) {
       );
   }
   castArmor(style, add);
-  const kit = [...groups].map(([material, parts]) => [combineCast(parts), castSurface(material, style)]);
+  const kit = [...groups].map(([material, parts]) => {
+    const g = combineCast(parts);
+    if (style.witness) shapeWitnessFace(g, material, style);
+    return [g, castSurface(material, style)];
+  });
   castCostumes.set(style.id, kit);
   return kit;
 }
@@ -704,6 +720,7 @@ function poseCharacter(actor, state, t, rate = 1) {
   const dt = u.previousTime === undefined ? 0 : Math.min(0.18, Math.max(0, t - u.previousTime));
   u.previousTime = t;
   mixer.update(dt);
+  if (u.actorStyle.witness) animateWitness(actor, t);
 }
 function poseTwoBoneChain(upper, lower, tip, goal, hint) {
   const p = (b) => b.getWorldPosition(new THREE.Vector3());
@@ -801,12 +818,18 @@ function plantTravelFeet(actor, t) {
     const toe = f.toe.getWorldPosition(new THREE.Vector3());
     const surface = walkingSurface(toe.x, toe.z),
       height = toe.y - surface;
-    if (dt > 0.16 || (f.planted && f.anchor.distanceTo(toe) > 0.27)) {
+    if (dt > 0.25 || (f.planted && f.anchor.distanceTo(toe) > 1)) {
       f.planted = false;
       f.offset.set(0, 0, 0);
     }
+    // Let the sole roll out of contact instead of re-anchoring a stretched knee mid-step.
+    if (f.planted && f.anchor.distanceTo(toe) > 0.24) {
+      f.planted = false;
+      f.release = true;
+    }
+    if (height > 0.052) f.release = false;
     if (f.planted && height > 0.057) f.planted = false;
-    if (!f.planted && height < 0.039) {
+    if (!f.planted && !f.release && height < 0.039) {
       f.planted = true;
       f.anchor.copy(toe).add(f.offset);
       f.anchor.y = surface + 0.026;
@@ -822,9 +845,34 @@ function plantTravelFeet(actor, t) {
     f.ankle.quaternion.copy(f.lower.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(sole));
   }
 }
+// On the march the shield is carried against the forearm and the blade points down.
+// The legs retain their measured walking clip. Keep the original arm rotations for
+// the next mixer sample, including frames on which a constant track is not written.
+function carryEscortArms(actor, dt, marching) {
+  const u=actor.userData;
+  const amount=THREE.MathUtils.damp(u.carryAmount || 0,marching ? .68 : 0,12,dt);
+  u.carryAmount=amount;
+  if(amount<.002)return;
+  if(!u.carryBones){
+    const sex=u.actorStyle.sex,rig=borderCast.rigs[sex],clip=borderCast.clips[sex].armed;
+    u.carryBones=['clavicle_l','clavicle_r','upperarm_l','upperarm_r','lowerarm_l','lowerarm_r','hand_l','hand_r'].map(name=>{
+      const vals=castValues(clip.q[rig.bones.indexOf(name)],Int16Array);
+      const at=Math.floor((vals.length/4-1)*.47)*4;
+      return {bone:u.skeleton.getBoneByName(name),pose:new THREE.Quaternion().fromArray(vals,at).normalize()};
+    });
+  }
+  for(const {bone,pose} of u.carryBones){
+    u.turnBones.push([bone,bone.quaternion.clone()]);
+    bone.quaternion.slerp(pose,amount*(bone.name.startsWith('clavicle')?.42:1));
+  }
+}
 function animateCastActor(m, a, t, fellBeforeLoad) {
   const u = m.userData;
   u.phase = a.id;
+  if (u.turnBones) {
+    for (const [bone, q] of u.turnBones) bone.quaternion.copy(q);
+    u.turnBones.length = 0;
+  }
   if (a.hp <= 0) {
     poseCharacter(m, 'death', t, 1.18);
     if (fellBeforeLoad) {
@@ -856,13 +904,13 @@ function animateCastActor(m, a, t, fellBeforeLoad) {
     const groundSpeed = state === 'run' ? (female ? 5.78 : 6.0) : female ? 0.984 : 1.008;
     rate = clamp(speed / groundSpeed, 0.39, state === 'run' ? 1.55 : 2.1);
   }
-  if (u.turnBones) {
-    for (const [bone, q] of u.turnBones) bone.quaternion.copy(q);
-    u.turnBones.length = 0;
-  }
+
+  const elapsed = clamp(t - (u.previousTime ?? t), 0, 0.18);
   poseCharacter(m, state, t, rate);
   if (u.skeleton) {
     u.turnBones ||= [];
+    if (a.tag === 'escort')
+      carryEscortArms(m, elapsed, (state === 'walk' || state === 'run') && a.team === 'escort');
     const pivot = (a.gaitSpeed || 0) < 0.26 && Math.abs(a.turnRate || 0) > 0.46 && !(a.stagger > 0);
     const travelling = state === 'walk' || state === 'run' || state === 'block' || u.strideFeet;
     if (!pivot && travelling && m.position.distanceToSquared(world.camera.position) < 22 ** 2)

@@ -361,7 +361,8 @@ function bindHuntJournal() {
   for (const b of document.querySelectorAll('[data-hunt]'))
     b.onclick = () => {
       game.trackHunt = game.trackHunt === b.dataset.hunt ? null : b.dataset.hunt;
-      game.markHall = null;
+      game.markHall = game.markMarch = null;
+      if (game.oath) game.oath.tracked = false;
       if (game.exploration) game.exploration.tracked = null;
       closeModal();
       drawHud();

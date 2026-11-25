@@ -69,11 +69,25 @@ function scoreAir(duck) {
   }
   const zone = zoneAt(game.x, game.z),
     dz = wrapped(streamZ(game.x) - game.z);
-  const near = Math.max(0, 1 - Math.abs(dz) / 24);
+  const local = game.march;
+  let near = Math.max(0, 1 - Math.abs(dz) / 24),
+    right = -Math.sin(game.yaw) * Math.sign(dz) * Math.min(1, Math.abs(dz) / 3);
+  if (local) {
+    const shore = marchShore(local.x, local.z),
+      stream = local.z > 74 ? Math.abs(local.x - marchStream(local.z)) - 2.7 : Infinity;
+    near = 1 - Math.min(1, Math.max(0, Math.min(shore, stream)) / 34);
+    let dx = -Math.sign(local.x - marchStream(local.z)),
+      dz = 0;
+    if (shore < stream) {
+      dx = marchShore(local.x - 0.5, local.z) - marchShore(local.x + 0.5, local.z);
+      dz = marchShore(local.x, local.z - 0.5) - marchShore(local.x, local.z + 0.5);
+    }
+    right = (dx * Math.cos(game.yaw) - dz * Math.sin(game.yaw)) / (Math.hypot(dx, dz) || 1);
+  }
   const master = prefs.effects * (duck ? 0.4 : 1) * ($('dialog').open ? 0.45 : 1) * (game.inside ? 0.055 : 1);
-  const grove = (zone === 2 ? 0.53 : zone === 0 ? 0.33 : zone === 1 ? 0.16 : 0.1) * master;
+  const grove =
+    (local ? 0.41 - 0.18 * near : zone === 2 ? 0.53 : zone === 0 ? 0.33 : zone === 1 ? 0.16 : 0.1) * master;
   const water = near * near * master * 0.96;
-  const right = -Math.sin(game.yaw) * Math.sign(dz) * Math.min(1, Math.abs(dz) / 3);
   for (const [name, level, direction] of [
     ['grove', grove, 0],
     ['water', water, right * 0.74],

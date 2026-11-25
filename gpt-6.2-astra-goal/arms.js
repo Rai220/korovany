@@ -153,6 +153,12 @@ class ViewArm {
     this.rotation.z *= hand;
     this.shoulder.set(0.195 - lift * 0.019, -0.262 + lift * 0.026, -0.019 - lift * 0.044);
     this.shoulder.applyAxisAngle(this.pitchAxis, -this.bodyPitch);
+    if (this.sockets) {
+      // Both ends of the kinematic chain are articulated. Use the live shoulder of the
+      // rendered tunic even when the hero leans, looks down, or fights left-handed.
+      this.shoulder.copy(hand === 1 ? this.sockets.right : this.sockets.left);
+      this.shoulder.x *= hand;
+    }
     this.yoke.rotation.x = -this.bodyPitch;
     this.yoke.position.copy(this.shoulder);
     this.yoke.position.x -= 0.177;

@@ -224,7 +224,8 @@ function fieldTrack(id) {
   const s = fieldState();
   s.tracked = s.tracked === id ? null : id;
   if (s.tracked) {
-    game.markHall = null;
+    game.markHall = game.markMarch = null;
+    if (game.oath) game.oath.tracked = false;
     game.trackHunt = null;
   }
   checkpoint();
@@ -307,7 +308,8 @@ function fieldPage(id, title, body, buttons, clip, detail = '') {
 function fieldBegin(id) {
   fieldPay(id + '-begun', 10, fieldCases[id].title, (s) => {
     s.tracked = id;
-    game.markHall = null;
+    game.markHall = game.markMarch = null;
+    if (game.oath) game.oath.tracked = false;
     game.trackHunt = null;
   });
   fieldClose();

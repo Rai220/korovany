@@ -386,9 +386,11 @@ class RoomJoinery {
     const room = this.room,
       hall = room.kind === 'hall',
       renderer = this.world.renderer;
-    // Capture each side once from beyond the matching exterior wall. Turning at a window reprojects
-    // the view through the timber frame; the scene includes actual neighbouring buildings and trees.
-    const target = new THREE.WebGLRenderTarget(384, 288, { minFilter: THREE.LinearFilter, depthBuffer: true });
+    // Each wall has its own exterior camera. The projected view is refreshed as the light changes.
+    const target = new THREE.WebGLRenderTarget(384, 288, {
+      minFilter: THREE.LinearFilter,
+      depthBuffer: true,
+    });
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
     if (renderer) {
       const centerX = hall ? room.door.x : room.door.x - room.localX;
@@ -398,13 +400,20 @@ class RoomJoinery {
       const lens = new THREE.PerspectiveCamera(106, 4 / 3, 0.1, 300);
       lens.position.set(wx, ground(wx, wz) + height + (hall ? 3.32 : 0.05), wz);
       lens.lookAt(wx + outward * 12, lens.position.y, wz);
-      const previous = renderer.getRenderTarget();
-      try {
-        renderer.setRenderTarget(target);
-        renderer.render(this.world.scene, lens);
-      } finally {
-        renderer.setRenderTarget(previous);
-      }
+      const draw = () => {
+        const previous = renderer.getRenderTarget();
+        const sky = this.world.skyMesh,
+          previousEye = sky.position.clone();
+        sky.position.copy(lens.position);
+        try {
+          renderer.setRenderTarget(target);
+          renderer.render(this.world.scene, lens);
+        } finally {
+          sky.position.copy(previousEye);
+          renderer.setRenderTarget(previous);
+        }
+      };
+      (this.scene.userData.windowViews ||= []).push(draw);
     }
     const mat = new THREE.MeshBasicMaterial({ map: target.texture, color: 0xf3f5eb, side: THREE.DoubleSide });
     mat.onBeforeCompile = (shader) => {
@@ -799,6 +808,7 @@ function buildFurnishedRoom(world, id) {
   daylight.shadow.bias = -0.0006;
   daylight.shadow.normalBias = 0.024;
   sc.add(daylight, daylight.target);
+  sc.userData.day = daylight;
   const fire = new THREE.PointLight(0xffb364, hall ? 22 : 6.4, hall ? 15 : 6.6, 1.65);
   fire.position.set(hall ? 0 : 1.98, hall ? 4.53 : 1.27, hall ? -1.48 : 0.54);
   fire.userData.base = fire.intensity;

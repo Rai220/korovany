@@ -175,25 +175,33 @@ class Borderlands extends FrontierLandscape {
       ]) {
         const towerX = x + side * 12,
           towerZ = z + dz;
-        this.put(this.log, stone, towerX, 1.0, towerZ, r * 1.046, 0.23, r * 1.046);
-        this.put(this.log, stone, towerX, height - 1.17, towerZ, r * 1.07, 0.26, r * 1.07);
-        for (let j = 0; j < 10; j++) {
-          const a = (j * Math.PI) / 5,
-            dx = Math.sin(a),
-            dz = Math.cos(a);
-          this.block(
-            towerX + dx * r * 0.99,
-            height - 0.72,
-            towerZ + dz * r * 0.99,
-            0.33,
-            0.5,
-            0.36,
-            stone,
-            a,
-          );
-          if (j % 2 === 0) {
-            this.block(towerX + dx * r, 3.31, towerZ + dz * r, 0.18, 1.02, 0.1, 0x454944, a);
-            this.block(towerX + dx * r, 3.03, towerZ + dz * r, 0.42, 0.12, 0.1, 0x454944, a);
+        for (const side of [-1, 1]) {
+          this.block(towerX, 1.04, towerZ + side * r * 0.95, r * 1.98, 0.19, 0.18, stone);
+          this.block(towerX + side * r * 0.95, 1.04, towerZ, 0.18, 0.19, r * 1.98, stone);
+          for (const k of [-0.72, 0, 0.72]) {
+            this.block(
+              towerX + k * r,
+              height - 0.88,
+              towerZ + side * r * 0.99,
+              0.32,
+              0.68,
+              0.37,
+              dark ? 0x594431 : stone,
+              0,
+              0,
+              side * 0.22,
+            );
+            this.block(
+              towerX + side * r * 0.99,
+              height - 0.88,
+              towerZ + k * r,
+              0.37,
+              0.68,
+              0.32,
+              dark ? 0x594431 : stone,
+              0,
+              -side * 0.22,
+            );
           }
         }
       }
@@ -641,9 +649,11 @@ class Borderlands extends FrontierLandscape {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    this.countryShafts = [];
     for (let j = 0; j < 18; j++) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6 + this.rnd() * 2.7, 18 + this.rnd() * 7), rayMat);
       m.position.set(-70 + this.rnd() * 42, 7, 30 + this.rnd() * 40);
+      this.countryShafts.push(m);
       m.rotation.z = -0.53;
       m.rotation.y = 0.23;
       this.scene.add(m);
@@ -668,30 +678,7 @@ class Borderlands extends FrontierLandscape {
   updateAtmosphere(s, t) {
     cameraFoliageClearance.value =
       s.delivery && !s.delivery.seated ? 7.3 : prefs.camera === 'third' ? 3.35 : 0.55;
-    const alpha =
-      (1 - rimBlend(s.x, s.z)) *
-      Math.min(1, Math.max(0, (s.x - 6) / 24)) *
-      Math.min(1, Math.max(0, (s.z - 6) / 24));
-    this.storm = alpha;
-    const overlook = alpha * terrainFade(4, 17, ground(s.x, s.z));
-    this.horizonHaze.value = 0.64 + alpha * 0.28 + overlook * 0.07;
-    this.scene.fog.density = 0.0069 + alpha * 0.0034 - overlook * 0.0028;
-    const colors = (this.weatherColors ||= [
-      0xcac9bc, 0xb9c2b6, 0xa8adba, 0xffe3b8, 0xd8dbe8, 0xd5e2f1, 0xbfcadb,
-    ].map((c) => new THREE.Color(c)));
-    const forest =
-      THREE.MathUtils.smoothstep(-s.x, 0, 38) *
-      THREE.MathUtils.smoothstep(s.z, 0, 37) *
-      (1 - rimBlend(s.x, s.z));
-    this.scene.fog.color.copy(colors[0]).lerp(colors[1], forest).lerp(colors[2], alpha);
-    this.sun.intensity = 2.05 - alpha * 1.16 - forest * 0.12;
-    this.sun.color.copy(colors[3]).lerp(colors[4], alpha);
-    this.skylight.color.copy(colors[5]).lerp(colors[6], alpha);
-    this.skylight.intensity = 1.37 + alpha * 0.16;
-    this.skyMesh.material.color.setRGB(1 - alpha * 0.39, 0.97 - alpha * 0.29, 0.89 - alpha * 0.13);
-    this.rain.visible = alpha > 0.16;
-    this.rain.position.set(s.x, ground(s.x, s.z) + 4 - ((t * 7) % 4), s.z);
-    this.rain.material.opacity = alpha * 0.32;
+    updateCountryAir(this, s, t);
     this.smoke.forEach(({ m, vent, offset }) => {
       const p = (t * 0.15 + offset) % 1;
       m.position.set(nearest(vent[0] + p * p * 1.8, s.x), vent[1] + p * 3, nearest(vent[2] + p * 0.35, s.z));

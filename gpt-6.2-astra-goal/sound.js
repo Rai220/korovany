@@ -7,6 +7,7 @@ const scoreTracks = Object.fromEntries(
     ['road', 'salt-road', 40, 6, 60 / (84 * 3)],
     ['battle', 'fifth-hoof', 32, 10, 60 / (148 * 2)],
     ['fair', 'crossing-at-dawn', 48, 6, 60 / (112 * 3)],
+    ['mere', 'bells-over-the-mere', 32, 6, 60 / (88 * 2)],
     ['mill', 'mill-archive', 32, 6, 60 / (87 * 2)],
   ].map(([key, file, bars, pulses, pulseDuration]) => [
     key,
@@ -41,6 +42,7 @@ let stepBeat = 0;
 
 function scoreScene(now) {
   if (scoreMode === 'menu' || !active || !game) return 'road';
+  if (game.march) return game.marchFauna?.some((h) => h.hp > 0 && h.engaged) ? 'battle' : 'mere';
   if (game.delivery || ($('dialog').open && document.querySelector('#dialog-body .cow-office')))
     return 'fair';
   if (game.dungeon && game.health > 0 && dungeonState().foes.some((a) => a.hp > 0 && a.alert > 0))
@@ -325,12 +327,18 @@ function soundscape(dt, moving, sprinting) {
   if (moving && stepBeat <= 0 && game.air <= 0.05) {
     stepBeat = sprinting ? 0.32 : 0.49;
     stepSide *= -1;
-    const stone = zoneAt(game.x, game.z) === 1;
-    const wet = creekDepth(game.x, game.z) > 0.32;
+    const local = game.march;
+    const deck = local ? marchDeck(local.x, local.z) : null,
+      wood = deck != null && Math.abs(local.z - 5) > 2;
+    const stone = local ? deck != null && !wood : zoneAt(game.x, game.z) === 1;
+    const wet = local
+      ? deck == null && marchFloor(local.x, local.z) < marchWater + 0.08
+      : creekDepth(game.x, game.z) > 0.32;
     const pan = stepSide * 0.13;
     noiseFoley(wet ? 0.18 : 0.073, wet ? 2630 : stone ? 1850 : 900, wet ? 0.18 : 0.15, pan);
     noiseFoley(0.105, wet ? 1340 : stone ? 980 : 520, 0.063, pan, 0.044);
-    resonantFoley(stone ? 107 : 82, 0.078, 0.097, 48, 0, pan);
+    resonantFoley(wood ? 168 : stone ? 107 : 82, wood ? 0.12 : 0.078, 0.097, wood ? 93 : 48, 0, pan);
+    if (wood) resonantFoley(281, 0.068, 0.026, 200, 0.014, pan);
   }
 }
 

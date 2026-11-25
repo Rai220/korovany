@@ -38,7 +38,9 @@ function trailCompass(player, target) {
   pen.lineTo(width / 2, 27);
   pen.fill();
   if (!target || player.inside) return;
-  const a = Math.atan2(-wrapped(target.x - player.x), -wrapped(target.z - player.z));
+  const dx = target.x - player.x,
+    dz = target.z - player.z;
+  const a = Math.atan2(-(player.march ? dx : wrapped(dx)), -(player.march ? dz : wrapped(dz)));
   const off = (-angles(a - player.yaw) * 180) / Math.PI;
   const x = width / 2 + clamp(off, -53, 53) * scale;
   pen.fillStyle = '#ffcf6e';

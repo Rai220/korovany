@@ -514,6 +514,7 @@ class InteriorRealm extends Borderlands {
     );
     this.camera.rotation.set(s.pitch, s.yaw, 0, 'YXZ');
     this.hideHands();
+    lightCountryRoom(this, sc, s, t);
     const fire = sc.userData.fire;
     if (fire)
       fire.intensity = (fire.userData.base || 13) * (1 + 0.07 * Math.sin(t * 4.5) + 0.026 * Math.sin(t * 13));
