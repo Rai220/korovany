@@ -149,23 +149,40 @@ module.exports = async function checkLakeMarch(browser) {
     assert.ok(coverage.checks > 14000);
     assert.ok(coverage.wet && coverage.edge && coverage.cliff);
     assert.ok(coverage.hours[1].glass > coverage.hours[0].glass + 1 && coverage.hours[1].sky > 0.9);
+    // Space activates a focused atlas pin without sending a jump into the world behind the dialog.
+    await page.keyboard.press('m');
+    await page.locator('[data-march-mark="station"]').focus();
+    await page.keyboard.press('Space');
+    assert.deepEqual(
+      await page.evaluate(() => [game.march.mark, $('dialog').open, game.air, game.vy]),
+      ['station', false, 0, 0],
+    );
     await page.keyboard.press('m');
     await page.click('[data-march-mark="quarry"]');
     assert.equal(await page.evaluate(() => marchNavigation().target === marchSites.quarry), true);
+    // Some browsers keep the closed SVG control as the keyboard target.
+    await page.locator('[data-march-mark="quarry"]').dispatchEvent('keydown', { key: 'Enter', code: 'Enter' });
+    assert.equal(await page.evaluate(() => game.march.mark), 'quarry', 'Hidden map pin changed the route');
     await page.keyboard.press('Space');
-    assert.ok(
-      (await page.evaluate(() => {
-        for (let i = 0; i < 5; i++) step(0.03);
-        return game.air;
-      })) > 0.6,
-    );
+    const jumped = await page.evaluate(() => {
+      for (let i = 0; i < 5; i++) step(0.03);
+      return { air: game.air, mark: game.march.mark };
+    });
+    assert.ok(jumped.air > 0.6 && jumped.mark === 'quarry', JSON.stringify(jumped));
     await page.keyboard.press('k');
     const written = await page.evaluate(() => {
       const saved = readSlot();
-      return { mark: saved.march.mark, valid: valid(saved), x: saved.march.x, z: saved.march.z };
+      const manual = JSON.parse(localStorage.getItem(saveKey()));
+      return {
+        live: game.march.mark,
+        manual: manual?.march?.mark,
+        mark: saved?.march?.mark,
+        valid: valid(saved),
+        x: saved?.march?.x,
+        z: saved?.march?.z,
+      };
     });
-    assert.equal(written.valid, true);
-    assert.equal(written.mark, 'quarry');
+    assert.ok(written.valid && written.manual === 'quarry' && written.mark === 'quarry', JSON.stringify(written));
     await page.evaluate(() => menu());
     await page.waitForFunction(() => !active && !document.pointerLockElement);
     await page.locator('#resume:enabled').click();

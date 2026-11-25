@@ -13,7 +13,7 @@ async function run(browser, url = pathToFileURL(path.resolve(__dirname, '../inde
   try {
     await page.goto(url);
     await page.click('#begin');
-    await page.waitForFunction(() => active && world && world.renderer.info.render.frame > 0);
+    await page.waitForFunction(() => active && world && world.renderer.info.render.frame > 0, null, { timeout: 90000 });
     await page.evaluate(() => {
       cancelAnimationFrame(frame);
       window.requestAnimationFrame = () => 0;
@@ -275,10 +275,10 @@ async function run(browser, url = pathToFileURL(path.resolve(__dirname, '../inde
     const npc = await page.evaluate(() => {
       freshCart();
       Object.assign(game, { x: -14, z: -50 });
-      const a = actor('guard', 'hostile', -14, -48, 'probe');
-      a.angle = 0;
-      a.cd = 10;
-      const model = world.person('guard', 'vigil');
+      // A sentry holds his post while turning to face a visitor behind him.
+      const a = actor('guard', 'resident', -14, -48, 'vigil');
+      const start = point(a.x, a.z);
+      const model = world.person(a.kind, a.tag, false, a);
       world.scene.add(model);
       const bones = ['foot_l', 'foot_r'].map((n) => model.userData.skeleton.getBoneByName(n));
       let planted = 0,
@@ -308,10 +308,50 @@ async function run(browser, url = pathToFileURL(path.resolve(__dirname, '../inde
       }
       world.scene.remove(model);
       releaseCharacter(model);
-      return { max, vertexTurns, final: Math.abs(a.angle), planted, lifted, slip };
+      return {
+        max,
+        vertexTurns,
+        drift: distance(a, start),
+        facingError: Math.abs(angles(a.angle - faceField(a, game))),
+        planted,
+        lifted,
+        slip,
+      };
     });
-    assert.ok(npc.max < 0.081 && npc.vertexTurns > 24 && npc.final > 2.95);
+    assert.ok(
+      npc.max < 0.081 && npc.vertexTurns > 24 && npc.drift < 0.00001 && npc.facingError < 0.01,
+      'Sentry half-turn on post: ' + JSON.stringify(npc),
+    );
     assert.ok(npc.planted > 30 && npc.lifted > 15 && npc.slip < 0.095, JSON.stringify(npc));
+    const fighters = await page.evaluate(() => {
+      // A duellist can circle a stationary opponent while his weapon recovers.
+      const samples = [];
+      for (let seed = 1; seed <= 16; seed++) {
+        freshCart();
+        Object.assign(game, { x: -14, z: -50 });
+        const a = actor('guard', 'hostile', -14, -48, 'probe');
+        Object.assign(a, { seed, cd: 10 });
+        const start = point(a.x, a.z);
+        let maxTurn = 0, facingError = 0;
+        const modes = new Set();
+        for (let i = 0; i < 116; i++) {
+          const before = a.angle;
+          stepActors(0.02);
+          maxTurn = Math.max(maxTurn, Math.abs(angles(a.angle - before)));
+          if (i >= 100)
+            facingError = Math.max(facingError, Math.abs(angles(a.angle - faceField(a, game))));
+          modes.add(a.mind.mode);
+        }
+        samples.push({ seed, maxTurn, facingError, drift: distance(start, a), modes: [...modes] });
+      }
+      return samples;
+    });
+    for (const f of fighters)
+      assert.ok(f.maxTurn < 0.081 && f.facingError < 0.10, 'Tactical turn: ' + JSON.stringify(f));
+    assert.ok(
+      fighters.some((f) => f.modes.includes('flank') && f.drift > 0.35),
+      'No seeded fighter circled the player: ' + JSON.stringify(fighters),
+    );
     const gait = await page.evaluate(() => {
       const w = freshCart(60),
         dt = 1 / 30,

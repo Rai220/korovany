@@ -34,16 +34,21 @@ function installDriver() {
   };
 }
 
-async function main() {
-  const browser = await chromium.launch({
-    executablePath: process.env.BROWSER_EXECUTABLE || undefined,
-    args: ['--enable-unsafe-swiftshader'],
-  });
+async function openRoad(page, errors, address) {
+  page.on('pageerror', (e) => errors.push(String(e)));
+  if (process.env.QA_LIGHT)
+    await page.addInitScript(() => {
+      localStorage.setItem('korovany.goal.preferences', JSON.stringify({ quality: 'light' }));
+    });
+  await page.goto(address);
+}
+
+async function checkPostRoad(browser, address = url) {
+  const p = await browser.newPage({ viewport: { width: 1000, height: 690 } });
+  const errors = [];
+  let mobile;
   try {
-    const p = await browser.newPage({ viewport: { width: 1000, height: 690 } });
-    const errors = [];
-    p.on('pageerror', (e) => errors.push(String(e)));
-    await p.goto(url);
+    await openRoad(p, errors, address);
     await p.click('#post-race');
     await p.click('#post-start');
     await p.keyboard.press('v');
@@ -134,14 +139,13 @@ async function main() {
     );
     await p.close();
 
-    const mobile = await browser.newPage({
+    mobile = await browser.newPage({
       viewport: { width: 412, height: 850 },
       isMobile: true,
       hasTouch: true,
       deviceScaleFactor: 1.5,
     });
-    mobile.on('pageerror', (e) => errors.push(String(e)));
-    await mobile.goto(url);
+    await openRoad(mobile, errors, address);
     await mobile.tap('#post-race');
     await mobile.tap('#post-start');
     const stick = await mobile.locator('#stick').boundingBox(),
@@ -153,16 +157,22 @@ async function main() {
       type: 'touchMove',
       touchPoints: [{ x, y: y - stick.height * 0.31 }],
     });
-    await mobile.waitForFunction(() => keys.has('KeyW') && game.delivery.speed > 0.25);
+    await mobile.waitForFunction(() => keys.has('KeyW') && game.delivery.speed > 0.25 && game.wagon.z < 38.98);
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    assert.equal(await mobile.evaluate(() => keys.has('KeyW')), false);
+    await client.detach();
     await mobile.evaluate(() => {
+      // Driving has run in real time. Keep this approach still while tapping its two dashboard controls.
+      cancelAnimationFrame(frame);
       game.wagon.z = 29;
       game.z = 29;
       game.delivery.bell = 0;
     });
+    assert.deepEqual(await mobile.evaluate(() => [keys.has('KeyW'), stickId]), [false, null]);
     await mobile.tap('#post-view');
-    assert.equal(await mobile.evaluate(() => game.delivery.seated), true);
+    assert.deepEqual(
+      await mobile.evaluate(() => [game.delivery.seated, $('post-view').getAttribute('aria-pressed')]),
+      [true, 'true'],
+    );
     await mobile.tap('#post-bell');
     assert.equal(await mobile.evaluate(() => game.delivery.opened), true);
     assert.deepEqual(errors, []);
@@ -170,10 +180,24 @@ async function main() {
       'PASS — two keyboard driving lines, barriers, fragile cargo, timer pause, recovery penalty, best result, defeat, campaign pay and touch steering/bell.',
     );
   } finally {
-    await browser.close();
+    if (mobile) await mobile.close();
+    if (!p.isClosed()) await p.close();
   }
 }
-main().catch((e) => {
-  console.error(e);
-  process.exitCode = 1;
-});
+
+module.exports = checkPostRoad;
+if (require.main === module)
+  (async () => {
+    const browser = await chromium.launch({
+      executablePath: process.env.BROWSER_EXECUTABLE || undefined,
+      args: ['--enable-unsafe-swiftshader'],
+    });
+    try {
+      await checkPostRoad(browser);
+    } finally {
+      await browser.close();
+    }
+  })().catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  });

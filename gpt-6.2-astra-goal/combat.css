@@ -1,0 +1,137 @@
+#hurt {
+  background:
+    radial-gradient(
+      ellipse 48% 47% at var(--hit-x, 50%) var(--hit-y, 100%),
+      #d23c31e8 0%,
+      #981d1aa8 34%,
+      transparent 100%
+    ),
+    radial-gradient(ellipse at center, transparent 39%, #5b0d1166 64%, #a01922d6 89%, #700e17 100%);
+  transition: none;
+  pointer-events: none;
+}
+#blood-loss {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 34%, #37081030 62%, #651122ba 87%, #490b15f2);
+  transition: opacity 240ms ease-out;
+}
+.health-low #blood-loss {
+  opacity: 0.71;
+}
+.health-critical #blood-loss {
+  opacity: 1;
+}
+#blood-loss::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 44%, #be26365e 100%);
+}
+.health-low #blood-loss::after {
+  animation: blood-pulse 1.12s ease-out infinite;
+}
+.health-critical #blood-loss::after {
+  animation-duration: 0.83s;
+}
+@keyframes blood-pulse {
+  0%,
+  64%,
+  100% {
+    opacity: 0.12;
+  }
+  15% {
+    opacity: 0.88;
+  }
+  31% {
+    opacity: 0.23;
+  }
+  40% {
+    opacity: 0.56;
+  }
+}
+#hit-arc {
+  --diameter: clamp(120px, 20vmin, 178px);
+  inset: 50% auto auto 50%;
+  width: var(--diameter);
+  height: var(--diameter);
+  margin: calc(var(--diameter) / -2);
+  border: 0;
+  border-radius: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+#hit-arc i {
+  position: absolute;
+  inset: 0;
+  filter: drop-shadow(0 1px 2px #310604);
+}
+#hit-arc i::before,
+#hit-arc i::after {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#hit-arc i::before {
+  width: 44%;
+  height: 12%;
+  top: 0;
+  background: linear-gradient(#ffcfad, #ff6351 45%, #c2292bc9);
+  clip-path: polygon(0 51%, 22% 15%, 42% 0, 58% 0, 78% 15%, 100% 51%, 69% 38%, 50% 96%, 31% 38%);
+}
+#hit-arc i::after {
+  top: -4px;
+  width: 18%;
+  height: 2px;
+  background: #ffd8c0;
+}
+#impact-call {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + clamp(68px, 12vmin, 108px));
+  transform: translateX(-50%);
+  color: #ffe1d2;
+  padding: 4px 15px 6px;
+  white-space: nowrap;
+  background: linear-gradient(90deg, transparent, #380e11e3 18% 82%, transparent);
+  text-shadow: 0 1px 3px #310908;
+  font: 650 clamp(12px, 1.4vw, 16px)/1.2 var(--sans);
+  letter-spacing: 0.035em;
+  pointer-events: none;
+}
+#health-warning {
+  display: none;
+  margin-top: 6px;
+  color: #ffc5b7;
+  font: 650 12px/1.25 var(--sans);
+}
+.health-low #health-warning {
+  display: block;
+}
+.health-low .vitals {
+  border-color: #9a584b;
+}
+.health-low #hp {
+  color: #ffbeaa;
+}
+.health-low #hpbar {
+  background: #e05c48;
+}
+.health-critical #hpbar {
+  background: #fa5444;
+}
+@media (prefers-reduced-motion: reduce) {
+  #blood-loss,
+  #blood-loss::after {
+    transition: none;
+  }
+  .health-low #blood-loss::after {
+    animation: none;
+    opacity: 0.32;
+  }
+}

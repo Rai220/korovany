@@ -14,25 +14,77 @@ module.exports = async function checkOpening(
     if (m.type() === 'error' && /shader|THREE|WebGL/i.test(m.text())) errors.push(m.text());
   });
   try {
+    if (process.env.QA_LIGHT)
+      await page.addInitScript(() => {
+        localStorage.setItem('korovany.goal.preferences', JSON.stringify({ quality: 'light' }));
+      });
+    await page.addInitScript(() => {
+      const play = HTMLMediaElement.prototype.play;
+      window.quayMedia = { events: [], finished: [], sample: null, error: null };
+      HTMLMediaElement.prototype.play = function (...args) {
+        if (!this.src.includes('/assets/oath/')) return play.apply(this, args);
+        const media = this,
+          log = window.quayMedia;
+        if (!media.quayObserver) {
+          media.quayObserver = (event) => {
+            if (!media.currentSrc.includes('/assets/oath/')) return;
+            const id = new URL(media.currentSrc).pathname
+              .split('/')
+              .pop()
+              .replace(/\.mp3$/, '');
+            if (event.type === 'ended') log.finished.push(id);
+            log.events.push([id, event.type, media.currentTime, media.readyState, media.error?.code]);
+            if (
+              id !== 'savva-intro' ||
+              log.sample ||
+              !prologue ||
+              prologue.shot !== 1 ||
+              media.currentTime <= 0.12 ||
+              !realmVoice.active
+            )
+              return;
+            log.sample = {
+              scene: prologue.v.scene === ensureMarchView(world).scene,
+              moved: prologue.camera.position.toArray(),
+              name: realmVoice.speaker,
+              body: prologue.savva.userData.actorStyle.witness,
+              lip: prologue.savva.children.some((m) => m.morphTargetInfluences),
+              boats: prologue.boat.position.x < prologue.boatOrigin.x,
+              words: $('opening-words').textContent,
+              seconds: media.currentTime,
+            };
+          };
+          for (const event of ['playing', 'timeupdate', 'ended', 'error'])
+            media.addEventListener(event, media.quayObserver);
+        }
+        const promise = play.apply(this, args);
+        promise.catch((error) => {
+          log.error = error.name + ' ' + error.message;
+        });
+        return promise;
+      };
+    });
     await page.goto(url);
     await page.locator('#oath-begin:enabled').click();
     await page.waitForFunction(() => active && prologue?.shot === 0 && world.renderer.info.render.frame > 0);
     const from = await page.evaluate(() => prologue.camera.position.toArray());
-    await page.waitForFunction(
-      () => prologue.shot === 1 && realmVoice.active && realmVoice.playhead > 0.12,
-      {},
-      { timeout: 45000 },
-    );
-    const played = await page.evaluate(() => ({
-      scene: prologue.v.scene === ensureMarchView(world).scene,
-      moved: prologue.camera.position.toArray(),
-      name: realmVoice.speaker,
-      body: prologue.savva.userData.actorStyle.witness,
-      lip: prologue.savva.children.some((m) => m.morphTargetInfluences),
-      boats: prologue.boat.position.x < prologue.boatOrigin.x,
-      words: $('opening-words').textContent,
-      seconds: realmVoice.playhead,
-    }));
+    try {
+      await page.waitForFunction(() => !!quayMedia.sample, null, { polling: 100, timeout: 65000 });
+    } catch (error) {
+      const state = await page.evaluate(() => ({
+        shot: prologue?.shot,
+        elapsed: prologue?.elapsed,
+        paused: prologue?.paused,
+        hidden: document.hidden,
+        frames: world?.renderer.info.render.frame,
+        soundOn,
+        voice: prefs.voice,
+        clip: realmVoice.words,
+        audio: quayMedia,
+      }));
+      throw new Error('Quay audio: ' + JSON.stringify({ state, errors }), { cause: error });
+    }
+    const played = await page.evaluate(() => quayMedia.sample);
     assert.ok(played.scene && played.lip && played.boats && played.seconds > 0);
     assert.equal(played.body, 'savva');
     assert.equal(played.name, 'Савва');
@@ -43,8 +95,14 @@ module.exports = async function checkOpening(
     assert.equal(await page.evaluate(() => prologue.elapsed), paused);
     await page.locator('#opening-pause').click();
     await page.waitForFunction(() => prologue?.shot === 5 && !$('opening-choice').hidden, null, {
-      timeout: 65000,
+      timeout: process.env.QA_LIGHT ? 150000 : 90000,
     });
+    assert.deepEqual(await page.evaluate(() => quayMedia.finished), [
+      'savva-intro',
+      'vera-intro',
+      'savva-question',
+      'vera-promise',
+    ]);
     await page.locator('[data-landing="token"]').click();
     await page.waitForFunction(() => !prologue && game.march && game.oath?.intro === 'token');
     const spawn = await page.evaluate(() => [game.march.x, game.march.z]);

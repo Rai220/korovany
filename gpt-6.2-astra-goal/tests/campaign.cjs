@@ -67,8 +67,10 @@ const { chromium } = require('playwright'),
           return seed / 4294967296;
         };
         soundOn = false;
-        window.nativeRAF = window.requestAnimationFrame;
-        window.requestAnimationFrame = () => 0;
+        window.nativeRAF = window.requestAnimationFrame.bind(window);
+        // The first real frame dismisses the loading screen. Simulation after that frame uses tick().
+        window.requestAnimationFrame = callback =>
+          $('entry-loading').hidden ? 0 : window.nativeRAF(callback);
         window.tick = (n) => {
           for (let i = 0; i < n; i++) {
             if (!active || $('dialog').open || game.health <= 0) break;

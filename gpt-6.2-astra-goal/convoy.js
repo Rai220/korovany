@@ -69,6 +69,18 @@ function convoyState(w = game.wagon) {
     };
   return w.convoy;
 }
+function bowRhythm(a) {
+  if (!a.rhythm) {
+    const n = mixFieldSeed(
+      (game.aiSeed ?? game.side + 1) ^ Math.imul(8963 + (game.robbed || 0), 9176) ^ Math.imul(a.side, 12071),
+    );
+    const quick = a.side < 0 === (((game.aiSeed ?? game.side) & 1) === 1);
+    a.rhythm = { rng: n, quick };
+    a.rhythm.draw = (quick ? 0.77 : 0.96) + 0.15 * fieldRoll(a.rhythm);
+    a.rhythm.turn = 2.48 + 0.74 * fieldRoll(a.rhythm);
+  }
+  return a.rhythm;
+}
 function convoyPlace(w, lx, lz) {
   const c = Math.cos(w.angle),
     s = Math.sin(w.angle);
@@ -98,6 +110,9 @@ function alarmConvoy() {
   w.listening = 0;
   for (const a of game.actors)
     if (a.tag === 'escort' && a.hp > 0) {
+      assignEscortSide(a, w);
+      fieldMind(a);
+      a.cd = 0;
       a.team = 'hostile';
       a.path = null;
     }
@@ -326,22 +341,23 @@ function stepConvoy(w, dt) {
       a.fall = Math.min(1, (a.fall || 0) + dt * 2.5);
       continue;
     }
+    const rhythm = bowRhythm(a);
     const active = c.alarm && game.health > 0 && distance(a, game) < 29 && visiblePath(a, game);
     const desired = active
       ? Math.atan2(wrapped(game.x - a.x), wrapped(game.z - a.z)) - w.angle
       : Math.PI - a.side * 0.53;
-    a.aim += clamp(angles(desired - a.aim), -2.9 * dt, 2.9 * dt);
+    a.aim += clamp(angles(desired - a.aim), -rhythm.turn * dt, rhythm.turn * dt);
     if (!active) {
       a.draw = 0;
       continue;
     }
     a.wait = Math.max(0, a.wait - dt);
     if (a.wait > 0) continue;
-    a.draw = Math.min(1, a.draw + dt / 0.92);
+    a.draw = Math.min(1, a.draw + dt / rhythm.draw);
     if (a.draw >= 1) {
       fireConvoyArrow(w, a, c);
       a.draw = 0;
-      a.wait = 1.58 + (a.side + 1) * 0.24;
+      a.wait = (rhythm.quick ? 1.37 : 1.68) + 0.57 * fieldRoll(rhythm);
     }
   }
   convoyArrows(c, dt);

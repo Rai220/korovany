@@ -785,7 +785,7 @@ function buildFurnishedRoom(world, id) {
   else furnishHouse(j, id, room);
   j.finish();
   if (indoorCast[id]) {
-    const actor = world.person(...indoorCast[id], id !== 'palace' && id !== 'fort');
+    const actor = world.person(...indoorCast[id], id !== 'palace' && id !== 'fort', 'house/' + id);
     actor.position.set(hall ? 4.93 : -1.83, 0, hall ? 1.33 : 0.81);
     actor.rotation.y = hall ? -Math.PI / 2 : 0.87;
     sc.add(actor);

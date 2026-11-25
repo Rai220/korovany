@@ -543,8 +543,10 @@ function marchNavigation() {
   return pin ? { text: 'Метка · ' + pin.title, target: pin } : null;
 }
 function bindMarchMap() {
+  const dialog = $('dialog');
   for (const el of document.querySelectorAll('[data-march-mark], [data-lake-list]')) {
     const choose = () => {
+      if (!dialog.open || !game?.march) return;
       const id = el.dataset.marchMark || el.dataset.lakeList;
       game.march.mark = game.march.mark === id ? null : id;
       closeModal();
@@ -555,10 +557,11 @@ function bindMarchMap() {
     el.addEventListener('click', choose);
     if (el.hasAttribute('data-march-mark'))
       el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          choose();
-        }
+        // Focus can still be on this SVG pin after the map closes. Space then belongs to the game.
+        if (!dialog.open || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.repeat) choose();
       });
   }
 }

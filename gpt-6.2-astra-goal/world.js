@@ -877,7 +877,7 @@ class RealmGeometry {
       const range = distance(a, s);
       if (!m && range >= 85) return;
       if (!m) {
-        m = this.person(a.kind, a.tag);
+        m = this.person(a.kind, a.tag, false, a);
         m.userData.groundShadow = footShade();
         this.scene.add(m.userData.groundShadow);
         if (a.hp <= 0) m.userData.fellAt = t - 3;
@@ -900,7 +900,10 @@ class RealmGeometry {
         );
       }
       m.rotation.set(0, a.angle || 0, 0);
-      if (m.visible) animateCastActor(m, a, t, a.hp <= 0 && t - m.userData.fellAt > 2.5);
+      if (m.visible) {
+        animateCastActor(m, a, t, a.hp <= 0 && t - m.userData.fellAt > 2.5);
+        drawEnemyFlinch(m, a, t);
+      }
     });
     for (const [id, m] of this.actors)
       if (!s.actors.some((a) => a.id === id)) {
@@ -923,6 +926,7 @@ class RealmGeometry {
     this.animateDetails(s, t, attackAnim, bob);
     if (typeof frameHeroCamera === 'function') frameHeroCamera(this, s, t, attackAnim);
     if (s.delivery) setDeliveryCamera(this, s, t);
+    impactCamera(c, s);
     this.skyMesh.position.copy(c.position);
     updateFieldEffects(this, s, t);
     this.updateRiverMirror(s, t, c);

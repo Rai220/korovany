@@ -942,5 +942,6 @@ function renderDungeon(realm, s, t, attackAnim, bob) {
     poseCreature(model, m, t);
   }
   vaultStrikeParticles(v, state, t);
+  impactCamera(c, s);
   realm.renderer.render(v.scene, c);
 }

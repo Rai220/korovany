@@ -1,0 +1,206 @@
+.title-scene {
+  --region-art: url('./assets/roles/intro-elf.webp');
+  height: auto;
+  min-height: 0;
+  background: #26352d var(--region-art) center 48% / cover no-repeat;
+}
+.title-scene[data-side='1'] {
+  --region-art: url('./assets/roles/intro-guard.webp');
+}
+.title-scene[data-side='2'] {
+  --region-art: url('./assets/roles/intro-lord.webp');
+}
+.title-scene:after {
+  background:
+    linear-gradient(0deg, #111714, transparent 28%),
+    linear-gradient(90deg, #0b1715de 0%, #101c166c 38%, transparent 58%, #101613aa);
+}
+.role-layout {
+  max-width: 1480px;
+  width: 91%;
+  margin: auto;
+  min-height: min(610px, 76vh);
+  padding: clamp(32px, 5.7vh, 74px) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(282px, 365px);
+  gap: 6vw;
+  align-items: center;
+}
+.role-layout .title-copy {
+  margin: 0;
+  width: 100%;
+  height: auto;
+  padding: 0;
+}
+.role-layout .title-copy p {
+  max-width: 31em;
+  font: 500 clamp(14px, 1.12vw, 17px)/1.55 var(--sans);
+  color: #eee9db;
+}
+.role-layout .title-copy h2 {
+  font-size: clamp(76px, 8.7vw, 144px);
+}
+.choose-role {
+  padding: 18px 19px 20px;
+  background: linear-gradient(115deg, #101914f5, #161e19db);
+  border: 1px solid #9e8d6a7d;
+  box-shadow: 0 7px 28px #09100d70;
+}
+.choose-role h3,
+.muster-head h3 {
+  margin: 0;
+  color: #e1cda5;
+  font:
+    500 20px/1.2 Georgia,
+    serif;
+}
+.choose-role h3 {
+  margin-bottom: 15px;
+}
+.choose-role #factions {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.choose-role #factions .faction {
+  min-height: 69px;
+  padding: 11px 12px;
+  background-position: center 34%;
+}
+.choose-role .faction .insignia {
+  width: 28px;
+  height: 35px;
+}
+.choose-role .faction strong {
+  font-size: 20px;
+}
+.choose-role .faction small {
+  display: block;
+  font-size: 11px;
+  color: #dedbcf;
+}
+.choose-role .choice-dot {
+  display: none;
+}
+.role-launch {
+  display: flex;
+  gap: 7px;
+  margin-top: 14px;
+}
+.role-launch .primary,
+.role-launch .resume {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  margin: 0;
+}
+.role-launch .primary {
+  flex: 1;
+  justify-content: center;
+  gap: 12px;
+}
+.role-launch .primary i {
+  width: 17px;
+}
+.role-launch .resume {
+  font-size: 13px;
+}
+.muster {
+  padding-top: 12px;
+}
+.muster-head {
+  gap: 14px;
+}
+.other-entries {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.chapter-entry-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 87px;
+  padding: 15px 20px;
+  text-align: left;
+  color: #eee6cf;
+  border: 1px solid #686752;
+  cursor: pointer;
+  background:
+    linear-gradient(90deg, #101b17ef, #15221ca8 58%, #18251d75),
+    var(--card-picture) 73% 52% / cover;
+}
+.chapter-entry-card strong {
+  display: block;
+  font:
+    23px/1.2 Georgia,
+    serif;
+}
+.chapter-entry-card small {
+  display: block;
+  font: 12px/1.45 var(--sans);
+  color: #e0dccf;
+  margin-top: 5px;
+}
+.chapter-entry-card i {
+  color: #debd82;
+}
+.chapter-entry-card:hover,
+.chapter-entry-card:focus-visible {
+  border-color: #d3ba85;
+}
+.lake-entry {
+  --card-picture: url('./assets/lake-quay.webp');
+}
+.quick-entry {
+  --card-picture: url('./assets/patrol.webp');
+}
+@media (max-width: 700px) {
+  .role-layout {
+    width: 92%;
+    grid-template-columns: 1fr;
+    gap: 19px;
+    padding: 23px 0 16px;
+  }
+  .role-layout .title-copy h2 {
+    font-size: clamp(55px, 10vw, 75px);
+    line-height: 0.95;
+    margin: 9px 0 11px;
+  }
+  .role-layout .title-copy h2 br {
+    display: none;
+  }
+  .role-layout .title-copy h2 em::before {
+    content: ' ';
+  }
+  .role-layout .title-copy p {
+    font-size: 14px;
+    max-width: 38em;
+  }
+  .choose-role {
+    padding: 13px;
+  }
+  .choose-role h3 {
+    margin-bottom: 9px;
+  }
+  .choose-role #factions .faction {
+    min-height: 53px;
+    padding: 7px 11px;
+  }
+  .choose-role .faction strong {
+    font-size: 18px;
+  }
+  .role-launch {
+    margin-top: 9px;
+  }
+  .other-entries {
+    grid-template-columns: 1fr;
+  }
+  .chapter-entry-card {
+    min-height: 68px;
+    padding: 11px 14px;
+  }
+  .chapter-entry-card strong {
+    font-size: 20px;
+  }
+}

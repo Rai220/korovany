@@ -46,21 +46,21 @@ const sides = [
     role: 'Разведчик лесного союза',
     place: 2,
     img: 'elf',
-    desc: 'Защитите лесное поселение. Выведите обоз из-под удара или возьмите груз силой.',
+    desc: 'Пока жители уводят детей с лесной дороги, двое налётчиков выходят к домам. Вы разведчик. Удержите тропу.',
   },
   {
     name: 'Дворцовая стража',
     role: 'Солдат императорской гвардии',
     place: 1,
     img: 'guard',
-    desc: 'Получите приказ у капитана Арды. У ворот замечены разведчики, за перевалом собирается гарнизон.',
+    desc: 'Вы заступаете в дворцовый караул. У ворот видели чужих. Найдите капитана Арду и получите приказ своей смене.',
   },
   {
     name: 'Тёмный владыка',
     role: 'Повелитель горного форта',
     place: 3,
     img: 'lord',
-    desc: 'Вы командуете горным фортом. Удержите перевал и решите, куда поведёте дружину за припасами.',
+    desc: 'В горном форте дружина ждёт вашего слова. Соберите бойцов и решите, куда вести поход — к дворцу или в лес.',
   },
 ];
 const lands = [
@@ -120,8 +120,13 @@ function toast(text) {
 }
 function choose(i) {
   choice = i;
+  try {
+    localStorage.setItem('korovany.goal.side', String(i));
+  } catch {}
   const s = sides[i];
   $('hero-desc').textContent = s.desc;
+  $('role-location').textContent = lands[s.place].name;
+  document.querySelector('.title-scene').dataset.side = String(i);
   [...$('factions').children].forEach((el, j) => {
     el.classList.toggle('on', j === i);
     el.setAttribute('aria-pressed', j === i);
@@ -281,4 +286,9 @@ function audioButton() {
 }
 $('audio').onclick = audioToggle;
 audioButton();
-choose(0);
+let returningSide = 0;
+try {
+  const side = Number(localStorage.getItem('korovany.goal.side'));
+  if (Number.isInteger(side) && sides[side]) returningSide = side;
+} catch {}
+choose(returningSide);

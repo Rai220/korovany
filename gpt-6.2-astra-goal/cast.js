@@ -1,7 +1,7 @@
 'use strict';
 class Realm extends County {
-  person(kind, tag, unarmed = false) {
-    const actor = appearance(kind, tag, unarmed);
+  person(kind, tag, unarmed = false, identity = null) {
+    const actor = appearance(kind, tag, unarmed, identity);
     this.scene.add(actor);
     return actor;
   }

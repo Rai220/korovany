@@ -1128,7 +1128,7 @@ function marchForest(v, b, realm) {
 }
 function marchResidents(v, b) {
   const person = (kind, tag) => {
-    const actor = appearance(kind, tag, true);
+    const actor = appearance(kind, tag, true, 'lake/' + kind + '/' + tag);
     v.scene.add(actor);
     return actor;
   };
@@ -1524,5 +1524,6 @@ function renderMarch(realm, s, t, attackAnim, bob) {
     realm.updateHands(s, t, attackAnim, bob);
   }
   if (typeof renderMarchWildlife === 'function') renderMarchWildlife(v, s, t);
+  impactCamera(c, s);
   renderMarchCamera(realm, c, t);
 }

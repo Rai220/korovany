@@ -5,18 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#171817" />
     <title>Соляной тракт — Gpt-6.2-Astra + Goal (gpt-6.2-astra)</title>
-    <link rel="preload" as="image" href="./assets/lake-quay.webp?v=quay2" fetchpriority="high" />
-    <link rel="prefetch" as="image" href="./assets/atlas.webp?v=quay2" />
-    <link rel="icon" href="./assets/mark.svg?v=quay2" type="image/svg+xml" />
-    <link rel="stylesheet" href="./style.css?v=quay2" />
-    <link rel="stylesheet" href="./edition.css?v=quay2" />
-    <link rel="stylesheet" href="./post.css?v=quay2" />
-    <link rel="stylesheet" href="./assets/exploration/field.css?v=quay2" />
-    <link rel="stylesheet" href="./frontier.css?v=quay2" />
-    <link rel="stylesheet" href="./salt.css?v=quay2" />
-    <link rel="stylesheet" href="./assets/oath/oath.css?v=quay2" />
-    <link rel="stylesheet" href="./opening.css?v=quay2" />
-    <script src="./boot.js?v=quay2"></script>
+    <link rel="preload" as="image" href="./assets/roles/intro-elf.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="./assets/roles/intro-guard.webp" fetchpriority="low" />
+    <link rel="preload" as="image" href="./assets/roles/intro-lord.webp" fetchpriority="low" />
+    <link rel="prefetch" as="image" href="./assets/atlas.webp?v=fronts1" />
+    <link rel="icon" href="./assets/mark.svg?v=fronts1" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css?v=fronts1" />
+    <link rel="stylesheet" href="./edition.css?v=fronts1" />
+    <link rel="stylesheet" href="./post.css?v=fronts1" />
+    <link rel="stylesheet" href="./assets/exploration/field.css?v=fronts1" />
+    <link rel="stylesheet" href="./frontier.css?v=fronts1" />
+    <link rel="stylesheet" href="./salt.css?v=fronts1" />
+    <link rel="stylesheet" href="./assets/oath/oath.css?v=fronts1" />
+    <link rel="stylesheet" href="./opening.css?v=fronts1" />
+    <link rel="stylesheet" href="./muster.css?v=fronts1" />
+    <link rel="stylesheet" href="./combat.css?v=fronts1" />
+    <script src="./boot.js?v=fronts1"></script>
   </head>
   <body>
     <header class="bar">
@@ -44,30 +48,35 @@
     </header>
     <main id="menu">
       <section id="campaign">
-        <div class="title-scene">
-          <div class="title-copy">
-            <span class="chapter-label">Хроники Пограничья · Озёрная марка</span>
-            <h2>Соляной<br /><em>тракт</em></h2>
-            <p>
-              Колокол переправы лежит на дне уже двадцать зим.<br />Сегодня на рассвете его услышали с берега.
-            </p>
-            <div class="chapter-launch"><button class="resume" id="resume" hidden disabled>Продолжить</button><button class="primary" id="oath-begin" type="button" disabled><span>Начать игру</span><i data-icon="arrow"></i></button><span>Колокол подо льдом</span></div>
+        <div class="title-scene" data-side="0">
+          <div class="role-layout">
+            <div class="title-copy">
+              <span class="chapter-label" id="role-location">Эльфийский лес</span>
+              <h2>Соляной<br /><em>тракт</em></h2>
+              <p id="hero-desc"></p>
+            </div>
+            <section class="choose-role" aria-labelledby="choose-heading">
+              <h3 id="choose-heading">Выберите свою сторону</h3>
+              <div id="factions" role="group" aria-labelledby="choose-heading"></div>
+              <div class="role-launch">
+                <button class="primary" id="role-begin" type="button" disabled>
+                  <span id="start-label">Подготовка мира…</span><i data-icon="arrow"></i>
+                </button>
+                <button class="resume" id="resume" hidden disabled>Продолжить</button>
+              </div>
+              <p id="menu-error" role="alert" hidden></p>
+            </section>
           </div>
         </div>
         <div class="muster">
-          <div class="muster-head">
-            <span class="chapter-label">Выберите свою сторону</span><span class="rule"></span>
-          </div>
-          <div id="factions" role="group" aria-label="Фракция героя"></div>
-          <p id="menu-error" role="alert" hidden></p>
-          <div class="launch-line">
-            <p id="hero-desc"></p>
-            <div>
-              <button class="primary" id="begin" disabled>
-                <i data-icon="swords"></i><span id="start-label">Подготовка мира…</span
-                ><i data-icon="arrow"></i>
-              </button>
-            </div>
+          <div class="muster-head"><h3>Другие начала</h3><span class="rule"></span></div>
+          <div class="other-entries">
+            <button class="chapter-entry-card lake-entry" id="oath-begin" type="button" disabled>
+              <span><strong>Колокол подо льдом</strong><small>Самостоятельная история в Озёрной марке</small></span><i data-icon="arrow"></i>
+            </button>
+            <button class="chapter-entry-card quick-entry" id="begin" type="button" disabled>
+              <span><strong>Сразу в кампанию</strong><small>Начать выбранной стороной без вступления</small></span><i data-icon="arrow"></i>
+            </button>
           </div>
           <button type="button" id="explore-entry" disabled><i data-icon="compass"></i><span><strong>Отправиться в экспедицию</strong><small>Свободный старт у старой переправы</small></span><i data-icon="arrow"></i></button>
           <button class="post-race" id="post-race" type="button" disabled>
@@ -103,8 +112,10 @@
         <b id="compass-dir" class="sr">С</b><canvas id="trail-compass"></canvas>
       </div>
       <div id="blind" hidden></div>
-      <div id="hurt"></div>
-      <div id="hit-arc"></div>
+      <div id="blood-loss" aria-hidden="true"></div>
+      <div id="hurt" aria-hidden="true"></div>
+      <div id="hit-arc" aria-hidden="true"><i hidden></i><i hidden></i><i hidden></i></div>
+      <div id="impact-call" hidden></div>
       <div class="cross"></div>
       <div id="chapter-toast" aria-live="polite"></div>
       <div id="subtitle" aria-live="polite"></div>
@@ -142,6 +153,7 @@
         <div class="meter"><b id="hpbar"></b></div>
         <div class="energy"><b id="stamina-bar"></b></div>
         <small id="supplies"></small><small id="condition"></small>
+        <small id="health-warning" role="status"></small>
       </div>
       <div class="hud hints">
         <span><kbd>ЛКМ</kbd> Удар</span><span><kbd>E</kbd> Действие</span><span><kbd>R</kbd> Блок</span
@@ -170,57 +182,61 @@
       <span>Соляной тракт</span><strong>Выходим на дорогу…</strong>
     </div>
     <div id="message" role="status"></div>
-    <script src="./interface.js?v=quay2"></script>
-    <script src="./vendor/three.min.js?v=quay2"></script>
-    <script data-pack src="./assets/materials.js?v=quay2"></script>
-    <script src="./effects.js?v=quay2"></script>
-    <script src="./assets/environment/surveys.js?v=quay2"></script>
-    <script src="./world.js?v=quay2"></script>
-    <script data-pack src="./assets/environment/trail-pack.js?v=quay2"></script>
-    <script src="./assets/environment/mountains.js?v=quay2"></script>
-    <script src="./assets/environment/firmament.js?v=quay2"></script>
-    <script src="./atmosphere.js?v=quay2"></script>
-    <script src="./roadside.js?v=quay2"></script>
-    <script src="./landscape.js?v=quay2"></script>
-    <script src="./hamlets.js?v=quay2"></script>
-    <script src="./buildings.js?v=quay2"></script>
-    <script src="./interiors.js?v=quay2"></script>
-    <script src="./county.js?v=quay2"></script>
-    <script data-pack src="./assets/characters/cast-data.js?v=quay2"></script>
-    <script src="./witnesses.js?v=quay2"></script>
-    <script src="./characters.js?v=quay2"></script>
-    <script src="./arms.js?v=quay2"></script>
-    <script src="./sculpt.js?v=quay2"></script>
-    <script src="./cast.js?v=quay2"></script>
-    <script src="./trails.js?v=quay2"></script>
-    <script src="./voice.js?v=quay2"></script>
-    <script src="./cinematography.js?v=quay2"></script>
-    <script src="./chronicle.js?v=quay2"></script>
-    <script data-pack src="./assets/field/recordings.js?v=quay2"></script>
-    <script src="./field-sound.js?v=quay2"></script>
-    <script src="./sound.js?v=quay2"></script>
-    <script src="./settings.js?v=quay2"></script>
-    <script src="./traffic.js?v=quay2"></script>
-    <script src="./convoy.js?v=quay2"></script>
-    <script src="./dairy.js?v=quay2"></script>
-    <script src="./compass.js?v=quay2"></script>
-    <script src="./delivery.js?v=quay2"></script>
-    <script data-pack src="./assets/creatures/skulls.js?v=quay2"></script>
-    <script src="./creatures.js?v=quay2"></script>
-    <script src="./dungeon.js?v=quay2"></script>
-    <script src="./vaults.js?v=quay2"></script>
-    <script src="./assets/exploration/scenery.js?v=quay2"></script>
-    <script src="./dragon.js?v=quay2"></script>
-    <script src="./hunts.js?v=quay2"></script>
-    <script src="./exploration.js?v=quay2"></script>
-    <script src="./progression.js?v=quay2"></script>
-    <script src="./lake-march.js?v=quay2"></script>
-    <script src="./lake-landscape.js?v=quay2"></script>
-    <script src="./lake-wildlife.js?v=quay2"></script>
-    <script src="./assets/oath/voice-clips.js?v=quay2"></script>
-    <script src="./assets/oath/articulation.js?v=quay2"></script>
-    <script src="./oath.js?v=quay2"></script>
-    <script src="./prologue.js?v=quay2"></script>
-    <script src="./game.js?v=quay2"></script>
+    <script src="./interface.js?v=fronts1"></script>
+    <script src="./vendor/three.min.js?v=fronts1"></script>
+    <script data-pack src="./assets/materials.js?v=fronts1"></script>
+    <script src="./effects.js?v=fronts1"></script>
+    <script src="./assets/environment/surveys.js?v=fronts1"></script>
+    <script src="./world.js?v=fronts1"></script>
+    <script data-pack src="./assets/environment/trail-pack.js?v=fronts1"></script>
+    <script src="./assets/environment/mountains.js?v=fronts1"></script>
+    <script src="./assets/environment/firmament.js?v=fronts1"></script>
+    <script src="./atmosphere.js?v=fronts1"></script>
+    <script src="./roadside.js?v=fronts1"></script>
+    <script src="./landscape.js?v=fronts1"></script>
+    <script src="./hamlets.js?v=fronts1"></script>
+    <script src="./buildings.js?v=fronts1"></script>
+    <script src="./interiors.js?v=fronts1"></script>
+    <script src="./county.js?v=fronts1"></script>
+    <script data-pack src="./assets/characters/cast-data.js?v=fronts1"></script>
+    <script src="./witnesses.js?v=fronts1"></script>
+    <script src="./appearance.js?v=fronts1"></script>
+    <script src="./characters.js?v=fronts1"></script>
+    <script src="./arms.js?v=fronts1"></script>
+    <script src="./sculpt.js?v=fronts1"></script>
+    <script src="./cast.js?v=fronts1"></script>
+    <script src="./trails.js?v=fronts1"></script>
+    <script src="./voice.js?v=fronts1"></script>
+    <script src="./cinematography.js?v=fronts1"></script>
+    <script src="./chronicle.js?v=fronts1"></script>
+    <script data-pack src="./assets/field/recordings.js?v=fronts1"></script>
+    <script src="./field-sound.js?v=fronts1"></script>
+    <script src="./sound.js?v=fronts1"></script>
+    <script src="./settings.js?v=fronts1"></script>
+    <script src="./traffic.js?v=fronts1"></script>
+    <script src="./convoy.js?v=fronts1"></script>
+    <script src="./dairy.js?v=fronts1"></script>
+    <script src="./compass.js?v=fronts1"></script>
+    <script src="./delivery.js?v=fronts1"></script>
+    <script data-pack src="./assets/creatures/skulls.js?v=fronts1"></script>
+    <script src="./creatures.js?v=fronts1"></script>
+    <script src="./dungeon.js?v=fronts1"></script>
+    <script src="./vaults.js?v=fronts1"></script>
+    <script src="./assets/exploration/scenery.js?v=fronts1"></script>
+    <script src="./dragon.js?v=fronts1"></script>
+    <script src="./hunts.js?v=fronts1"></script>
+    <script src="./exploration.js?v=fronts1"></script>
+    <script src="./progression.js?v=fronts1"></script>
+    <script src="./lake-march.js?v=fronts1"></script>
+    <script src="./lake-landscape.js?v=fronts1"></script>
+    <script src="./lake-wildlife.js?v=fronts1"></script>
+    <script src="./assets/oath/voice-clips.js?v=fronts1"></script>
+    <script src="./assets/oath/articulation.js?v=fronts1"></script>
+    <script src="./oath.js?v=fronts1"></script>
+    <script src="./prologue.js?v=fronts1"></script>
+    <script src="./assets/roles/voice-clips.js?v=fronts1"></script>
+    <script src="./role-opening.js?v=fronts1"></script>
+    <script src="./impact.js?v=fronts1"></script>
+    <script src="./game.js?v=fronts1"></script>
   </body>
 </html>

@@ -8,7 +8,7 @@ const editionBoot = (() => {
     if (!(script instanceof HTMLScriptElement) || !script.src) return;
     if (event.type === 'error') {
       failed = true;
-      const button = el('begin'),
+      const button = el('role-begin'),
         label = el('start-label');
       if (label) label.textContent = 'Повторить загрузку';
       if (button) {
@@ -33,9 +33,9 @@ const editionBoot = (() => {
   document.addEventListener('error', onResource, true);
   function ready() {
     if (failed) return false;
-    el('start-label').textContent = 'Дело пропавшего обоза';
+    el('start-label').textContent = 'Начать игру';
     el('begin').disabled = false;
-    for (const id of ['oath-begin', 'post-race', 'explore-entry', 'resume', 'audio', 'settings'])
+    for (const id of ['role-begin', 'oath-begin', 'post-race', 'explore-entry', 'resume', 'audio', 'settings'])
       el(id).disabled = false;
     return true;
   }

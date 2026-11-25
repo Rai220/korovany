@@ -222,6 +222,7 @@ function nextQuayShot(index) {
     s = quayShots[index];
   p.shot = index;
   p.elapsed = 0;
+  resetOpeningVoiceClock(p);
   const line = OATH_INTRO_LINES[s.line];
   $('opening-words').textContent = line?.text || '';
   $('opening-speaker').textContent = line?.speaker || '';
@@ -241,6 +242,7 @@ function nextQuayShot(index) {
   }
 }
 function offerLanding() {
+  if (prologue?.kind === 'role') return endRoleOpening(true);
   if (!prologue || prologue.choice || prologue.shot === quayShots.length - 1) return;
   prologue.paused = false;
   realmVoice.stop();
@@ -248,20 +250,40 @@ function offerLanding() {
   nextQuayShot(quayShots.length - 1);
 }
 function pausePrologue() {
+  if (prologue?.kind === 'role') return pauseRoleOpening();
   const p = prologue;
   if (!p || p.choice || p.shot === quayShots.length - 1) return;
   p.paused = !p.paused;
   $('opening').classList.toggle('held', p.paused);
   $('opening-pause').textContent = p.paused ? 'Продолжить' : 'Пауза';
   $('opening-pause').setAttribute('aria-pressed', String(p.paused));
-  if (p.paused) realmVoice.stop();
+  holdOpeningVoice(p);
+}
+function resetOpeningVoiceClock(p) {
+  p.voicePlayhead = -1;
+  p.voiceHeartbeat = performance.now();
+}
+function holdOpeningVoice(p) {
+  if (p.paused) realmVoice.pause();
   else {
-    const line = OATH_INTRO_LINES[quayShots[p.shot].line];
-    if (line) {
-      p.elapsed = 0;
-      oathSpeak(line.id);
-    }
+    p.voiceHeartbeat = performance.now();
+    realmVoice.resume();
   }
+}
+function openingCanCut(p, duration, speaker, text) {
+  if (p.paused) return false;
+  const voiced = speaker && realmVoice.active && realmVoice.speaker === speaker && realmVoice.words === text;
+  if (voiced && realmVoice.playhead > p.voicePlayhead + 0.012) {
+    p.voicePlayhead = realmVoice.playhead;
+    p.voiceHeartbeat = performance.now();
+  }
+  if (p.elapsed < duration) return false;
+  if (!voiced) return true;
+  // Loading and decoding can outlast the planned camera movement. Give a stalled audio stream
+  // twelve seconds since its last real progress; a line that keeps playing always reaches its end.
+  if (performance.now() - p.voiceHeartbeat < 12000) return false;
+  realmVoice.stop();
+  return true;
 }
 function landFromPrologue(choice) {
   const p = prologue;
@@ -277,6 +299,7 @@ function landFromPrologue(choice) {
   $('opening').classList.add('departing');
 }
 function endPrologue(enterWorld) {
+  if (prologue?.kind === 'role') return endRoleOpening(enterWorld);
   const p = prologue;
   if (!p) return;
   p.v.scene.remove(p.group);
@@ -315,13 +338,15 @@ function sampleShot(points, u, out) {
   return out.set(...points[0]).lerp(new THREE.Vector3(...points[1]), u);
 }
 function drawPrologue(dt) {
+  if (prologue?.kind === 'role') return drawRoleOpening(dt);
   const p = prologue;
   if (!p.paused) {
     p.elapsed += dt;
     p.time += dt;
   }
   let s = quayShots[p.shot];
-  if (!p.choice && p.elapsed >= s.seconds) {
+  const line = OATH_INTRO_LINES[s.line];
+  if (!p.choice && openingCanCut(p, s.seconds, line?.speaker, line?.text)) {
     nextQuayShot(p.shot + 1);
     s = quayShots[p.shot];
   }

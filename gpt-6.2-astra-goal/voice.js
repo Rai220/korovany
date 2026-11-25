@@ -108,7 +108,9 @@ const realmVoice = (() => {
   const player = new Audio();
   player.preload = 'auto';
   let generation = 0;
+  let playbackRequest = 0;
   let speaking = false;
+  let suspended = false;
   let unlocked = false;
   let who = '';
   let words = '';
@@ -131,18 +133,41 @@ const realmVoice = (() => {
   }
   function changed() {
     window.dispatchEvent(new CustomEvent('realmvoicechange', {
-      detail: { active: speaking, speaker: who, text: words },
+      detail: { active: speaking && !suspended, speaker: who, text: words },
     }));
   }
   function stop() {
     generation++;
+    playbackRequest++;
     player.onended = player.onerror = null;
     player.pause();
     const wasSpeaking = speaking;
     speaking = false;
+    suspended = false;
     who = '';
     words = '';
     if (wasSpeaking) changed();
+  }
+  function startPlayer() {
+    const request = ++playbackRequest;
+    player.play().catch(() => {
+      if (request === playbackRequest) stop();
+    });
+  }
+  function pause() {
+    if (!speaking || suspended) return false;
+    playbackRequest++;
+    suspended = true;
+    player.pause();
+    changed();
+    return true;
+  }
+  function resume() {
+    if (!speaking || !suspended || !volume() || document.hidden) return false;
+    suspended = false;
+    startPlayer();
+    changed();
+    return true;
   }
   function play(speaker, text) {
     stop();
@@ -169,7 +194,7 @@ const realmVoice = (() => {
       player.muted = false;
       player.onended = advance;
       player.onerror = stopCurrent;
-      player.play().catch(stopCurrent);
+      if (!suspended) startPlayer();
     }
     advance();
     return totalSeconds(playlist);
@@ -191,17 +216,21 @@ const realmVoice = (() => {
     else player.volume = volume();
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
+    if (!document.hidden) return;
+    if (typeof prologue !== 'undefined' && prologue) pause();
+    else stop();
   });
   window.addEventListener('pagehide', stop);
   return {
     play,
     stop,
+    pause,
+    resume,
     refresh,
     unlock,
     register,
     get active() {
-      return speaking;
+      return speaking && !suspended;
     },
     get speaker() {
       return who;

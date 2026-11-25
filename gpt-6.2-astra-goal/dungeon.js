@@ -645,8 +645,6 @@ function dungeonTick(dt) {
   g.air = Math.max(0, g.air + g.vy * dt);
   if (!g.air) g.vy = 0;
   swing = Math.max(0, swing - dt * (g.weapon === 'bow' && hasTalent('quiver') ? 3 : g.heavy ? 1.35 : 2));
-  flash = Math.max(0, flash - dt);
-  $('hurt').style.opacity = flash;
   if (g.bleed) {
     g.health = Math.max(0, g.health - g.bleed * dt);
     if (!g.health) {

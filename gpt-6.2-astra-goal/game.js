@@ -10,7 +10,6 @@ let frame = 0,
   hudTime = 0,
   swing = 0,
   walking = 0,
-  flash = 0,
   noticeTime = 0,
   lockBefore = false;
 const distance = (a, b) => Math.hypot(wrapped(a.x - b.x), wrapped(a.z - b.z));
@@ -32,10 +31,10 @@ function actor(kind, team, x, z, tag = '') {
     z,
     hp: team === 'friend' ? 90 : team === 'hostile' ? 58 : 75,
     angle: 0,
-    cd: 1.4,
     walk: false,
     tag,
   };
+  a.cd = 0.32 + actorTrait(a, 18) * 1.06;
   game.actors.push(a);
   return a;
 }
@@ -59,6 +58,7 @@ function newGame() {
     [x, z] = CENTERS[s.place];
   game = {
     version: 2,
+    aiSeed: crypto.getRandomValues(new Uint32Array(1))[0],
     training: newTraining(),
     inside: null,
     roomX: 0,
@@ -200,7 +200,6 @@ function start(load, post = false, explore = false, opening = false) {
   active = true;
   keys.clear();
   swing = 0;
-  flash = 0;
   walking = 0;
   last = 0;
   lodTime = 0;
@@ -215,11 +214,12 @@ function start(load, post = false, explore = false, opening = false) {
   $('footer').hidden = true;
   document.querySelector('.bar').hidden = true;
   $('play').hidden = false;
-  $('hurt').style.opacity = 0;
+  resetImpacts(game);
   applyGraphics();
   $('touch-order').hidden = game.side !== 2;
   notify(load ? 'Кампания загружена' : '', 2);
-  if (opening) beginPrologue();
+  if (opening === 'role') beginRoleOpening();
+  else if (opening) beginPrologue();
   drawHud();
   frame = requestAnimationFrame(loop);
   if (post) postDispatch();
@@ -314,6 +314,7 @@ function menu() {
   if (document.pointerLockElement) document.exitPointerLock();
   closeModal();
   $('play').hidden = true;
+  $('entry-loading').hidden = true;
   $('menu').hidden = false;
   $('footer').hidden = false;
   document.querySelector('.bar').hidden = false;
@@ -402,6 +403,7 @@ function pauseGame() {
 }
 function death() {
   game.health = 0;
+  resetImpacts(game);
   modal(
     'Кампания окончена',
     'Герой пал',
@@ -436,12 +438,14 @@ function goal() {
   const current = storyGoal();
   if (current) return current;
   const g = game,
-    tag = (n) => g.actors.find((a) => a.tag === n && a.hp > 0),
-    merchant = g.actors.find((a) => a.tag === 'shop' && zoneAt(a.x, a.z) === zoneAt(g.x, g.z));
+    tag = (n) => g.actors.find((a) => a.tag === n && a.hp > 0);
   if (g.side === 0)
     return (
       [
-        { text: 'Отбейте набег на лесное поселение', target: tag('first') },
+        {
+          text: 'Защитите лесные дома · Осталось ' + g.actors.filter(a => a.tag === 'first' && a.hp > 0).length + ' из 2',
+          target: tag('first'),
+        },
         { text: 'Ограбьте караван на торговом тракте', target: g.wagon },
         {
           text: 'Доставьте добычу лесному торговцу',
@@ -452,7 +456,7 @@ function goal() {
   if (g.side === 1)
     return (
       [
-        { text: 'Получите приказ у командира', target: tag('commander') },
+        { text: 'Найдите капитана Арду · E — получить приказ', target: tag('commander') },
         { text: 'Защитите ворота от шпиона и партизана', target: tag('spy') },
         { text: 'Совершите набег на горный форт', target: tag('garrison') },
         { text: 'Доложите командиру о победе', target: tag('commander') },
@@ -464,7 +468,7 @@ function goal() {
   }
   return {
     text: g.stage ? 'Форт под вашей властью · Q — новый приказ' : 'Отдайте дружине приказ клавишей Q',
-    target: g.stage ? null : merchant && g.actors.find((a) => a.team === 'friend' && a.hp > 0),
+    target: g.stage ? null : g.actors.find((a) => a.team === 'friend' && a.hp > 0),
   };
 }
 function targetBearing(t) {
@@ -525,6 +529,7 @@ function drawHud() {
         ? targetBearing(obj.target) + '  До цели ' + Math.round(distance(g, obj.target)) + ' м'
         : '';
   trainingHUD();
+  drawImpactHud(g);
   $('hp').textContent = Math.ceil(g.health) + ' / ' + maxHealth();
   $('hpbar').style.width = (100 * g.health) / maxHealth() + '%';
   $('stamina-bar').style.width = g.stamina + '%';
@@ -1053,10 +1058,11 @@ function wound() {
 function hitPlayer(d, attacker) {
   if (game.evade > 0) return;
   const player = game.march || (game.dungeon ? dungeonPlayer() : game);
+  const offset = (v) => game.march || game.dungeon ? v : wrapped(v);
   if (
     attacker &&
     game.blockTime > 0 &&
-    Math.abs(angles(Math.atan2(wrapped(player.x - attacker.x), wrapped(player.z - attacker.z)) - game.yaw)) <
+    Math.abs(angles(Math.atan2(offset(player.x - attacker.x), offset(player.z - attacker.z)) - game.yaw)) <
       1.28 &&
     game.stamina >= 7
   ) {
@@ -1065,7 +1071,8 @@ function hitPlayer(d, attacker) {
     game.stamina -= parry ? 3 : 7;
     if (parry && hasTalent('riposte')) game.riposteLeft = 3;
     attacker.cd = parry ? 2.7 : 1.5;
-    if (!game.dungeon)
+    if (attacker.mind) attacker.mind.ready = Math.max(attacker.mind.ready, attacker.cd);
+    if (!game.dungeon && !game.march)
       fieldImpact(
         game.x - Math.sin(game.yaw) * 0.85,
         walkingSurface(game.x, game.z) + 1.45,
@@ -1081,15 +1088,10 @@ function hitPlayer(d, attacker) {
     return;
   }
   const g = game;
-  g.health = Math.max(0, g.health - (hasTalent('bulwark') ? Math.max(1, Math.round(d * 0.76)) : d));
+  const damage = hasTalent('bulwark') ? Math.max(1, Math.round(d * 0.76)) : d;
+  g.health = Math.max(0, g.health - damage);
   g.hits++;
-  flash = 0.42;
-  if (attacker) {
-    const a = angles(Math.atan2(-wrapped(attacker.x - player.x), -wrapped(attacker.z - player.z)) - g.yaw);
-    $('hit-arc').style.transform = 'rotate(' + -a + 'rad)';
-    $('hit-arc').animate([{ opacity: 0.97 }, { opacity: 0 }], { duration: 590 });
-  }
-  tone(94, 0.14, 'triangle', 0.09, 45);
+  receiveImpact(g, attacker, damage);
   if (g.health <= 0) {
     death();
     return;
@@ -1120,6 +1122,7 @@ function hurtActor(a, amount, byPlayer, type = 'melee') {
   }
   if (game.dungeon) amount = dungeonArmor(a, amount, type);
   a.hp = Math.max(0, a.hp - amount);
+  if (byPlayer && (type === 'melee' || type === 'heavy')) bladeContact(a, type === 'heavy');
   if (game.dungeon) {
     a.alert = 12;
     a.hitAt = gameTime;
@@ -1257,6 +1260,7 @@ function attack(heavy = false) {
     if (target.team === 'escort')
       g.actors.filter((a) => a.tag === 'escort' && a.hp > 0).forEach((a) => (a.team = 'hostile'));
     target.team = 'hostile';
+    if (fieldGuardStops(target, heavy)) return;
     if (
       target.kind === 'regent' &&
       target.hp < 90 &&
@@ -1430,15 +1434,6 @@ function stepActor(a, dt) {
     a.stagger -= dt;
     return;
   }
-  if (a.windup > 0) {
-    a.angle = Math.atan2(wrapped(g.x - a.x), wrapped(g.z - a.z));
-    a.windup -= dt;
-    if (a.windup <= 0 && distance(a, g) < 3.15 && g.air < 1.35 && visiblePath(a, g)) {
-      hitPlayer(a.kind === 'regent' ? 16 : 8, a);
-      if (!g.health) return;
-    }
-    return;
-  }
   if (a.team === 'civilian') {
     wander(a, dt);
     return;
@@ -1451,32 +1446,12 @@ function stepActor(a, dt) {
     if (distance(a, g) < 4.2) a.angle = Math.atan2(wrapped(g.x - a.x), wrapped(g.z - a.z));
     return;
   }
-  let target = a.team === 'hostile' && distance(a, g) < (a.tag === 'first' ? 52 : 26) ? g : null;
-  for (const b of g.actors) {
-    if (
-      b.hp > 0 &&
-      b.team === (a.team === 'friend' ? 'hostile' : 'friend') &&
-      distance(a, b) < 14 &&
-      (!target || distance(a, b) < distance(a, target))
-    )
-      target = b;
+  if (fieldCombat(a, dt)) return;
+  if (a.tag === 'escort' && g.wagon.convoy?.alarm) {
+    followWagon(a, dt);
+    return;
   }
-  if (target) {
-    const d = distance(a, target);
-    if (d > 2.05 || !visiblePath(a, target)) {
-      const pace = a.team === 'friend' ? 4.3 : a.tag === 'escort' && g.wagon.convoy?.alarm ? 3.84 : 2.45;
-      advance(a, target, pace, dt);
-    } else {
-      a.angle = Math.atan2(wrapped(target.x - a.x), wrapped(target.z - a.z));
-      if (!a.cd) {
-        a.cd = 1.5 + Math.random() * 0.6;
-        if (target === g) {
-          a.windup = a.kind === 'regent' ? 0.72 : 0.54;
-          if (!g.health) return;
-        } else hurtActor(target, a.team === 'friend' ? 17 : 12, false);
-      }
-    }
-  } else if (a.team === 'friend' && g.order !== 'hold') {
+  if (a.team === 'friend' && g.order !== 'hold') {
     let t = g;
     if (g.order === 'raid' && g.raid >= 0) {
       const [x, z] = CENTERS[g.raid];
@@ -1548,6 +1523,7 @@ function tickGuard(dt) {
   return block;
 }
 function step(dt) {
+  stepImpacts(game, dt);
   if (typeof advanceCountryClock === 'function') advanceCountryClock(game, dt);
   if (game.march) return marchTick(dt);
   if (game.delivery) return deliveryTick(dt);
@@ -1557,13 +1533,15 @@ function step(dt) {
   if (!realmVoice.active && gameTime > Math.max(7, subtitleUntil + 2)) {
     if (game.weapon === 'bow' && !game.story.aimTip) {
       game.story.aimTip = true;
-      speak('Дозорная Лиора', 'Целься чуть выше. Стрела в полёте опускается.');
+      if (game.side === 0) speak('Дозорная Лиора', 'Целься чуть выше. Стрела в полёте опускается.');
+      else notify('На расстоянии цельтесь выше — стрела летит по дуге.', 4);
     } else if (
       game.actors.some((a) => a.hp > 0 && a.team === 'hostile' && distance(a, game) < 6) &&
       !game.story.shieldTip
     ) {
       game.story.shieldTip = true;
-      speak('Капитан Арда', 'Подними щит, когда увидишь замах.');
+      if (game.side === 1) speak('Капитан Арда', 'Подними щит, когда увидишь замах.');
+      else notify('Враг замахивается · R — поднять щит', 3);
     }
   }
   const g = game;
@@ -1612,8 +1590,6 @@ function step(dt) {
   }
   if (g.air <= 0) g.air = g.vy = 0;
   swing = Math.max(0, swing - dt * (g.weapon === 'bow' && hasTalent('quiver') ? 3 : g.heavy ? 1.35 : 2));
-  flash = Math.max(0, flash - dt);
-  $('hurt').style.opacity = flash;
   if (g.bleed) {
     g.health -= g.bleed * dt;
     if (g.health <= 0) {
@@ -1682,6 +1658,7 @@ function loop(now) {
     drawHud();
     hudTime = 0.12;
   }
+  drawImpactHud(game);
   world.display(game, gameTime, swing, prefs.motion ? bob : 0, navigationGoal().target);
   $('entry-loading').hidden = true;
   frame = requestAnimationFrame(loop);
@@ -1709,6 +1686,7 @@ function selectEntry(load, post = false, explore = false, opening = false) {
   }, 32);
 }
 editionBoot.ready();
+$('role-begin').onclick = () => selectEntry(false, false, false, 'role');
 $('oath-begin').onclick = () => selectEntry(false, false, false, true);
 $('begin').onclick = () => selectEntry(false);
 $('post-race').onclick = () => selectEntry(false, true);
@@ -1729,7 +1707,7 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         pausePrologue();
       }
-      if (prologue.shot === quayShots.length - 1 && ['Digit1', 'Digit2'].includes(e.code))
+      if (prologue.kind !== 'role' && prologue.shot === quayShots.length - 1 && ['Digit1', 'Digit2'].includes(e.code))
         landFromPrologue(e.code === 'Digit1' ? 'token' : 'rope');
     }
     return;

@@ -24,7 +24,19 @@ function castImage(key, linear = false) {
   return castImages.get(key);
 }
 function castSurface(name, style) {
-  const id = [name, style.palette, style.hairColor, style.closedHelm].join('/');
+  if (style.person && name === 'arms') return fieldShield(style);
+  if (name === 'field-cloth' || name === 'field-edge') return fieldTextile(style, name === 'field-edge');
+  const face = name.startsWith('MI_Superhero') || name.startsWith('MI_Regular'),
+    skinIndex = face || name === 'ear' ? style.person?.skin : null;
+  const dyed = name === 'MI_Peasant' || name === 'MI_Ranger';
+  const id = [
+    name,
+    style.palette,
+    name.startsWith('MI_Hair') ? style.hairColor : '',
+    style.closedHelm,
+    skinIndex,
+    dyed ? style.person?.dye : '',
+  ].join('/');
   if (castSurfaces.has(id)) return castSurfaces.get(id);
   if (['indigo', 'peat', 'felt'].includes(name)) return wovenWool(name);
   const src = borderCast.mats[name];
@@ -44,7 +56,11 @@ function castSurface(name, style) {
           ? style.witness === 'vera'
             ? 0xa2a49a
             : 0x9c927e
-          : 0xffffff,
+          : skinIndex != null
+            ? fieldSkin[skinIndex]
+            : dyed && style.person
+              ? [0xd4d0b5, 0xd1adb0, 0xbcc9a8, 0xb5c2cb][style.person.dye]
+              : 0xffffff,
       roughness: name === 'MI_Eyes' ? 0.25 : 0.91,
       metalness: src.metal * 0.74,
       side: THREE.DoubleSide,
@@ -136,7 +152,7 @@ function castSurface(name, style) {
       brass: 0xb49b60,
       black: 0x343335,
       leather: 0x4b3429,
-      ear: 0xaf7f5f,
+      ear: skinIndex == null ? 0xaf7f5f : [0xb8876e, 0xb38067, 0xa16f56, 0x8c5a44, 0x714837][skinIndex],
       silk: style.palette === 'ash' ? 0x5f3342 : 0x3e5261,
       blade: 0xc4d1d1,
     };
@@ -347,6 +363,7 @@ function castArmor(style, add) {
       ),
     );
   }
+  if (style.person) fitFieldGear(style, { plate, line });
   if (style.witness) tailorWitness(style, { piece, line, geometry, drop });
   if (style.plate) {
     const chest = 'spine_03';
@@ -484,6 +501,16 @@ function castArmor(style, add) {
       y + 0.0776 * down - 0.023 * across + 0.9967 * rise,
       z - 0.9762 * down - 0.2046 * across + 0.0713 * rise,
     ];
+    if (style.person) {
+      const shape = frontierCuts[style.person.cut].shield;
+      for (const point of outline) {
+        const tip = Math.max(0, point[0]) / 0.269;
+        point[0] *= [1, 0.92, 0.8, 1.14, 0.94, 1.08][shape];
+        point[1] *=
+          [1.06, 0.91, 1.2, 0.94, 1.1, 0.88][shape] *
+          (1 + (shape === 2 ? 0.18 : shape === 1 ? -0.12 : 0) * tip);
+      }
+    }
     const ring = outline.map(([down, across]) =>
       place(down * 1.14, across * 1.18, (1 - (across / 0.18) ** 2) * 0.027),
     );
@@ -496,7 +523,10 @@ function castArmor(style, add) {
   }
 }
 function costumeGeometry(style) {
-  if (castCostumes.has(style.id)) return castCostumes.get(style.id);
+  // Palace guards and hired escorts share the same tailoring. Their dye, face tint and bearing
+  // belong to an individual and do not require a duplicate skinned vertex buffer.
+  const key = style.person ? style.id.replace(/^(escort|sentry)\//,'guard/') : style.id;
+  if (castCostumes.has(key)) return castCostumes.get(key);
   const groups = new Map(),
     add = (mat, part) => {
       if (!groups.has(mat)) groups.set(mat, []);
@@ -529,6 +559,12 @@ function costumeGeometry(style) {
             a.position[i] = x * (1 + jaw * lower);
             if (z > 0.055)
               a.position[i + 2] += nose * Math.exp(-((x / 0.022) ** 2 + ((y - eye + 0.033) / 0.031) ** 2));
+            if (style.person && y > eye - 0.17 && y < eye + 0.16) {
+              const q = fieldFace(a.position[i], y, a.position[i + 2], eye, frontierCuts[style.person.cut]);
+              a.position[i] = q[0];
+              a.position[i + 1] = q[1];
+              a.position[i + 2] = q[2];
+            }
             if (style.closedHelm && d.m.startsWith('MI_Superhero') && y > eye + 0.022) {
               // Pull the hidden crown inside the metal above the visor, retaining the exposed face and eyes.
               const crown = THREE.MathUtils.smoothstep(y, eye + 0.022, eye + 0.089);
@@ -606,24 +642,26 @@ function costumeGeometry(style) {
     wear('cuirass');
     if (style.helm)
       wear(
-        style.id.startsWith('firekeeper') || style.id.startsWith('lord')
-          ? 'wawel'
-          : style.captain
-            ? 'viking'
-            : 'sallet',
+        style.helmetModel ||
+          (style.id.startsWith('firekeeper') || style.id.startsWith('lord')
+            ? 'wawel'
+            : style.captain
+              ? 'viking'
+              : 'sallet'),
       );
   }
   castArmor(style, add);
   const kit = [...groups].map(([material, parts]) => {
     const g = combineCast(parts);
     if (style.witness) shapeWitnessFace(g, material, style);
-    return [g, castSurface(material, style)];
+    return [g, material];
   });
-  castCostumes.set(style.id, kit);
+  castCostumes.set(key, kit);
   return kit;
 }
-function appearance(kind, tag = '', unarmed = false) {
+function appearance(kind, tag = '', unarmed = false, identity = null) {
   const style = roleCostume(kind, tag);
+  dressFieldActor(style, personalCut(kind, tag, identity));
   if (tag === 'hero' && !unarmed && !style.shield) {
     style.shield = true;
     style.id += '/shield';
@@ -645,8 +683,9 @@ function appearance(kind, tag = '', unarmed = false) {
   bones.forEach((b, i) => (rig.p[i] < 0 ? actor : bones[rig.p[i]]).add(b));
   actor.updateMatrixWorld(true);
   const skel = new THREE.Skeleton(bones);
-  for (const [geo, mat] of costumeGeometry(style)) {
-    const m = new THREE.SkinnedMesh(geo, mat);
+  for (const [geo, surface] of costumeGeometry(style)) {
+    const m = new THREE.SkinnedMesh(geo, castSurface(surface, style));
+    m.name = surface;
     m.bind(skel);
     m.castShadow = m.receiveShadow = true;
     m.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0), 2.0);
@@ -655,7 +694,8 @@ function appearance(kind, tag = '', unarmed = false) {
   actor.userData.actorStyle = style;
   actor.userData.mixer = new THREE.AnimationMixer(actor);
   actor.userData.skeleton = skel;
-  actor.scale.setScalar(kind === 'regent' ? 1.1 : 1);
+  if (style.person) actor.scale.set(style.person.breadth, style.person.height, style.person.depth);
+  else actor.scale.setScalar(kind === 'regent' ? 1.1 : 1);
   poseCharacter(actor, style.plate && !unarmed ? 'watch' : 'idle', 0);
   return actor;
 }
@@ -849,60 +889,99 @@ function plantTravelFeet(actor, t) {
 // The legs retain their measured walking clip. Keep the original arm rotations for
 // the next mixer sample, including frames on which a constant track is not written.
 function carryEscortArms(actor, dt, marching) {
-  const u=actor.userData;
-  const amount=THREE.MathUtils.damp(u.carryAmount || 0,marching ? .68 : 0,12,dt);
-  u.carryAmount=amount;
-  if(amount<.002)return;
-  if(!u.carryBones){
-    const sex=u.actorStyle.sex,rig=borderCast.rigs[sex],clip=borderCast.clips[sex].armed;
-    u.carryBones=['clavicle_l','clavicle_r','upperarm_l','upperarm_r','lowerarm_l','lowerarm_r','hand_l','hand_r'].map(name=>{
-      const vals=castValues(clip.q[rig.bones.indexOf(name)],Int16Array);
-      const at=Math.floor((vals.length/4-1)*.47)*4;
-      return {bone:u.skeleton.getBoneByName(name),pose:new THREE.Quaternion().fromArray(vals,at).normalize()};
+  const u = actor.userData;
+  const ready = u.actorStyle.person ? frontierCuts[u.actorStyle.person.cut].carry : 0.68;
+  const amount = THREE.MathUtils.damp(u.carryAmount || 0, marching ? ready : 0, 12, dt);
+  u.carryAmount = amount;
+  if (amount < 0.002) return;
+  if (!u.carryBones) {
+    const sex = u.actorStyle.sex,
+      rig = borderCast.rigs[sex],
+      clip = borderCast.clips[sex].armed;
+    u.carryBones = [
+      'clavicle_l',
+      'clavicle_r',
+      'upperarm_l',
+      'upperarm_r',
+      'lowerarm_l',
+      'lowerarm_r',
+      'hand_l',
+      'hand_r',
+    ].map((name) => {
+      const vals = castValues(clip.q[rig.bones.indexOf(name)], Int16Array);
+      const at = Math.floor((vals.length / 4 - 1) * 0.47) * 4;
+      return {
+        bone: u.skeleton.getBoneByName(name),
+        pose: new THREE.Quaternion().fromArray(vals, at).normalize(),
+      };
     });
   }
-  for(const {bone,pose} of u.carryBones){
-    u.turnBones.push([bone,bone.quaternion.clone()]);
-    bone.quaternion.slerp(pose,amount*(bone.name.startsWith('clavicle')?.42:1));
+  for (const { bone, pose } of u.carryBones) {
+    u.turnBones.push([bone, bone.quaternion.clone()]);
+    bone.quaternion.slerp(pose, amount * (bone.name.startsWith('clavicle') ? 0.42 : 1));
   }
 }
 function animateCastActor(m, a, t, fellBeforeLoad) {
   const u = m.userData;
   u.phase = a.id;
   if (u.turnBones) {
-    for (const [bone, q] of u.turnBones) bone.quaternion.copy(q);
+    for (let i = u.turnBones.length - 1; i >= 0; i--) {
+      const [bone, q] = u.turnBones[i];
+      bone.quaternion.copy(q);
+    }
     u.turnBones.length = 0;
   }
   if (a.hp <= 0) {
+    if (u.fixedDeath) return;
     poseCharacter(m, 'death', t, 1.18);
     if (fellBeforeLoad) {
+      // A corpse loaded from a save must already be in the final pose, including any former crossfade.
+      u.mixer.stopAllAction();
+      u.action.reset().setLoop(THREE.LoopOnce, 1).play();
+      u.action.clampWhenFinished = true;
       u.action.time = u.action.getClip().duration;
       u.mixer.update(0);
+      u.fixedDeath = true;
     }
     return;
   }
   let state = u.actorStyle.plate ? 'watch' : 'idle',
     rate = 1;
-  if ((u.windup > 0 && !(a.windup > 0)) || (u.cool !== undefined && a.cd > u.cool + 0.24 && !a.windup)) {
-    u.strikeUntil = t + 0.61;
+  const serial = a.strikeSerial || 0,
+    managed = Boolean(a.mind) || Number.isInteger(a.strikeSerial);
+  const release = managed
+    ? u.strikeSerial !== undefined && serial > u.strikeSerial
+    : (u.windup > 0 && !(a.windup > 0)) || (u.cool !== undefined && a.cd > u.cool + 0.24 && !a.windup);
+  if (a.windup > 0) u.attackType = a.mind?.attack || null;
+  if (release && !(a.stagger > 0)) {
+    u.strikeStart = t;
+    u.strikeUntil = t + (fieldActions[u.attackType]?.duration || 0.61);
     u.counter = (u.counter || 0) + 1;
   }
+  u.strikeSerial = serial;
   u.windup = a.windup || 0;
   u.cool = a.cd;
-  if (a.stagger > 0) state = 'stagger';
-  else if (a.windup > 0) {
+  if (a.stagger > 0) {
+    state = 'stagger';
+    u.strikeUntil = t;
+  } else if (a.windup > 0) {
     state = 'block';
     rate = 0.78;
   } else if (u.strikeUntil > t) {
-    state = u.counter % 2 ? 'slash' : 'slashBack';
+    state = fieldActions[u.attackType] ? 'armed' : u.counter % 2 ? 'slash' : 'slashBack';
     rate = 1.35;
-  } else if ((a.gaitSpeed || 0) > 0.13 || a.walk) {
+  } else if (a.mind?.mode === 'guard' && !((a.gaitSpeed || 0) > 0.26)) state = 'block';
+  else if ((a.gaitSpeed || 0) > 0.13 || a.walk) {
     const speed = a.gaitSpeed ?? 1.45;
     state = speed > (u.state === 'run' ? 2.24 : 2.68) ? 'run' : 'walk';
     // Native toe travel measured from the two supplied clips while the sole is loaded.
     const female = u.actorStyle.sex === 'Female';
     const groundSpeed = state === 'run' ? (female ? 5.78 : 6.0) : female ? 0.984 : 1.008;
-    rate = clamp(speed / groundSpeed, 0.39, state === 'run' ? 1.55 : 2.1);
+    rate = clamp(
+      speed / (groundSpeed * (u.actorStyle.person?.depth || 1)),
+      0.39,
+      state === 'run' ? 1.55 : 2.1,
+    );
   }
 
   const elapsed = clamp(t - (u.previousTime ?? t), 0, 0.18);
@@ -911,6 +990,23 @@ function animateCastActor(m, a, t, fellBeforeLoad) {
     u.turnBones ||= [];
     if (a.tag === 'escort')
       carryEscortArms(m, elapsed, (state === 'walk' || state === 'run') && a.team === 'escort');
+    fieldCarriage(m, state, a, t);
+    if (state === 'block' && a.mind?.mode === 'guard' && !(a.windup > 0)) {
+      // In the supplied block clip the shield is fully raised between 16 and 54 percent.
+      u.action.time = 0.34 + 0.1 * Math.sin(t * 2.1 + (u.actorStyle.person?.phase || 0));
+      u.mixer.update(0);
+    }
+    if (u.actorStyle.blade && fieldActions[u.attackType] && !(a.stagger > 0)) {
+      if (a.windup > 0)
+        fieldAttackPose(m, u.attackType, clamp(1 - a.windup / (a.windDuration || 0.7), 0, 1), null);
+      else if (u.strikeUntil > t)
+        fieldAttackPose(
+          m,
+          u.attackType,
+          1,
+          clamp((t - u.strikeStart) / fieldActions[u.attackType].duration, 0, 1),
+        );
+    }
     const pivot = (a.gaitSpeed || 0) < 0.26 && Math.abs(a.turnRate || 0) > 0.46 && !(a.stagger > 0);
     const travelling = state === 'walk' || state === 'run' || state === 'block' || u.strideFeet;
     if (!pivot && travelling && m.position.distanceToSquared(world.camera.position) < 22 ** 2)
